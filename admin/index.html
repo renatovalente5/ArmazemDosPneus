@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gestão · Armazém dos Pneus</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="../assets/img/favicon.ico" sizes="any" />
+  <link rel="stylesheet" href="../assets/css/base.css" />
+  <link rel="stylesheet" href="../assets/css/styles.css" />
+  <style>
+    .admin{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;background:var(--grad-dark)}
+    .admin__box{max-width:520px;width:100%;background:#fff;border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:clamp(1.6rem,5vw,2.6rem);text-align:center}
+    .admin__logo{height:64px;width:auto;margin:0 auto 1.2rem}
+    .admin__box h1{font-size:1.6rem;margin-bottom:.5rem}
+    .admin__box p{color:var(--muted);margin-bottom:1.4rem;text-transform:none}
+    .admin__box .btn{width:100%}
+    .admin__steps{text-align:left;margin-top:1.6rem;padding-top:1.4rem;border-top:1px solid var(--line);font-size:.9rem;color:var(--body)}
+    .admin__steps li{margin:.4rem 0 .4rem 1.1rem;list-style:decimal}
+    .admin__back{display:inline-block;margin-top:1.2rem;font-size:.85rem;color:var(--muted)}
+  </style>
+</head>
+<body>
+  <main class="admin">
+    <div class="admin__box">
+      <img class="admin__logo" src="../assets/img/logo.png" alt="Armazém dos Pneus" />
+      <h1>Gestão da loja</h1>
+      <p>Adicione, edite ou remova produtos, imagens e definições — sem tocar em código. As alterações aparecem no site em 1–2 minutos.</p>
+      <a class="btn btn--primary btn--lg" href="https://app.pagescms.org/renatovalente5/ArmazemDosPneus/main/collection/products" target="_blank" rel="noopener">Entrar na Gestão →</a>
+      <ol class="admin__steps">
+        <li>Clique em <strong>Entrar na Gestão</strong>.</li>
+        <li>Inicie sessão (por email/convite — não precisa de saber programar).</li>
+        <li>Edite <strong>Produtos</strong>, <strong>Imagens do site</strong> ou <strong>Definições</strong> e clique em <em>Save</em>.</li>
+      </ol>
+      <a class="admin__back" href="../">← Voltar ao site</a>
+    </div>
+  </main>
+</body>
+</html>

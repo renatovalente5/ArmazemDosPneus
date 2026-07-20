@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /checkout.html
+
+Sitemap: https://renatovalente5.github.io/ArmazemDosPneus/sitemap.xml

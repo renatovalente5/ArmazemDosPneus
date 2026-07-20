@@ -1,0 +1,112 @@
+# =====================================================================
+# Backoffice (Pages CMS) — Armazém dos Pneus
+# Gere Produtos, Imagens do site e Definições, sem tocar em código.
+# Docs: https://pagescms.org/docs/
+# =====================================================================
+
+media:
+  input: assets/uploads
+  output: /assets/uploads
+
+settings:
+  merge: false
+
+content:
+  # ---------------- PRODUTOS ----------------
+  - name: products
+    label: Produtos
+    type: file
+    path: data/products.json
+    icon: shopping-bag
+    fields:
+      - name: products
+        label: Produtos
+        type: object
+        list: true
+        fields:
+          - { name: name, label: Nome, type: string }
+          - name: category
+            label: Categoria
+            type: select
+            options:
+              values: [Pneus Novos, Pneus Seminovos, Jantes, Baterias, Óleos, Acessórios]
+          - { name: brand, label: Marca, type: string }
+          - { name: size, label: "Medida / Especificação", type: string }
+          - name: season
+            label: Estação (pneus)
+            type: select
+            options:
+              values: ["", Verão, Inverno, "4 Estações"]
+          - name: condition
+            label: Estado
+            type: select
+            options:
+              values: [Novo, Seminovo]
+          - { name: price, label: "Preço (ex.: 89,90 €)", type: string }
+          - { name: weight_kg, label: "Peso (kg) — para portes", type: number }
+          - { name: image, label: Imagem, type: image }
+          - { name: label_fuel, label: "Etiqueta UE — Combustível (A-E)", type: string }
+          - { name: label_grip, label: "Etiqueta UE — Aderência (A-E)", type: string }
+          - { name: label_noise, label: "Etiqueta UE — Ruído (ex.: 71 dB)", type: string }
+          - { name: description, label: Descrição, type: text }
+          - { name: featured, label: Mostrar como destaque, type: boolean }
+          - { name: available, label: Disponível (à venda), type: boolean }
+
+  # ---------------- IMAGENS DO SITE ----------------
+  - name: content
+    label: Imagens do site
+    type: file
+    path: data/content.json
+    icon: image
+    fields:
+      - name: hero
+        label: Destaque (topo)
+        type: object
+        fields:
+          - { name: image, label: Imagem do topo, type: image }
+      - name: sobre
+        label: Sobre nós
+        type: object
+        fields:
+          - { name: image, label: Imagem da secção "Sobre", type: image }
+
+  # ---------------- DEFINIÇÕES ----------------
+  - name: settings
+    label: Definições
+    type: file
+    path: data/settings.json
+    icon: settings
+    fields:
+      - name: store
+        label: Loja
+        type: object
+        fields:
+          - { name: name, label: Nome, type: string }
+          - { name: phone, label: Telefone, type: string }
+          - { name: whatsapp, label: "WhatsApp (ex.: 351935218857)", type: string }
+          - { name: email, label: Email, type: string }
+          - { name: address, label: Morada, type: string }
+      - name: shipping
+        label: Portes de envio
+        type: object
+        fields:
+          - { name: free_pickup, label: Levantamento na loja grátis, type: boolean }
+          - { name: pickup_label, label: "Texto do levantamento", type: string }
+          - { name: note, label: "Nota dos portes", type: string }
+          - name: tiers
+            label: "Escalões de portes (por peso)"
+            type: object
+            list: true
+            fields:
+              - { name: max_kg, label: "Até (kg)", type: number }
+              - { name: price, label: "Preço (€)", type: number }
+      - name: payment
+        label: Pagamento
+        type: object
+        fields:
+          - name: mode
+            label: Modo
+            type: select
+            options:
+              values: [reserva, online]
+          - { name: note, label: "Nota de pagamento", type: text }

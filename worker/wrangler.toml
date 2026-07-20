@@ -1,0 +1,12 @@
+name = "armazem-dos-pneus-pay"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+SITE_ORIGIN = "https://renatovalente5.github.io"
+PRODUCTS_URL = "https://renatovalente5.github.io/ArmazemDosPneus/data/products.json"
+
+# SEGREDOS (NÃO colocar aqui) — definir com:
+#   npx wrangler secret put IFT_MBWAY_KEY
+#   npx wrangler secret put IFT_MB_KEY
+#   npx wrangler secret put IFT_ANTIPHISHING

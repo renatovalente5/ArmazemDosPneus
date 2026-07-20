@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Finalizar encomenda · Armazém dos Pneus</title>
+  <meta name="robots" content="noindex" />
+  <script>document.documentElement.classList.add('js');</script>
+  <link rel="icon" href="assets/img/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png" />
+  <link rel="stylesheet" href="assets/css/base.css" />
+  <link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+  <header class="co-header">
+    <div class="stripe" aria-hidden="true"></div>
+    <div class="container co-header__in">
+      <a href="./" aria-label="Armazém dos Pneus — início"><img src="assets/img/logo.png" alt="Armazém dos Pneus" class="co-header__logo" /></a>
+      <a class="co-back" href="./#loja">← Continuar a comprar</a>
+    </div>
+  </header>
+
+  <main class="co container" id="checkout">
+    <h1 class="co__title">Finalizar encomenda</h1>
+
+    <div class="co__empty" id="co-empty" hidden>
+      <p>O seu carrinho está vazio.</p>
+      <a class="btn btn--primary" href="./#loja">Ver pneus e produtos</a>
+    </div>
+
+    <form class="co__grid" id="co-form" hidden novalidate>
+      <div class="co__main">
+        <section class="co__card">
+          <h2>1 · Os seus dados</h2>
+          <div class="co__fields">
+            <div class="field"><label for="c-nome">Nome completo *</label><input id="c-nome" name="nome" autocomplete="name" required /></div>
+            <div class="field"><label for="c-tel">Telemóvel *</label><input id="c-tel" name="tel" inputmode="tel" autocomplete="tel" required /></div>
+            <div class="field"><label for="c-email">Email</label><input id="c-email" name="email" type="email" autocomplete="email" /></div>
+            <div class="field"><label for="c-nif">NIF (para fatura)</label><input id="c-nif" name="nif" inputmode="numeric" autocomplete="off" /></div>
+          </div>
+        </section>
+
+        <section class="co__card">
+          <h2>2 · Entrega</h2>
+          <label class="co__radio"><input type="radio" name="entrega" value="pickup" checked /><span><strong id="pickup-label">Levantar e montar na loja</strong><small>Grátis · Travessa do Navega, 436 F, Arada, Ovar</small></span></label>
+          <label class="co__radio"><input type="radio" name="entrega" value="envio" /><span><strong>Envio para casa (CTT)</strong><small id="envio-note">Portes por peso, calculados abaixo</small></span></label>
+          <div class="co__ship-addr" id="ship-addr" hidden>
+            <div class="field"><label for="c-morada">Morada de envio *</label><input id="c-morada" name="morada" autocomplete="street-address" /></div>
+            <div class="co__fields">
+              <div class="field"><label for="c-cp">Código postal *</label><input id="c-cp" name="cp" autocomplete="postal-code" /></div>
+              <div class="field"><label for="c-loc">Localidade *</label><input id="c-loc" name="localidade" autocomplete="address-level2" /></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="co__card">
+          <h2>3 · Notas (opcional)</h2>
+          <div class="field"><textarea id="c-notas" name="notas" rows="3" placeholder="Ex.: pretendo montagem, disponibilidade, horário de contacto…"></textarea></div>
+        </section>
+      </div>
+
+      <aside class="co__summary">
+        <div class="co__card co__sticky">
+          <h2>Resumo</h2>
+          <div id="co-items" class="co__items"></div>
+          <div class="co__line"><span>Subtotal</span><strong id="co-subtotal">—</strong></div>
+          <div class="co__line"><span id="co-ship-label">Portes</span><strong id="co-ship">—</strong></div>
+          <div class="co__line co__line--total"><span>Total</span><strong id="co-total">—</strong></div>
+          <p class="co__pay-note" id="co-pay-note"></p>
+          <button type="submit" class="btn btn--primary btn--lg co__submit">Enviar encomenda</button>
+          <p class="co__legal">Ao enviar, concorda com os nossos <a href="legal/termos.html" target="_blank" rel="noopener">Termos &amp; Condições</a>. Tem <strong>14 dias</strong> de direito de retratação (DL 24/2014).</p>
+        </div>
+      </aside>
+    </form>
+
+    <div class="co__done" id="co-done" hidden>
+      <span class="co__done-ic" aria-hidden="true">✓</span>
+      <h2>Encomenda enviada!</h2>
+      <p>Abrimos o WhatsApp com o resumo da sua encomenda. Confirmamos a disponibilidade e combinamos o pagamento e a entrega/montagem consigo. Obrigado!</p>
+      <a class="btn btn--primary" href="./">Voltar à página inicial</a>
+    </div>
+  </main>
+
+  <div class="stripe" aria-hidden="true"></div>
+  <script src="assets/js/checkout.js" defer></script>
+</body>
+</html>

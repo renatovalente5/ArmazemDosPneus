@@ -1,0 +1,17 @@
+# Ficheiros de origem (fotos em alta + logo vetorial) — mantidos localmente, não publicados
+_source/
+
+# Ferramentas locais
+.claude/
+.vscode/
+.idea/
+*.swp
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Node (Cloudflare Worker / tooling)
+node_modules/
+worker/node_modules/
+worker/.wrangler/

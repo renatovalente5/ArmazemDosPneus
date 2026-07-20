@@ -1,0 +1,25 @@
+{
+  "store": {
+    "name": "Armazém dos Pneus",
+    "phone": "935 218 857",
+    "whatsapp": "351935218857",
+    "email": "armazemdospneus2019@gmail.com",
+    "address": "Travessa do Navega, 436 F, 3885-183 Arada, Ovar"
+  },
+  "shipping": {
+    "free_pickup": true,
+    "pickup_label": "Levantar e montar na loja",
+    "note": "Portes indicativos por peso (CTT). O valor final é confirmado com a encomenda.",
+    "tiers": [
+      { "max_kg": 5, "price": 4.99 },
+      { "max_kg": 20, "price": 8.99 },
+      { "max_kg": 40, "price": 14.99 },
+      { "max_kg": 80, "price": 24.99 },
+      { "max_kg": 100000, "price": 39.99 }
+    ]
+  },
+  "payment": {
+    "mode": "reserva",
+    "note": "Encomenda por reserva: confirmamos disponibilidade e combinamos o pagamento (MB WAY, Multibanco, numerário na loja). Pagamento online disponível em breve."
+  }
+}
