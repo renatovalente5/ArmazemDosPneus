@@ -224,20 +224,18 @@ body.cart-open{overflow:hidden}
 /* ---------------- CONTACTOS ---------------- */
 .contact__grid{display:grid;grid-template-columns:1fr 1.05fr;gap:1.6rem;align-items:stretch}
 .contact__info{display:flex;flex-direction:column;gap:.75rem}
-.contact__card{display:flex;align-items:center;gap:1rem;padding:1rem 1.1rem;background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow-sm);transition:transform var(--t-fast),box-shadow var(--t),border-color var(--t)}
+.contact__card{flex:1;display:flex;align-items:center;gap:1rem;padding:1rem 1.1rem;background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow-sm);transition:transform var(--t-fast),box-shadow var(--t),border-color var(--t)}
 a.contact__card:hover{transform:translateY(-3px);box-shadow:var(--shadow);border-color:var(--line-2)}
 .contact__ic{display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;flex:none;border-radius:12px;background:var(--yellow);color:var(--ink)}
 .contact__ic svg{width:23px;height:23px}
 .contact__ic--wa{background:#E4F9EC;color:#128C4B}.contact__ic--wa svg{fill:currentColor}
 .contact__meta{display:flex;flex-direction:column;min-width:0}
 .contact__meta small{color:var(--muted);font-size:.76rem;text-transform:uppercase;letter-spacing:.05em;font-family:var(--font-head)}
-.contact__meta strong{font-family:var(--font-head);color:var(--ink);font-size:1rem;word-break:break-word;text-transform:none;line-height:1.25}
-.contact__phones{display:flex;flex-wrap:wrap;gap:.1rem 1rem}
-.contact__phones a{color:var(--ink);transition:color var(--t-fast)}
+.contact__meta strong{font-family:var(--font-body);font-weight:600;color:var(--ink);font-size:1.02rem;word-break:break-word;text-transform:none;line-height:1.35;letter-spacing:0}
+.contact__phones{display:flex;flex-direction:column;gap:.15rem}
+.contact__phones a{color:var(--ink);width:max-content;transition:color var(--t-fast)}
 .contact__phones a:hover{color:var(--yellow-700);text-decoration:underline;text-underline-offset:2px}
-.contact__phones a:not(:last-child){position:relative;padding-right:1rem}
-.contact__phones a:not(:last-child)::after{content:"·";position:absolute;right:.35rem;color:var(--line-2)}
-.contact__note{display:block;font-family:var(--font-body);font-weight:400;font-size:.72rem;color:var(--muted);text-transform:none;margin-top:.25rem}
+.contact__note{display:block;font-family:var(--font-body);font-weight:400;font-size:.75rem;color:var(--muted);text-transform:none;margin-top:.3rem}
 .contact__form{padding:1.7rem;height:100%;display:flex;flex-direction:column}
 .contact__form .field:last-of-type{flex:1;display:flex;flex-direction:column}
 .contact__form .field:last-of-type textarea{flex:1}
