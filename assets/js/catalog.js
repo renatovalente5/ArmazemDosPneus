@@ -16,6 +16,7 @@
   function slug(s) { return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''); }
 
   var all = [], activeCat = 'Todos', term = '';
+  var limit = parseInt(grid.getAttribute('data-limit'), 10) || 0;
 
   function isTyre(p) { return /pneu/i.test(p.category || ''); }
 
@@ -61,6 +62,9 @@
       var okTerm = !term || (p.name + ' ' + (p.brand || '') + ' ' + (p.size || '') + ' ' + (p.season || '')).toLowerCase().indexOf(term) >= 0;
       return okCat && okTerm;
     });
+    if (limit && activeCat === 'Todos' && !term) {
+      list = list.slice().sort(function (a, b) { return (b.featured ? 1 : 0) - (a.featured ? 1 : 0); }).slice(0, limit);
+    }
     grid.innerHTML = list.length ? list.map(card).join('') : '<p class="catalog__loading">Sem resultados. Tente outra medida/marca ou fale connosco.</p>';
   }
 

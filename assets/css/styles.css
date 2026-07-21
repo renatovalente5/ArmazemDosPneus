@@ -124,6 +124,7 @@ body.menu-open{overflow:hidden}
 .feat p{color:var(--muted);font-size:.94rem}
 
 /* ---------------- CATÁLOGO ---------------- */
+.shop{padding-top:calc(var(--header-h) + 2rem)}
 .catalog__toolbar{display:flex;flex-wrap:wrap;gap:1rem;align-items:center;justify-content:space-between;margin-bottom:1.8rem}
 .catalog__search{position:relative;flex:1;min-width:260px;max-width:460px}
 .catalog__search svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);width:20px;height:20px;color:var(--muted)}
@@ -231,7 +232,7 @@ a.contact__card:hover{transform:translateY(-3px);box-shadow:var(--shadow);border
 .contact__ic--wa{background:#E4F9EC;color:#128C4B}.contact__ic--wa svg{fill:currentColor}
 .contact__meta{display:flex;flex-direction:column;min-width:0}
 .contact__meta small{color:var(--muted);font-size:.76rem;text-transform:uppercase;letter-spacing:.05em;font-family:var(--font-head)}
-.contact__meta strong{font-family:var(--font-body);font-weight:600;color:var(--ink);font-size:1.02rem;word-break:break-word;text-transform:none;line-height:1.35;letter-spacing:0}
+.contact__meta strong{font-family:var(--font-head);font-weight:600;color:var(--ink);font-size:1.05rem;word-break:break-word;text-transform:none;line-height:1.3}
 .contact__phones{display:flex;flex-direction:column;gap:.15rem}
 .contact__phones a{color:var(--ink);width:max-content;transition:color var(--t-fast)}
 .contact__phones a:hover{color:var(--yellow-700);text-decoration:underline;text-underline-offset:2px}

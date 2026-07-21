@@ -61,7 +61,7 @@
 
   /* ---------- Scrollspy ---------- */
   var navLinks = Array.prototype.slice.call(doc.querySelectorAll('.nav__links a'));
-  var sections = navLinks.map(function (a) { return doc.querySelector(a.getAttribute('href')); }).filter(Boolean);
+  var sections = navLinks.map(function (a) { var hr = a.getAttribute('href') || ''; return hr.charAt(0) === '#' ? doc.querySelector(hr) : null; }).filter(Boolean);
   if ('IntersectionObserver' in window && sections.length) {
     var spy = new IntersectionObserver(function (entries) {
       entries.forEach(function (en) {
