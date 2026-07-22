@@ -64,7 +64,7 @@ body.menu-open{overflow:hidden}
 @media (max-width:920px){
   .nav__primary,.nav__cta{display:none}
   .nav__toggle{display:inline-flex}
-  .nav__actions{gap:.5rem}
+  .nav__actions{gap:.5rem;margin-left:auto}
   .nav__logo{height:56px}
   .site-header.is-scrolled .nav__logo{height:46px}
 }
@@ -80,9 +80,9 @@ body.menu-open{overflow:hidden}
 .hero__glow{position:absolute;top:-160px;right:-80px;width:560px;height:560px;pointer-events:none;background:radial-gradient(circle,rgba(254,203,0,.22),transparent 62%);filter:blur(20px);z-index:0}
 .hero__grid{position:relative;z-index:1;display:grid;grid-template-columns:1.08fr .92fr;gap:clamp(2rem,5vw,4rem);align-items:center;padding-bottom:clamp(2.5rem,5vw,4rem)}
 .hero__title{font-size:clamp(2.2rem,4.2vw,3.7rem);color:#fff;line-height:1.04;margin-bottom:1.1rem}
-.hero__t1{display:block;margin-bottom:.26em}
+.hero__t1{display:block;margin-bottom:.06em}
 .hero__title .hl{display:inline-block;white-space:nowrap;padding:.04em .24em .1em}
-.hero__t3{display:block;margin-top:-.16em;position:relative}
+.hero__t3{display:block;margin-top:-.28em;position:relative}
 .hero__lead{font-size:var(--fs-lead);color:#B8B8BA;max-width:34rem;margin-bottom:1.9rem;text-transform:none}
 .hero__lead strong{color:#fff}
 .hero__cta{display:flex;flex-wrap:wrap;gap:.8rem;margin-bottom:2rem}
@@ -276,8 +276,9 @@ a.contact__card:hover{transform:translateY(-3px);box-shadow:var(--shadow);border
 
 /* ---------------- RESPONSIVO SOBRE/CONTACTOS ---------------- */
 @media (max-width:860px){
-  .about__grid{grid-template-columns:1fr;gap:2.6rem}
-  .about__media{max-width:460px;margin-inline:auto;width:100%}
+  .about__grid{grid-template-columns:1fr;gap:2.2rem}
+  .about__body{order:1}
+  .about__media{order:2;max-width:460px;margin-inline:auto;width:100%}
   .contact__grid{grid-template-columns:1fr}
 }
 
