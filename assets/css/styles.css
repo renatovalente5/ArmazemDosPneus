@@ -161,6 +161,14 @@ body.menu-open{overflow:hidden}
 .pcard__add{flex:none}
 .pcard__ask{font-size:.82rem;color:var(--muted);text-decoration:underline;text-underline-offset:2px}
 .pcard__ask:hover{color:var(--ink)}
+/* Tile "Ver mais na loja" (teaser da homepage) */
+.pcard--more{align-items:center;justify-content:center;text-align:center;text-decoration:none;gap:.7rem;padding:1.6rem;min-height:200px;background:var(--bg-mut);color:var(--ink)}
+.pcard--more:hover{transform:translateY(-5px);box-shadow:var(--shadow);border-color:var(--line-2)}
+.pcard--more__icon{width:56px;height:56px;border-radius:50%;background:var(--yellow);color:var(--ink);display:flex;align-items:center;justify-content:center;flex:none;transition:transform var(--t)}
+.pcard--more__icon svg{width:26px;height:26px}
+.pcard--more:hover .pcard--more__icon{transform:translateX(5px)}
+.pcard--more__label{font-family:var(--font-head);font-weight:700;text-transform:uppercase;letter-spacing:.03em;font-size:1.1rem;line-height:1.1;color:var(--ink)}
+.pcard--more__hint{font-family:var(--font-head);font-weight:600;font-size:.85rem;color:var(--muted)}
 .catalog__cta{text-align:center;margin-top:2.6rem;display:flex;flex-direction:column;align-items:center;gap:.9rem}
 .catalog__cta p{color:var(--muted)}
 @media (max-width:520px){
@@ -300,6 +308,9 @@ a.contact__card:hover{transform:translateY(-3px);box-shadow:var(--shadow);border
 .footer__contact li{display:flex;align-items:flex-start;gap:.65rem;color:#A9A9AB;font-size:.92rem;margin-bottom:.1rem}
 .footer__cic{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;flex:none;border-radius:9px;background:rgba(255,255,255,.07);color:var(--yellow)}
 .footer__cic svg{width:16px;height:16px}
+.footer__cval{display:flex;flex-direction:column;gap:.12rem}
+/* Menção de custo de chamada (número móvel) — adapta-se a fundo claro/escuro */
+.call-note{display:block;font-family:var(--font-body);font-weight:400;font-size:.75rem;line-height:1.3;text-transform:none;opacity:.72}
 .footer__bottom{border-top:1px solid rgba(255,255,255,.1)}
 .footer__bottom-inner{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.8rem 1.4rem;padding-block:1.3rem}
 .footer__legal-id{font-size:.84rem;color:#77777A}

@@ -56,16 +56,40 @@
       '</article>';
   }
 
+  // Link para a loja completa, mantendo a categoria ativa (se houver).
+  function storeHref() {
+    return 'loja.html' + (activeCat && activeCat !== 'Todos' ? '?cat=' + encodeURIComponent(activeCat) : '');
+  }
+
+  // Cartão "Ver mais na loja" no teaser da página inicial: sinaliza que há mais
+  // resultados do que os mostrados e leva à loja completa.
+  function moreCard(remaining) {
+    var hint = remaining > 0 ? '<span class="pcard--more__hint">+' + remaining + (remaining === 1 ? ' produto' : ' produtos') + '</span>' : '';
+    return '<a class="pcard pcard--more" href="' + storeHref() + '" aria-label="Ver mais produtos na loja">' +
+      '<span class="pcard--more__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span>' +
+      '<span class="pcard--more__label">Ver mais na loja</span>' +
+      hint +
+      '</a>';
+  }
+
   function apply() {
     var list = all.filter(function (p) {
       var okCat = (activeCat === 'Todos') || (p.category === activeCat);
       var okTerm = !term || (p.name + ' ' + (p.brand || '') + ' ' + (p.size || '') + ' ' + (p.season || '')).toLowerCase().indexOf(term) >= 0;
       return okCat && okTerm;
     });
-    if (limit && activeCat === 'Todos' && !term) {
-      list = list.slice().sort(function (a, b) { return (b.featured ? 1 : 0) - (a.featured ? 1 : 0); }).slice(0, limit);
+    // Teaser (data-limit): destaques primeiro. Se houver MAIS do que o limite
+    // (8), mostra apenas limit-1 (7) e acrescenta o cartão "Ver mais na loja".
+    var more = false, remaining = 0;
+    if (limit) {
+      list = list.slice().sort(function (a, b) { return (b.featured ? 1 : 0) - (a.featured ? 1 : 0); });
+      if (list.length > limit) { remaining = list.length - (limit - 1); list = list.slice(0, limit - 1); more = true; }
     }
-    grid.innerHTML = list.length ? list.map(card).join('') : '<p class="catalog__loading">Sem resultados. Tente outra medida/marca ou fale connosco.</p>';
+    if (!list.length) {
+      grid.innerHTML = '<p class="catalog__loading">Sem resultados. Tente outra medida/marca ou fale connosco.</p>';
+      return;
+    }
+    grid.innerHTML = list.map(card).join('') + (more ? moreCard(remaining) : '');
   }
 
   function buildFilters() {
@@ -73,7 +97,7 @@
     var cats = ['Todos'];
     all.forEach(function (p) { if (p.category && cats.indexOf(p.category) < 0) cats.push(p.category); });
     filters.innerHTML = cats.map(function (c) {
-      return '<button class="chip" role="tab" aria-pressed="' + (c === 'Todos' ? 'true' : 'false') + '" data-cat="' + esc(c) + '">' + esc(c) + '</button>';
+      return '<button class="chip" role="tab" aria-pressed="' + (c === activeCat ? 'true' : 'false') + '" data-cat="' + esc(c) + '">' + esc(c) + '</button>';
     }).join('');
     filters.addEventListener('click', function (e) {
       var b = e.target.closest('.chip'); if (!b) return;
@@ -90,6 +114,9 @@
     .then(function (data) {
       all = ((data && data.products) || []).map(function (p, i) { p.id = p.id || slug((p.brand || '') + '-' + p.name + '-' + i); return p; });
       window.__products = all;
+      // Categoria vinda do teaser da homepage (?cat=...) — pré-seleciona o filtro.
+      var qcat = null; try { qcat = new URLSearchParams(location.search).get('cat'); } catch (e) {}
+      if (qcat && all.some(function (p) { return p.category === qcat; })) activeCat = qcat;
       buildFilters(); apply();
     })
     .catch(function () { grid.innerHTML = '<p class="catalog__loading">Não foi possível carregar os produtos. Contacte-nos por WhatsApp.</p>'; });
