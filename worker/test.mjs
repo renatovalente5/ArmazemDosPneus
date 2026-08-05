@@ -1,0 +1,133 @@
+/* =============================================================
+   Testes das partes puras do Worker — sem Stripe, sem Cloudflare, sem rede
+   para fora. Cobrem o que, se estiver errado, cobra o valor errado a um
+   cliente: a codificação que a Stripe exige, a verificação de assinatura dos
+   webhooks, os escalões de portes e a recusa de carrinhos manipulados.
+
+   Correr:  cd worker && npm test
+   Precisa do dev server do site a servir os data/*.json:
+            python3 _source/dev-server.py 8096
+   ============================================================= */
+import { formEncode, verifyStripeSignature } from './src/stripe.js';
+import { priceOrder, shippingTierCents } from './src/pricing.js';
+
+let pass = 0, fail = 0;
+const ok = (name, cond, extra) => { cond ? (pass++, console.log('  ✓', name)) : (fail++, console.log('  ✗', name, extra ?? '')); };
+const eq = (name, a, b) => ok(name, JSON.stringify(a) === JSON.stringify(b), `\n     obtido:  ${JSON.stringify(a)}\n     esperado: ${JSON.stringify(b)}`);
+
+console.log('\nformEncode — a Stripe não aceita JSON, tem de sair aninhado');
+eq('escalar', formEncode({ mode: 'payment' }), 'mode=payment');
+eq('objeto aninhado', formEncode({ a: { b: { c: 1 } } }), 'a%5Bb%5D%5Bc%5D=1');
+eq('array de objetos usa índices',
+  formEncode({ line_items: [{ quantity: 2, price_data: { currency: 'eur', unit_amount: 12490 } }] }),
+  'line_items%5B0%5D%5Bquantity%5D=2&line_items%5B0%5D%5Bprice_data%5D%5Bcurrency%5D=eur&line_items%5B0%5D%5Bprice_data%5D%5Bunit_amount%5D=12490');
+eq('array de escalares usa []', formEncode({ allowed_countries: ['PT'] }), 'allowed_countries%5B%5D=PT');
+eq('ignora null/undefined/vazio', formEncode({ a: 1, b: null, c: undefined, d: '' }), 'a=1');
+ok('escapa caracteres especiais', formEncode({ n: 'Jante 16" 5x112 & ET45' }).includes('%22') === true);
+
+console.log('\nverifyStripeSignature — HMAC sobre o corpo cru');
+const secret = 'whsec_teste_1234567890';
+const body = JSON.stringify({ id: 'evt_1', type: 'checkout.session.completed', data: { object: { id: 'cs_1' } } });
+const now = 1_800_000_000;
+
+async function sign(payload, ts, key = secret) {
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const mac = await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(`${ts}.${payload}`));
+  return [...new Uint8Array(mac)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+const rejects = async (name, fn) => { try { await fn(); ok(name, false, '(devia ter rejeitado)'); } catch { ok(name, true); } };
+
+const good = `t=${now},v1=${await sign(body, now)}`;
+const ev = await verifyStripeSignature(body, good, secret, now);
+ok('aceita assinatura válida', ev.id === 'evt_1');
+ok('tolera desvio dentro de 300 s', !!(await verifyStripeSignature(body, good, secret, now + 299)));
+await rejects('rejeita fora da tolerância', () => verifyStripeSignature(body, good, secret, now + 301));
+await rejects('rejeita corpo adulterado', () => verifyStripeSignature(body.replace('cs_1', 'cs_2'), good, secret, now));
+await rejects('rejeita segredo errado', async () => verifyStripeSignature(body, `t=${now},v1=${await sign(body, now, 'whsec_outro')}`, secret, now));
+await rejects('rejeita header ausente', () => verifyStripeSignature(body, null, secret, now));
+await rejects('rejeita header malformado', () => verifyStripeSignature(body, 'lixo', secret, now));
+ok('aceita múltiplas v1 (rotação de segredo)',
+  !!(await verifyStripeSignature(body, `t=${now},v1=${await sign(body, now, 'whsec_velho')},v1=${await sign(body, now)}`, secret, now)));
+
+console.log('\nshippingTierCents — escalões de peso');
+const settings = { shipping: { tiers: [{ max_kg: 5, price: 4.99 }, { max_kg: 20, price: 8.99 }, { max_kg: 40, price: 14.99 }, { max_kg: 80, price: 24.99 }, { max_kg: 100000, price: 39.99 }] } };
+for (const [kg, cents] of [[0, 499], [5, 499], [5.1, 899], [20, 899], [20.1, 1499], [40, 1499], [40.1, 2499], [80, 2499], [80.1, 3999], [5000, 3999]]) {
+  eq(`${kg} kg`, shippingTierCents(kg, settings), cents);
+}
+ok('escalões desordenados são ordenados', shippingTierCents(6, { shipping: { tiers: [{ max_kg: 80, price: 24.99 }, { max_kg: 5, price: 4.99 }, { max_kg: 20, price: 8.99 }] } }) === 899);
+
+console.log('\npriceOrder — o servidor decide o valor (catálogo de :8096)');
+const env = {
+  PRODUCTS_URL: 'http://localhost:8096/data/products.json',
+  SETTINGS_URL: 'http://localhost:8096/data/settings.json',
+};
+const rejectsWith = async (name, items, delivery, frag) => {
+  try { await priceOrder(env, items, delivery); ok(name, false, '(devia ter rejeitado)'); }
+  catch (e) { ok(name + ` → "${e.message}"`, frag ? e.message.includes(frag) : true, e.message); }
+};
+
+// Os valores esperados são derivados do próprio catálogo: o cliente muda
+// preços no backoffice a qualquer momento e um teste que fixe 124,90 € passa
+// a falhar por motivo errado. O que se testa é a ARITMÉTICA, não o preço.
+const catalogo = await (await fetch(env.PRODUCTS_URL)).json();
+const settingsLive = await (await fetch(env.SETTINGS_URL)).json();
+const prod = (sku) => catalogo.products.find((p) => p.sku === sku);
+const centsOf = (sku) => Math.round(prod(sku).price_eur * 100);
+
+// As cobaias são escolhidas do catálogo, não fixadas por nome: o cliente
+// altera preços e disponibilidade no backoffice, e um teste preso a um SKU
+// concreto rebenta por motivo errado quando esse produto sai de venda.
+const vendavel = (p) => p.sku && p.available !== false && Number(p.price_eur) > 0 && Number(p.stock) > 0;
+const MULTI = (catalogo.products.find((p) => vendavel(p) && Number(p.stock) >= 4) || {}).sku;
+const UNICO = (catalogo.products.find((p) => vendavel(p) && Number(p.stock) === 1) || {}).sku;
+if (!MULTI || !UNICO) {
+  console.log('  ✗ o catálogo não tem produtos à venda suficientes para testar (precisa de um com stock>=4 e um com stock=1)');
+  process.exit(1);
+}
+console.log(`  (cobaias: ${MULTI} stock=${prod(MULTI).stock}, ${UNICO} stock=1)`);
+
+const r = await priceOrder(env, [{ sku: MULTI, qty: 4 }, { sku: UNICO, qty: 1 }], 'ctt');
+const pesoEsperado = prod(MULTI).weight_kg * 4 + prod(UNICO).weight_kg;
+eq('subtotal em cêntimos', r.subtotal_cents, centsOf(MULTI) * 4 + centsOf(UNICO));
+eq('peso somado', r.weight_kg, pesoEsperado);
+eq('portes = escalão do peso real', r.shipping_cents, shippingTierCents(pesoEsperado, settingsLive));
+eq('total = subtotal + portes', r.total_cents, r.subtotal_cents + r.shipping_cents);
+ok('subtotal é inteiro (sem cêntimos fracionários)', Number.isInteger(r.subtotal_cents));
+eq('levantamento na loja não tem portes', (await priceOrder(env, [{ sku: MULTI, qty: 1 }], 'loja')).shipping_cents, 0);
+
+// Regra de negócio nova (2026-08-05): os pneus estão fora da venda online até
+// os dados da etiqueta UE existirem. Tem de ser recusado no SERVIDOR, não só
+// escondido no catálogo.
+const indisponivel = catalogo.products.find((p) => p.sku && p.available === false);
+if (indisponivel) {
+  await rejectsWith(`produto marcado indisponível (${indisponivel.sku})`, [{ sku: indisponivel.sku, qty: 1 }], 'loja', 'já não está disponível');
+} else {
+  console.log('  (nenhum produto indisponível no catálogo — teste saltado)');
+}
+
+console.log('\npriceOrder — tentativas de manipulação');
+const forged = await priceOrder(env, [{ sku: MULTI, qty: 1, price: 1, price_eur: 1, unit_cents: 1 }], 'loja');
+eq('preço enviado pelo cliente é IGNORADO', forged.total_cents, centsOf(MULTI));
+// O `shipping` que o corpo do pedido trouxesse nunca é lido: os portes saem
+// sempre da tabela do servidor, pelo peso real.
+const forgedShip = await priceOrder(env, [{ sku: MULTI, qty: 1, shipping: 0, shipping_cents: 0 }], 'ctt');
+eq('portes enviados pelo cliente são IGNORADOS', forgedShip.shipping_cents, shippingTierCents(prod(MULTI).weight_kg, settingsLive));
+await rejectsWith('sku inexistente', [{ sku: 'nao-existe', qty: 1 }], 'loja', 'já não está disponível');
+await rejectsWith('quantidade acima do stock', [{ sku: UNICO, qty: 2 }], 'loja', 'Só temos 1');
+await rejectsWith('quantidade acima do máximo por linha', [{ sku: MULTI, qty: 9 }], 'loja', 'Máximo de 8');
+await rejectsWith('quantidade zero', [{ sku: MULTI, qty: 0 }], 'loja', 'inválida');
+await rejectsWith('quantidade negativa', [{ sku: MULTI, qty: -5 }], 'loja', 'inválida');
+await rejectsWith('quantidade fracionária', [{ sku: MULTI, qty: 1.5 }], 'loja', 'inválida');
+// "3" coage para 3 sem ambiguidade e nunca cobra a mais — aceitar é robustez.
+eq('quantidade como texto numérico é aceite',
+  (await priceOrder(env, [{ sku: MULTI, qty: '3' }], 'loja')).total_cents, centsOf(MULTI) * 3);
+await rejectsWith('quantidade NaN', [{ sku: MULTI, qty: 'abc' }], 'loja', 'inválida');
+await rejectsWith('quantidade Infinity', [{ sku: MULTI, qty: Infinity }], 'loja', 'inválida');
+await rejectsWith('items não é array', { sku: 'x' }, 'loja', 'vazio');
+await rejectsWith('sku repetido', [{ sku: MULTI, qty: 1 }, { sku: MULTI, qty: 1 }], 'loja', 'repetido');
+await rejectsWith('carrinho vazio', [], 'loja', 'vazio');
+await rejectsWith('demasiadas linhas', Array.from({ length: 21 }, (_, i) => ({ sku: 's' + i, qty: 1 })), 'loja', 'Demasiados');
+await rejectsWith('sku ausente', [{ qty: 1 }], 'loja', 'sem identificação');
+
+console.log(`\n${pass} passaram, ${fail} falharam\n`);
+process.exit(fail ? 1 : 0);
