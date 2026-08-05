@@ -48,10 +48,30 @@ function linhas(order) {
 
 function entregaTexto(order) {
   if (order.entrega !== 'ctt') return 'Levantar e montar na loja (grátis)';
+
+  // A morada da Stripe (shipping_details) só existe se o evento
+  // checkout.session.completed tiver sido aplicado. O email ao dono é muitas
+  // vezes disparado por payment_intent.succeeded, que não a traz — e sem
+  // recurso ao que o cliente escreveu no NOSSO formulário, o dono recebia uma
+  // encomenda para enviar sem saber para onde.
+  const c = order.cliente || {};
   const s = order.shipping_details || {};
   const a = s.address || {};
-  const morada = [a.line1, a.line2, [a.postal_code, a.city].filter(Boolean).join(' ')].filter(Boolean).join(', ');
-  return `Envio CTT (${order.weight_kg} kg) — ${eur(order.shipping_cents)}\n  ${s.name || ''}${morada ? '\n  ' + morada : ''}`;
+  const daStripe = [a.line1, a.line2, [a.postal_code, a.city].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  const doFormulario = [c.morada, [c.cp, c.localidade].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+
+  const nome = s.name || c.nome || '';
+  const morada = daStripe || doFormulario;
+  const linhas = [`Envio CTT (${order.weight_kg} kg) — ${eur(order.shipping_cents)}`];
+  if (nome) linhas.push('  ' + nome);
+  if (morada) linhas.push('  ' + morada);
+  else linhas.push('  ⚠ SEM MORADA — contactar o cliente antes de despachar');
+  // Se as duas existirem e não coincidirem, quem despacha tem de saber.
+  if (daStripe && doFormulario && daStripe.replace(/\s+/g, '') !== doFormulario.replace(/\s+/g, '')) {
+    linhas.push('  ⚠ a morada indicada na Stripe difere da do formulário:');
+    linhas.push('    formulário: ' + doFormulario);
+  }
+  return linhas.join('\n');
 }
 
 /* ---------- 1. Aviso ao dono da loja ---------- */
@@ -84,7 +104,8 @@ export function avisoLoja(env, order) {
     `  Telemóvel: ${c.telefone || '—'}`,
     `  Email: ${c.email || '—'}`,
     c.matricula ? `  Matrícula (montagem): ${c.matricula}` : null,
-    c.montagem ? '  PEDIU MONTAGEM IMEDIATA — combinar dia/hora por telefone' : null,
+    c.montagem ? '  QUER MONTAGEM na loja — combinar dia/hora por telefone' : null,
+    c.montagem_imediata ? '  Pediu montagem IMEDIATA: renunciou à livre resolução quanto ao serviço' : null,
     c.notas ? `  Notas: ${c.notas}` : null,
     '',
     'A FAZER HOJE',
@@ -136,7 +157,9 @@ export function confirmacaoCliente(env, order) {
     `  ${env.SITE_URL}/legal/livre-resolucao.html`,
     '  Reembolsamos em 14 dias, pelo mesmo meio de pagamento, incluindo os',
     '  portes de entrega standard.',
-    c.montagem
+    // Só se ele pediu EXPRESSAMENTE a montagem imediata. Dizer isto a quem
+    // apenas pediu montagem seria afirmar uma renúncia que não existiu.
+    c.montagem_imediata
       ? '  Nota: pediu expressamente a montagem imediata. Uma vez prestado esse\n  serviço, perde o direito de livre resolução quanto a ele — mantendo-o\n  integralmente quanto aos bens.'
       : null,
     '',

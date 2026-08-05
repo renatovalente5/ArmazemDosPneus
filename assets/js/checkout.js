@@ -114,6 +114,11 @@
       nif: (f.nif.value || '').replace(/\s/g, ''),
       notas: (f.notas.value || '').trim(),
       montagem: !!f.montagem.checked,
+      // Duas coisas DIFERENTES, e a lei distingue-as: "quero montagem" é um
+      // pedido a agendar; "montagem imediata" é o pedido expresso do art. 15.º
+      // do DL 24/2014 que faz o cliente perder a livre resolução quanto a esse
+      // serviço. Só a segunda pode ser afirmada num email.
+      montagem_imediata: !!(f.montagem.checked && f.montagem_imediata && f.montagem_imediata.checked),
       matricula: f.montagem.checked ? (f.matricula.value || '').trim() : '',
       aceita_termos: !!f.termos.checked
     };

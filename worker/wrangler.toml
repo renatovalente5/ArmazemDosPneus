@@ -39,8 +39,11 @@ CANCEL_URL = "https://armazemdospneus.pt/checkout.html?cancelado=1"
 MAIL_FROM = "Armazém dos Pneus <encomendas@armazemdospneus.pt>"
 
 # MAIL_TO — destinatário do aviso INTERNO de encomenda paga (com o NIF, para
-# emitir a fatura). Quem trata das encomendas.
-MAIL_TO = "windpowerhd@gmail.com"
+# emitir a fatura). NÃO está aqui de propósito: o repositório é público (é o que
+# torna o GitHub Pages gratuito) e o próprio wrangler.toml é servido em
+# armazemdospneus.pt/worker/wrangler.toml, o que exporia um email pessoal aos
+# recolhedores de spam. Definir com:
+#   npx wrangler secret put MAIL_TO
 
 # STORE_EMAIL — contacto PÚBLICO da loja. Aparece no email ao cliente e é o
 # reply-to das mensagens que ele recebe. Não confundir com o MAIL_TO: o cliente

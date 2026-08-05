@@ -28,10 +28,19 @@ async function loadJson(url) {
 
 /** Escalão de portes por peso total, a partir de data/settings.json. */
 export function shippingTierCents(weightKg, settings) {
-  const tiers = ((settings && settings.shipping && settings.shipping.tiers) || [])
+  // Um escalão mal preenchido no backoffice não pode virar portes grátis: um
+  // preço em branco dava 0 cêntimos e a loja pagava o envio sem ninguém notar.
+  // E um max_kg em branco valia 0 kg, ficava em primeiro na ordenação e
+  // deslocava os escalões reais. Ambos são descartados e, se não sobrar nenhum
+  // escalão válido, falha — é preferível recusar a encomenda a cobrar mal.
+  const brutos = (settings && settings.shipping && settings.shipping.tiers) || [];
+  const tiers = brutos
     .map((t) => ({ max_kg: Number(t.max_kg), cents: eurToCents(t.price) }))
-    .filter((t) => Number.isFinite(t.max_kg))
+    .filter((t) => Number.isFinite(t.max_kg) && t.max_kg > 0 && t.cents > 0)
     .sort((a, b) => a.max_kg - b.max_kg);
+  if (tiers.length !== brutos.length) {
+    console.error('escalões de portes inválidos ignorados:', brutos.length - tiers.length, 'de', brutos.length);
+  }
   if (!tiers.length) throw new Error('tabela de portes não configurada');
   for (const t of tiers) if (weightKg <= t.max_kg) return t.cents;
   return tiers[tiers.length - 1].cents;   // acima do último escalão: o mais caro

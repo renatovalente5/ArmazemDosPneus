@@ -10,7 +10,7 @@
    ============================================================= */
 import { formEncode, verifyStripeSignature } from './src/stripe.js';
 import { priceOrder, shippingTierCents } from './src/pricing.js';
-import { resolveOrderStatus } from './src/index.js';
+import { resolveOrderStatus, twinGuardKey, podeRegredir } from './src/index.js';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { cond ? (pass++, console.log('  ✓', name)) : (fail++, console.log('  ✗', name, extra ?? '')); };
@@ -57,10 +57,50 @@ for (const [kg, cents] of [[0, 499], [5, 499], [5.1, 899], [20, 899], [20.1, 149
 }
 ok('escalões desordenados são ordenados', shippingTierCents(6, { shipping: { tiers: [{ max_kg: 80, price: 24.99 }, { max_kg: 5, price: 4.99 }, { max_kg: 20, price: 8.99 }] } }) === 899);
 
+/* Um escalão mal preenchido no backoffice dava portes GRÁTIS em silêncio (preço
+   em branco -> 0 cêntimos) e um max_kg em branco valia 0 kg, ficava primeiro na
+   ordenação e deslocava os escalões reais. */
+const semPreco = { shipping: { tiers: [{ max_kg: 5, price: '' }, { max_kg: 20, price: 8.99 }] } };
+eq('escalão sem preço é ignorado, não vira portes grátis', shippingTierCents(3, semPreco), 899);
+const semPeso = { shipping: { tiers: [{ max_kg: '', price: 4.99 }, { max_kg: 20, price: 8.99 }] } };
+eq('escalão sem peso é ignorado', shippingTierCents(3, semPeso), 899);
+const zero = { shipping: { tiers: [{ max_kg: 5, price: 0 }] } };
+try { shippingTierCents(3, zero); ok('tabela só com escalões inválidos falha', false, '(devia ter falhado)'); }
+catch (e) { ok('tabela só com escalões inválidos falha em vez de cobrar 0 €', /não configurada/.test(e.message)); }
+
 /* A sessão da Stripe continua a dizer "paid" depois de um reembolso ou de uma
    contestação. Um teste real (1 € por MB WAY, reembolsado) mostrou que o
    endpoint /order reportava "paga" uma encomenda que no armazenamento estava
    "reembolsada" — a sessão sobrepunha-se ao estado posterior. */
+/* Auditoria adversarial (2026-08-06): a chave de dedup por tipo+objeto
+   descartava o segundo charge.refunded da mesma cobrança, e um reembolso total
+   feito em duas parcelas ficava registado como parcial. */
+console.log('\ntwinGuardKey — repetições legítimas não são bloqueadas');
+const evento = (type, object) => ({ type, data: { object } });
+ok('eventos diferentes dão chaves diferentes',
+  twinGuardKey(evento('payment_intent.succeeded', { id: 'pi_1' })) !== twinGuardKey(evento('charge.refunded', { id: 'pi_1', amount_refunded: 1 })));
+eq('mesmo objeto e mesmo tipo dá a mesma chave',
+  twinGuardKey(evento('checkout.session.completed', { id: 'cs_1' })),
+  twinGuardKey(evento('checkout.session.completed', { id: 'cs_1' })));
+ok('dois reembolsos parciais da MESMA cobrança dão chaves DIFERENTES',
+  twinGuardKey(evento('charge.refunded', { id: 'ch_1', amount_refunded: 500 })) !==
+  twinGuardKey(evento('charge.refunded', { id: 'ch_1', amount_refunded: 1000 })));
+eq('o mesmo reembolso reentregue dá a mesma chave',
+  twinGuardKey(evento('charge.refunded', { id: 'ch_1', amount_refunded: 500 })),
+  twinGuardKey(evento('charge.refunded', { id: 'ch_1', amount_refunded: 500 })));
+ok('objeto sem id não rebenta', typeof twinGuardKey(evento('x', {})) === 'string');
+
+/* A Stripe não garante a ordem de entrega: um requires_action atrasado mandava
+   "falta pagar" a quem já tinha pago, e um evento de falha sobrepunha-se a um
+   reembolso já registado. */
+console.log('\npodeRegredir — factos firmes não são desfeitos por eventos atrasados');
+for (const s of ['criada', 'aguarda_pagamento', 'aguarda_multibanco', 'voucher_expirado_a_aguardar', 'falhou', 'expirou']) {
+  ok(`${s} ainda pode mudar`, podeRegredir({ status: s }) === true);
+}
+for (const s of ['paga', 'reembolsada', 'parcialmente_reembolsada', 'contestada']) {
+  ok(`${s} é firme`, podeRegredir({ status: s }) === false);
+}
+
 console.log('\nresolveOrderStatus — a sessão promove, nunca sobrepõe');
 const PAGA = { payment_status: 'paid' };
 const NAO_PAGA = { payment_status: 'unpaid' };
