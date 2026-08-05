@@ -37,7 +37,16 @@ CANCEL_URL = "https://armazemdospneus.pt/checkout.html?cancelado=1"
 # Com o domínio verificado, o Resend entrega a terceiros, o que é o que permite
 # enviar ao CLIENTE a confirmação exigida pelo art. 6.º do DL 24/2014.
 MAIL_FROM = "Armazém dos Pneus <encomendas@armazemdospneus.pt>"
-MAIL_TO = "armazemdospneus2019@gmail.com"
+
+# MAIL_TO — destinatário do aviso INTERNO de encomenda paga (com o NIF, para
+# emitir a fatura). Quem trata das encomendas.
+MAIL_TO = "windpowerhd@gmail.com"
+
+# STORE_EMAIL — contacto PÚBLICO da loja. Aparece no email ao cliente e é o
+# reply-to das mensagens que ele recebe. Não confundir com o MAIL_TO: o cliente
+# tem de ver e responder ao email oficial da loja, não ao de quem a gere.
+STORE_EMAIL = "armazemdospneus2019@gmail.com"
+
 STORE_PHONE = "935 218 857"
 
 # Versão da API fixada. Não subir sem ler o changelog: foi em 2026-03-25.dahlia

@@ -22,6 +22,11 @@ const RESEND = 'https://api.resend.com/emails';
 
 function eur(cents) { return (cents / 100).toFixed(2).replace('.', ',') + ' €'; }
 
+/* MAIL_TO é para onde vai o aviso INTERNO de encomenda paga.
+   STORE_EMAIL é o contacto PÚBLICO da loja: aparece no email ao cliente e é o
+   reply-to das mensagens que ele recebe. São coisas diferentes — o aviso
+   interno pode ir para quem gere as encomendas, mas o cliente tem de ver (e
+   responder para) o email oficial da loja. */
 async function send(env, { to, subject, text, replyTo }) {
   if (!env.RESEND_API_KEY) { console.log('email não enviado (sem RESEND_API_KEY):', subject); return { skipped: true }; }
   const res = await fetch(RESEND, {
@@ -141,7 +146,7 @@ export function confirmacaoCliente(env, order) {
     'VENDEDOR',
     '  Motivar & Lucrar Unipessoal Lda ("Armazém dos Pneus")',
     '  NIF 516324950 · Travessa do Navega, 436 F, 3885-183 Arada, Ovar',
-    `  ${env.STORE_PHONE || '935 218 857'} · ${env.MAIL_TO}`,
+    `  ${env.STORE_PHONE || '935 218 857'} · ${env.STORE_EMAIL || env.MAIL_TO}`,
     '',
     'RECLAMAÇÕES',
     '  Livro de Reclamações eletrónico: https://www.livroreclamacoes.pt/inicio',
@@ -159,7 +164,7 @@ export function confirmacaoCliente(env, order) {
     to: c.email,
     subject: `Encomenda ${order.order_id} confirmada — Armazém dos Pneus`,
     text,
-    replyTo: env.MAIL_TO,
+    replyTo: env.STORE_EMAIL || env.MAIL_TO,
   });
 }
 
@@ -197,6 +202,6 @@ export function referenciaMultibanco(env, order) {
     to: c.email,
     subject: `Referência Multibanco para a encomenda ${order.order_id}`,
     text,
-    replyTo: env.MAIL_TO,
+    replyTo: env.STORE_EMAIL || env.MAIL_TO,
   });
 }
