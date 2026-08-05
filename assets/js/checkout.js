@@ -204,6 +204,27 @@
     } catch (e) {}
 
     if (!items.length) { if (elEmpty) elEmpty.hidden = false; return; }
+
+    // Interruptor de emergência: com payment.mode diferente de "online" no
+    // backoffice, a loja deixa de aceitar pagamentos e encaminha para telefone.
+    // Serve para o dono desligar a cobrança sozinho — numa avaria da Stripe,
+    // num problema de chaves — sem precisar de um developer. O Worker recusa
+    // igualmente do lado do servidor: isto aqui é só a parte visível.
+    if (settings.payment && settings.payment.mode && settings.payment.mode !== 'online') {
+      var off = doc.getElementById('co-offline');
+      if (off) {
+        var tel = (settings.store && settings.store.phone) || '935 218 857';
+        var wa = (settings.store && settings.store.whatsapp) || '351935218857';
+        off.innerHTML = '<h2>Pagamento online temporariamente indisponível</h2>' +
+          '<p>Estamos a resolver um problema técnico. A sua encomenda pode ser feita por telefone ou WhatsApp — ' +
+          'guardamos os artigos e combinamos o pagamento e a entrega consigo.</p>' +
+          '<p><a class="btn btn--primary btn--lg" href="tel:+351' + esc(tel.replace(/\s/g, '')) + '">Ligar ' + esc(tel) + '</a> ' +
+          '<a class="btn btn--ghost btn--lg" href="https://wa.me/' + esc(wa) + '" target="_blank" rel="noopener">Falar por WhatsApp</a></p>';
+        off.hidden = false;
+      }
+      return;
+    }
+
     if (elForm) elForm.hidden = false;
     renderItems(); renderTotals(); applySettings();
 

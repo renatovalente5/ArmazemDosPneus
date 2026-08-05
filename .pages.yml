@@ -154,9 +154,12 @@ content:
         label: Pagamento
         type: object
         fields:
+          # Interruptor de emergência. "online" = a loja cobra normalmente.
+          # "reserva" = deixa de aceitar pagamentos e encaminha os clientes para
+          # telefone/WhatsApp. É imposto também no servidor, não é só um aviso.
           - name: mode
-            label: Modo
+            label: "Pagamentos online — LIGADOS (online) ou DESLIGADOS (reserva)"
             type: select
             options:
-              values: [reserva, online]
-          - { name: note, label: "Nota de pagamento", type: text }
+              values: [online, reserva]
+          - { name: note, label: "Nota de pagamento (mostrada no checkout)", type: text }

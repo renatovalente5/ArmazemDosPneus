@@ -136,6 +136,24 @@ em código nem chamar ninguém.
 
 ---
 
+## Desligar os pagamentos numa emergência
+
+Se algo correr mal — a Stripe em baixo, um problema com as chaves, uma cobrança
+errada — dá para desligar os pagamentos sozinho, sem ninguém:
+
+No backoffice → **Definições → Pagamento → "Pagamentos online"** → escolher
+**`reserva`** → **Save**.
+
+A partir daí, quem tentar finalizar uma encomenda vê uma mensagem a explicar que
+o pagamento online está indisponível, com os botões de **telefone** e de
+**WhatsApp**. As encomendas continuam a entrar, por telefone, como antes de haver
+loja online.
+
+Para voltar a ligar, o mesmo caminho e escolher **`online`**.
+
+> Isto é aplicado também do lado do servidor, não é apenas um aviso no ecrã:
+> com o interruptor em `reserva`, nenhuma cobrança é possível.
+
 ## Se algo parecer avariado
 
 Abrir esta página, que diz onde está o problema:

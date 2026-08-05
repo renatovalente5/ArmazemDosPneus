@@ -11,11 +11,26 @@
     "pickup_label": "Levantar e montar na loja",
     "note": "Portes calculados pelo peso total da encomenda.",
     "tiers": [
-      { "max_kg": 5, "price": 4.99 },
-      { "max_kg": 20, "price": 8.99 },
-      { "max_kg": 40, "price": 14.99 },
-      { "max_kg": 80, "price": 24.99 },
-      { "max_kg": 100000, "price": 39.99 }
+      {
+        "max_kg": 5,
+        "price": 4.99
+      },
+      {
+        "max_kg": 20,
+        "price": 8.99
+      },
+      {
+        "max_kg": 40,
+        "price": 14.99
+      },
+      {
+        "max_kg": 80,
+        "price": 24.99
+      },
+      {
+        "max_kg": 100000,
+        "price": 39.99
+      }
     ]
   },
   "delivery": {
