@@ -9,7 +9,7 @@
   "shipping": {
     "free_pickup": true,
     "pickup_label": "Levantar e montar na loja",
-    "note": "Portes indicativos por peso (CTT). O valor final é confirmado com a encomenda.",
+    "note": "Portes calculados pelo peso total da encomenda.",
     "tiers": [
       { "max_kg": 5, "price": 4.99 },
       { "max_kg": 20, "price": 8.99 },
@@ -18,8 +18,22 @@
       { "max_kg": 100000, "price": 39.99 }
     ]
   },
+  "delivery": {
+    "estimate_min_days": 2,
+    "estimate_max_days": 5,
+    "max_days": 30,
+    "countries_note": "Enviamos apenas para Portugal continental."
+  },
+  "returns": {
+    "return_cost_eur": null,
+    "note": ""
+  },
+  "mounting": {
+    "price_eur": null,
+    "note": "Montagem e equilibragem na loja. Combinamos o dia e a hora por telefone depois da encomenda."
+  },
   "payment": {
-    "mode": "reserva",
-    "note": "Encomenda por reserva: confirmamos disponibilidade e combinamos o pagamento (MB WAY, Multibanco, numerário na loja). Pagamento online disponível em breve."
+    "mode": "online",
+    "note": "Pagamento seguro por MB WAY, cartão ou referência Multibanco. Os dados do cartão são tratados pela Stripe — não passam por este site."
   }
 }

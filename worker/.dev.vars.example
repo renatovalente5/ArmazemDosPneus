@@ -1,0 +1,28 @@
+# Copiar para .dev.vars (que está no .gitignore) e preencher com chaves de TESTE.
+# NUNCA colocar chaves live aqui. NUNCA fazer commit do .dev.vars.
+#
+# Os valores ficam deliberadamente VAZIOS: um marcador com a forma de uma
+# chave (prefixo + 24 caracteres) é indistinguível de uma chave real para os
+# scanners de segredos, e faz o push ser bloqueado pelo GitHub.
+
+# Stripe, modo de teste: Dashboard com "Test mode" ligado → Developers →
+# API keys → Secret key. Começa por "sk" + "_test_".
+# Em produção usa-se uma chave RESTRITA (prefixo "rk" + "_live_") com
+# Checkout Sessions = Write e PaymentIntents = Read — ver README.
+STRIPE_RESTRICTED_KEY=
+
+# Impresso pelo `stripe listen --forward-to http://localhost:8787/stripe/webhook`.
+# É DIFERENTE do segredo do endpoint registado no dashboard, e mantém-se
+# estável entre reinícios do listen.
+STRIPE_WEBHOOK_SECRET=
+
+# Opcional em local: sem esta chave os emails são só registados na consola.
+RESEND_API_KEY=
+
+# Sobreposições para desenvolvimento: apontar o catálogo ao dev server local,
+# senão o Worker lê o site em produção.
+PRODUCTS_URL=http://localhost:8096/data/products.json
+SETTINGS_URL=http://localhost:8096/data/settings.json
+SUCCESS_URL=http://localhost:8096/obrigado.html
+CANCEL_URL=http://localhost:8096/checkout.html?cancelado=1
+SITE_URL=http://localhost:8096

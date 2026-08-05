@@ -1,37 +1,62 @@
 /* =============================================================
    ARMAZÉM DOS PNEUS — cart.js
    Carrinho persistente (localStorage) + drawer. API global window.Cart.
+
+   O item guarda o SKU (chave estável, validada no servidor) e o preço em
+   CÊNTIMOS INTEIROS. O preço guardado aqui é só para mostrar: quem manda no
+   valor cobrado é o Worker, que o recalcula a partir de data/products.json.
    ============================================================= */
 (function () {
   'use strict';
-  var KEY = 'ap-cart';
+  var KEY = 'ap-cart-v2';   // v2: itens passaram a ter sku + price_cents
+  var MAX_QTY = 8;          // por linha; o stock real pode baixar este limite
   var doc = document;
   var items = load();
 
-  function load() { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { return []; } }
+  function load() {
+    try {
+      var raw = JSON.parse(localStorage.getItem(KEY)) || [];
+      // Descarta o que não tem sku (formato antigo ou dados corrompidos).
+      return raw.filter(function (it) { return it && it.sku && it.price_cents > 0; });
+    } catch (e) { return []; }
+  }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(items)); } catch (e) {} }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  function parsePrice(s) { if (typeof s === 'number') return s; var m = String(s || '').replace(/[^0-9.,]/g, '').replace(/\.(?=\d{3})/g, '').replace(',', '.'); var n = parseFloat(m); return isNaN(n) ? 0 : n; }
-  function fmt(n) { return n.toFixed(2).replace('.', ',') + ' €'; }
+  function cents(v) { return Math.round(parseFloat(String(v).replace(',', '.')) * 100) || 0; }
+  function fmt(c) { return (c / 100).toFixed(2).replace('.', ',') + ' €'; }
 
   function count() { return items.reduce(function (a, it) { return a + it.qty; }, 0); }
-  function subtotal() { return items.reduce(function (a, it) { return a + it.price * it.qty; }, 0); }
+  function subtotal() { return items.reduce(function (a, it) { return a + it.price_cents * it.qty; }, 0); }
   function weight() { return items.reduce(function (a, it) { return a + (it.weight || 0) * it.qty; }, 0); }
+  function capOf(it) { return Math.max(1, Math.min(MAX_QTY, it.stock || MAX_QTY)); }
+  function find(sku) { return items.filter(function (x) { return x.sku === sku; })[0]; }
 
   /* ---------- API ---------- */
   var Cart = {
     add: function (p, qty) {
+      var c = cents(p.price);
+      if (!p.sku || c <= 0) return;   // nunca deixar entrar um produto sem preço
       qty = qty || 1;
-      var ex = items.filter(function (it) { return it.id === p.id; })[0];
-      if (ex) ex.qty += qty;
-      else items.push({ id: p.id, name: p.name, price: parsePrice(p.price), priceStr: p.price || fmt(parsePrice(p.price)), image: p.image || '', weight: parseFloat(p.weight) || 0, qty: qty });
+      var ex = find(p.sku);
+      if (ex) ex.qty = Math.min(capOf(ex), ex.qty + qty);
+      else items.push({
+        sku: p.sku, name: p.name, price_cents: c, image: p.image || '',
+        weight: parseFloat(p.weight) || 0, stock: parseInt(p.stock, 10) || MAX_QTY,
+        qty: Math.min(parseInt(p.stock, 10) || MAX_QTY, Math.min(MAX_QTY, qty))
+      });
       save(); render(); sync(); open(); flash();
     },
-    setQty: function (id, q) { var it = items.filter(function (x) { return x.id === id; })[0]; if (!it) return; it.qty = Math.max(1, q); save(); render(); sync(); },
-    remove: function (id) { items = items.filter(function (x) { return x.id !== id; }); save(); render(); sync(); },
+    setQty: function (sku, q) {
+      var it = find(sku); if (!it) return;
+      it.qty = Math.max(1, Math.min(capOf(it), q));
+      save(); render(); sync();
+    },
+    remove: function (sku) { items = items.filter(function (x) { return x.sku !== sku; }); save(); render(); sync(); },
     clear: function () { items = []; save(); render(); sync(); },
     get: function () { return items.slice(); },
-    count: count, subtotal: subtotal, weight: weight,
+    /* O que vai para o servidor: apenas sku + quantidade. Nunca preços. */
+    payload: function () { return items.map(function (it) { return { sku: it.sku, qty: it.qty }; }); },
+    count: count, subtotal: subtotal, weight: weight, fmt: fmt,
     open: open, close: close
   };
   window.Cart = Cart;
@@ -46,20 +71,22 @@
   function close() { if (!drawer) return; drawer.classList.remove('is-open'); drawer.setAttribute('aria-hidden', 'true'); doc.body.classList.remove('cart-open'); if (lastFocus) lastFocus.focus(); }
 
   function itemHtml(it) {
+    var atCap = it.qty >= capOf(it);
     return '' +
-      '<div class="citem" data-id="' + esc(it.id) + '">' +
-        (it.image ? '<img class="citem__img" src="' + esc(it.image) + '" alt="" onerror="this.style.visibility=\'hidden\'" />' : '<span class="citem__img"></span>') +
+      '<div class="citem" data-sku="' + esc(it.sku) + '">' +
+        (it.image ? '<img class="citem__img" src="' + esc(it.image) + '" alt="" />' : '<span class="citem__img"></span>') +
         '<div class="citem__info">' +
           '<p class="citem__name">' + esc(it.name) + '</p>' +
-          '<p class="citem__price">' + esc(it.priceStr) + '</p>' +
+          '<p class="citem__price">' + fmt(it.price_cents) + '</p>' +
           '<div class="citem__qty">' +
             '<button type="button" data-dec aria-label="Diminuir">−</button>' +
             '<span>' + it.qty + '</span>' +
-            '<button type="button" data-inc aria-label="Aumentar">+</button>' +
+            '<button type="button" data-inc aria-label="Aumentar"' + (atCap ? ' disabled' : '') + '>+</button>' +
             '<button type="button" class="citem__rm" data-rm aria-label="Remover">Remover</button>' +
           '</div>' +
+          (atCap && it.stock <= MAX_QTY ? '<p class="citem__cap">Máximo disponível: ' + it.stock + '</p>' : '') +
         '</div>' +
-        '<span class="citem__line">' + fmt(it.price * it.qty) + '</span>' +
+        '<span class="citem__line">' + fmt(it.price_cents * it.qty) + '</span>' +
       '</div>';
   }
 
@@ -91,19 +118,73 @@
 
   /* ---------- Eventos ---------- */
   doc.addEventListener('click', function (e) {
-    if (e.target.closest('[data-add]')) { var b = e.target.closest('[data-add]'); Cart.add({ id: b.getAttribute('data-id'), name: b.getAttribute('data-name'), price: b.getAttribute('data-price'), image: b.getAttribute('data-image'), weight: b.getAttribute('data-weight') }); return; }
+    if (e.target.closest('[data-add]')) {
+      var b = e.target.closest('[data-add]');
+      Cart.add({
+        sku: b.getAttribute('data-sku'), name: b.getAttribute('data-name'),
+        price: b.getAttribute('data-price'), image: b.getAttribute('data-image'),
+        weight: b.getAttribute('data-weight'), stock: b.getAttribute('data-stock')
+      });
+      return;
+    }
     if (e.target.closest('[data-cart-open]')) { e.preventDefault(); open(); return; }
     if (e.target.closest('[data-cart-close]')) { close(); return; }
     var citem = e.target.closest('.citem'); if (citem) {
-      var id = citem.getAttribute('data-id');
-      var it = items.filter(function (x) { return x.id === id; })[0]; if (!it) return;
-      if (e.target.closest('[data-inc]')) Cart.setQty(id, it.qty + 1);
-      else if (e.target.closest('[data-dec]')) Cart.setQty(id, it.qty - 1);
-      else if (e.target.closest('[data-rm]')) Cart.remove(id);
+      var sku = citem.getAttribute('data-sku');
+      var it = find(sku); if (!it) return;
+      if (e.target.closest('[data-inc]')) Cart.setQty(sku, it.qty + 1);
+      else if (e.target.closest('[data-dec]')) Cart.setQty(sku, it.qty - 1);
+      else if (e.target.closest('[data-rm]')) Cart.remove(sku);
     }
     if (e.target.closest('[data-clear]')) Cart.clear();
   });
   doc.addEventListener('keydown', function (e) { if (e.key === 'Escape' && drawer && drawer.classList.contains('is-open')) close(); });
+
+  // Imagem em falta no carrinho não deve deixar um quadrado partido.
+  if (body) body.addEventListener('error', function (e) { if (e.target && e.target.tagName === 'IMG') e.target.style.visibility = 'hidden'; }, true);
+
+  /* ---------- Sincronização com o catálogo ----------
+     O carrinho vive no localStorage e pode ter semanas. Sem isto, mostrava
+     preços que já não existem — e o cliente só descobriria a diferença ao
+     pagar. Aqui os preços, nomes e stock são realinhados com o catálogo, e
+     o que desapareceu ou esgotou sai do carrinho. */
+  function resync(products) {
+    var bySku = {};
+    products.forEach(function (p) { if (p && p.sku) bySku[p.sku] = p; });
+    var changed = false, removed = [];
+
+    items = items.filter(function (it) {
+      var p = bySku[it.sku];
+      var price = p ? Math.round(Number(p.price_eur) * 100) : 0;
+      var stock = p ? parseInt(p.stock, 10) || 0 : 0;
+      if (!p || p.available === false || price <= 0 || stock <= 0) {
+        removed.push(it.name); changed = true; return false;
+      }
+      if (it.price_cents !== price) { it.price_cents = price; changed = true; }
+      if (it.stock !== stock) { it.stock = stock; changed = true; }
+      if (it.name !== p.name) { it.name = p.name; changed = true; }
+      var w = Number(p.weight_kg) || 0;
+      if (it.weight !== w) { it.weight = w; changed = true; }
+      if (it.qty > stock) { it.qty = stock; changed = true; }
+      return true;
+    });
+
+    if (changed) { save(); render(); sync(); }
+    if (removed.length) {
+      try {
+        window.dispatchEvent(new CustomEvent('cart:removed', { detail: { names: removed } }));
+      } catch (e) {}
+    }
+  }
+
+  // Reaproveita o catálogo se a página já o carregou (loja/homepage).
+  if (window.__products && window.__products.length) resync(window.__products);
+  else {
+    fetch('data/products.json', { cache: 'no-cache' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d && d.products) resync(d.products); })
+      .catch(function () {});   // offline: fica com os valores guardados
+  }
 
   render(); sync();
 })();

@@ -2,5 +2,7 @@ User-agent: *
 Allow: /
 Disallow: /admin/
 Disallow: /checkout.html
+Disallow: /obrigado.html
+Disallow: /legal/livre-resolucao.html
 
-Sitemap: https://renatovalente5.github.io/ArmazemDosPneus/sitemap.xml
+Sitemap: https://armazemdospneus.pt/sitemap.xml

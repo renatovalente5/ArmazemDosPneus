@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Formulário de livre resolução · Armazém dos Pneus</title>
+  <meta name="description" content="Modelo de formulário de livre resolução (14 dias) para encomendas feitas no site do Armazém dos Pneus." />
+  <meta name="robots" content="noindex" />
+  <script>document.documentElement.classList.add('js');</script>
+  <link rel="icon" href="../assets/img/favicon.ico" sizes="any" />
+  <link rel="stylesheet" href="../assets/css/base.css" />
+  <link rel="stylesheet" href="../assets/css/styles.css" />
+</head>
+<body>
+  <header class="legal-header">
+    <div class="stripe" aria-hidden="true"></div>
+    <div class="container legal-header__in">
+      <a href="../" aria-label="Armazém dos Pneus — início"><img src="../assets/img/logo.png" alt="Armazém dos Pneus" /></a>
+      <a class="legal-back" href="../">← Voltar ao site</a>
+    </div>
+  </header>
+
+  <main class="legal-main">
+    <article class="legal container">
+      <h1>Livre resolução — 14 dias</h1>
+      <p class="legal-updated">Modelo do Anexo, parte B, do Decreto-Lei n.º 24/2014</p>
+
+      <div class="legal-box">
+        <p><strong>Tem 14 dias para mudar de ideias</strong>, a contar do dia em que recebe os bens (ou o último bem, se a entrega for fracionada), sem precisar de indicar qualquer motivo.</p>
+      </div>
+
+      <h2>Como exercer o direito</h2>
+      <p>Basta comunicar-nos a sua decisão de forma inequívoca, por qualquer meio. Não é obrigatório usar o formulário abaixo — é apenas um modelo à sua disposição.</p>
+      <ul>
+        <li><strong>Email:</strong> <a href="mailto:armazemdospneus2019@gmail.com">armazemdospneus2019@gmail.com</a></li>
+        <li><strong>Telefone:</strong> 935 218 857 <span class="legal-note">(chamada para a rede móvel nacional)</span></li>
+        <li><strong>Carta:</strong> Motivar &amp; Lucrar Unipessoal, Lda. — Travessa do Navega, 436 F, 3885-183 Arada, Ovar</li>
+      </ul>
+      <p>Para respeitar o prazo, basta que a comunicação seja enviada <strong>antes de terminar os 14 dias</strong>.</p>
+
+      <h2>O que acontece a seguir</h2>
+      <ul>
+        <li>Reembolsamos <strong>todos os pagamentos recebidos</strong>, incluindo os custos de entrega standard, no prazo de <strong>14 dias</strong> a contar da data em que somos informados.</li>
+        <li>O reembolso é feito <strong>pelo mesmo meio de pagamento</strong> que usou, sem qualquer encargo para si.</li>
+        <li>Podemos reter o reembolso até recebermos os bens de volta, ou até que nos envie prova de que os expediu.</li>
+        <li>Deve devolver os bens <strong>sem demora injustificada</strong> e no máximo em 14 dias.</li>
+        <li>Só responde pela depreciação dos bens que resulte de manuseamento além do necessário para verificar a sua natureza, características e funcionamento.</li>
+      </ul>
+
+      <h2>Exceção: serviço de montagem</h2>
+      <p>Se pediu <strong>expressamente</strong> a montagem imediata e esse serviço já foi integralmente prestado, perde o direito de livre resolução <strong>quanto a esse serviço</strong> — mantendo-o integralmente quanto aos bens (pneus, jantes, baterias, óleos).</p>
+
+      <hr />
+
+      <h2>Modelo de formulário de livre resolução</h2>
+      <p class="legal-note">Preencha e devolva este formulário apenas se quiser resolver o contrato.</p>
+
+      <div class="legal-form">
+        <p><strong>Para:</strong><br />
+        Motivar &amp; Lucrar Unipessoal, Lda. («Armazém dos Pneus»)<br />
+        Travessa do Navega, 436 F, 3885-183 Arada, Ovar<br />
+        armazemdospneus2019@gmail.com · 935 218 857</p>
+
+        <p>Pela presente comunico que resolvo o meu contrato de compra e venda relativo aos seguintes bens/serviços:</p>
+        <p class="legal-fill legal-fill--block"></p>
+        <p class="legal-fill legal-fill--block"></p>
+
+        <p>Número da encomenda: <span class="legal-fill"></span></p>
+        <p>Data da encomenda: <span class="legal-fill legal-fill--sm"></span></p>
+        <p>Data de receção dos bens: <span class="legal-fill legal-fill--sm"></span></p>
+        <p>Nome do consumidor: <span class="legal-fill"></span></p>
+        <p>Morada do consumidor:</p>
+        <p class="legal-fill legal-fill--block"></p>
+        <p>IBAN para reembolso, se diferente do meio de pagamento usado:</p>
+        <p class="legal-fill legal-fill--block"></p>
+
+        <p>Assinatura <span class="legal-note">(só se enviar em papel)</span>:</p>
+        <p class="legal-fill legal-fill--block"></p>
+        <p>Data: <span class="legal-fill legal-fill--sm"></span></p>
+      </div>
+
+      <p class="legal-print"><button type="button" class="btn btn--primary btn--sm" id="btn-print">Imprimir este formulário</button></p>
+    </article>
+  </main>
+
+  <footer class="legal-footer">
+    <div class="container">
+      <p>© <span id="ano">2026</span> Armazém dos Pneus · Motivar &amp; Lucrar Unipessoal, Lda. · NIF 516324950</p>
+      <p><a href="termos.html">Termos e Condições</a> · <a href="privacidade.html">Privacidade</a> · <a href="cookies.html">Cookies</a> · <a href="https://www.livroreclamacoes.pt/inicio" target="_blank" rel="noopener">Livro de Reclamações</a></p>
+    </div>
+  </footer>
+  <script>
+    document.getElementById('ano').textContent = new Date().getFullYear();
+    document.getElementById('btn-print').addEventListener('click', function () { window.print(); });
+  </script>
+</body>
+</html>

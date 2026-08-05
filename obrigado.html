@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Encomenda · Armazém dos Pneus</title>
+  <meta name="robots" content="noindex" />
+  <script>document.documentElement.classList.add('js');</script>
+  <link rel="icon" href="assets/img/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png" />
+  <link rel="stylesheet" href="assets/css/base.css" />
+  <link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+  <header class="co-header">
+    <div class="stripe" aria-hidden="true"></div>
+    <div class="container co-header__in">
+      <a href="./" aria-label="Armazém dos Pneus — início"><img src="assets/img/logo.png" alt="Armazém dos Pneus" class="co-header__logo" /></a>
+      <a class="co-back" href="loja.html">Continuar a comprar →</a>
+    </div>
+  </header>
+
+  <main class="co container">
+
+    <!-- estado: a carregar -->
+    <div class="co__done" id="ob-loading">
+      <span class="co__spin co__spin--lg" aria-hidden="true"></span>
+      <h1>A confirmar a sua encomenda…</h1>
+      <p>Um instante, por favor.</p>
+    </div>
+
+    <!-- estado: pago -->
+    <div class="co__done" id="ob-paid" hidden>
+      <span class="co__done-ic" aria-hidden="true">✓</span>
+      <h1>Pagamento recebido. Obrigado!</h1>
+      <p class="co__done-lead">A sua encomenda <strong id="paid-order">—</strong> está confirmada. Enviámos a confirmação para o seu email.</p>
+
+      <div class="co__card co__receipt" id="paid-receipt"></div>
+
+      <div class="co__next">
+        <h2>O que acontece a seguir</h2>
+        <ol id="paid-steps"></ol>
+      </div>
+
+      <a class="btn btn--primary" href="loja.html">Continuar a comprar</a>
+    </div>
+
+    <!-- estado: à espera do pagamento (referência Multibanco) -->
+    <div class="co__done co__done--pending" id="ob-pending" hidden>
+      <span class="co__done-ic co__done-ic--wait" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 1.9"/></svg>
+      </span>
+      <h1 id="pend-title">A confirmar o pagamento</h1>
+      <p class="co__done-lead" id="pend-lead">Guardámos a sua encomenda <strong id="pend-order">—</strong>.</p>
+
+      <div class="co__mb" id="pend-mb" hidden>
+        <div class="co__mb-row"><span>Entidade</span><strong id="mb-entity">—</strong></div>
+        <div class="co__mb-row"><span>Referência</span><strong id="mb-ref">—</strong></div>
+        <div class="co__mb-row"><span>Valor</span><strong id="mb-amount">—</strong></div>
+        <div class="co__mb-row" id="mb-exp-row"><span>Válida até</span><strong id="mb-exp">—</strong></div>
+        <a class="btn btn--ghost btn--sm" id="mb-voucher" href="#" target="_blank" rel="noopener" hidden>Ver ou imprimir os dados</a>
+      </div>
+
+      <p class="co__note" id="pend-generic" hidden>
+        Assim que o pagamento entrar, recebe a confirmação por email. Se pagou por MB WAY, pode demorar alguns instantes a aparecer.
+      </p>
+
+      <div class="co__next">
+        <h2>Importante</h2>
+        <ul>
+          <li id="pend-tip-pagar" hidden>Pode pagar no Multibanco, no homebanking ou na app do seu banco.</li>
+          <li>A encomenda só é preparada depois de recebermos o pagamento e <strong>o stock não fica reservado</strong> até lá.</li>
+          <li id="pend-tip-email">Assim que o pagamento entrar, enviamos a confirmação para o seu email.</li>
+        </ul>
+      </div>
+
+      <a class="btn btn--primary" href="./">Voltar à página inicial</a>
+    </div>
+
+    <!-- estado: não foi possível confirmar -->
+    <div class="co__done" id="ob-unknown" hidden>
+      <span class="co__done-ic co__done-ic--warn" aria-hidden="true">!</span>
+      <h1>Não conseguimos confirmar a encomenda</h1>
+      <p class="co__done-lead">Isto não significa que o pagamento falhou. Para não haver dúvidas, fale connosco e confirmamos na hora.</p>
+      <p class="co__contact">
+        <a class="btn btn--primary" href="tel:+351935218857">Ligar 935 218 857</a>
+        <a class="btn btn--ghost" href="https://wa.me/351935218857" target="_blank" rel="noopener">WhatsApp</a>
+      </p>
+      <p class="co__note">Chamada para a rede móvel nacional.</p>
+    </div>
+
+  </main>
+
+  <div class="stripe" aria-hidden="true"></div>
+  <script src="assets/js/obrigado.js" defer></script>
+</body>
+</html>

@@ -13,43 +13,69 @@
   var WA = 'https://wa.me/351935218857?text=';
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function normImg(p) { if (!p) return ''; if (/^https?:\/\//.test(p)) return p; return p.replace(/^\/+/, ''); }
-  function slug(s) { return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''); }
+  function fmt(n) { return Number(n).toFixed(2).replace('.', ',') + ' €'; }
 
   var all = [], activeCat = 'Todos', term = '';
   var limit = parseInt(grid.getAttribute('data-limit'), 10) || 0;
 
   function isTyre(p) { return /pneu/i.test(p.category || ''); }
+  // Só é vendável online com preço real e stock. Um preço em falta no
+  // backoffice nunca pode transformar-se numa cobrança de 0 €.
+  function sellable(p) { return p.available !== false && Number(p.price_eur) > 0 && Number(p.stock) > 0; }
 
+  /* Etiqueta UE (Reg. 2020/740): pneus NOVOS mostram as três classes, sendo a
+     de ruído uma CLASSE A/B/C acompanhada dos dB, mais os pictogramas de neve
+     e gelo. Os SEMINOVOS estão excluídos do regulamento (art. 2.º n.º 2 al. h))
+     — em vez de classes inventadas, declaram DOT, sulco medido e garantia. */
   function labelHtml(p) {
-    if (!p.label_fuel && !p.label_grip && !p.label_noise) return '';
+    if (!isTyre(p)) return '';
     var it = [];
-    if (p.label_fuel) it.push('<span title="Eficiência de combustível">⛽ ' + esc(p.label_fuel) + '</span>');
+    if (p.condition === 'Seminovo') {
+      if (p.dot) it.push('<span title="Semana/ano de fabrico">DOT ' + esc(p.dot) + '</span>');
+      if (Number(p.tread_mm) > 0) it.push('<span title="Profundidade de sulco medida">Sulco ' + esc(p.tread_mm) + ' mm</span>');
+      if (Number(p.warranty_months) > 0) it.push('<span title="Garantia aplicada">Garantia ' + esc(p.warranty_months) + ' meses</span>');
+      if (!it.length) return '';
+      return '<div class="pcard__label pcard__label--used" aria-label="Informação do pneu seminovo">' + it.join('') + '</div>';
+    }
+    if (p.label_fuel) it.push('<span title="Eficiência energética">⛽ ' + esc(p.label_fuel) + '</span>');
     if (p.label_grip) it.push('<span title="Aderência em piso molhado">🌧 ' + esc(p.label_grip) + '</span>');
-    if (p.label_noise) it.push('<span title="Ruído exterior">🔊 ' + esc(p.label_noise) + '</span>');
-    return '<div class="pcard__label" aria-label="Etiqueta UE do pneu">' + it.join('') + '</div>';
+    if (p.label_noise_class || Number(p.label_noise_db) > 0) {
+      // A classe A/B/C é a exigida pelo regulamento; enquanto não for
+      // preenchida no backoffice mostram-se só os dB, sem inventar classe.
+      var noise = [];
+      if (p.label_noise_class) noise.push(esc(p.label_noise_class));
+      if (Number(p.label_noise_db) > 0) noise.push(esc(p.label_noise_db) + ' dB');
+      it.push('<span title="Ruído exterior de rolamento">🔊 ' + noise.join(' · ') + '</span>');
+    }
+    if (p.snow_3pmsf) it.push('<span title="Homologado para neve (3PMSF)">❄ 3PMSF</span>');
+    if (p.ice_grip) it.push('<span title="Aderência em gelo">🧊 Gelo</span>');
+    if (!it.length) return '';
+    return '<div class="pcard__label" aria-label="Etiqueta UE do pneu">' + it.join('') +
+      (p.eprel_id ? '<span class="pcard__eprel" title="Ficha de informação do produto">EPREL ' + esc(p.eprel_id) + '</span>' : '') +
+      '</div>';
   }
 
-  function card(p, i) {
-    var id = p.id || ('p' + i);
+  function card(p) {
     var img = p.image
-      ? '<img src="' + esc(normImg(p.image)) + '" alt="' + esc(p.name) + '" loading="lazy" onerror="this.onerror=null;this.style.display=\'none\';" />'
+      ? '<img src="' + esc(normImg(p.image)) + '" alt="' + esc(p.name) + '" loading="lazy" />'
       : '<div class="pcard__ph" aria-hidden="true"><img src="assets/img/logo-mark.png" alt="" /></div>';
     var flags = '';
     if (p.condition === 'Seminovo') flags += '<span class="pcard__flag pcard__flag--used">Seminovo</span>';
     else if (p.featured) flags += '<span class="pcard__flag">Destaque</span>';
-    var soldout = (p.available === false);
+    var ok = sellable(p);
+    var hasPrice = Number(p.price_eur) > 0;
     return '' +
-      '<article class="pcard' + (soldout ? ' is-out' : '') + '" data-cat="' + esc(p.category) + '" data-search="' + esc((p.name + ' ' + (p.brand || '') + ' ' + (p.size || '') + ' ' + (p.season || '')).toLowerCase()) + '">' +
+      '<article class="pcard' + (ok ? '' : ' is-out') + '" data-cat="' + esc(p.category) + '" data-search="' + esc((p.name + ' ' + (p.brand || '') + ' ' + (p.size || '') + ' ' + (p.season || '')).toLowerCase()) + '">' +
         '<div class="pcard__media">' + img + flags + '</div>' +
         '<div class="pcard__body">' +
           '<div class="pcard__meta">' + (p.brand ? '<span class="pcard__brand">' + esc(p.brand) + '</span>' : '') + (p.size ? '<span class="pcard__size">' + esc(p.size) + '</span>' : '') + '</div>' +
           '<h3 class="pcard__title">' + esc(p.name) + '</h3>' +
           labelHtml(p) +
           '<div class="pcard__foot">' +
-            '<span class="pcard__price">' + esc(p.price || 'Sob consulta') + '</span>' +
-            (soldout
-              ? '<span class="pcard__out">Esgotado</span>'
-              : '<button class="btn btn--primary btn--sm pcard__add" data-add data-id="' + esc(id) + '" data-name="' + esc(p.name) + '" data-price="' + esc(p.price || '') + '" data-image="' + esc(normImg(p.image)) + '" data-weight="' + esc(p.weight_kg || 0) + '" type="button">Adicionar</button>') +
+            '<span class="pcard__price">' + (hasPrice ? fmt(p.price_eur) : 'Sob consulta') + '</span>' +
+            (ok
+              ? '<button class="btn btn--primary btn--sm pcard__add" data-add data-sku="' + esc(p.sku) + '" data-name="' + esc(p.name) + '" data-price="' + esc(p.price_eur) + '" data-image="' + esc(normImg(p.image)) + '" data-weight="' + esc(p.weight_kg || 0) + '" data-stock="' + esc(p.stock) + '" type="button">Adicionar</button>'
+              : '<span class="pcard__out">' + (hasPrice ? 'Esgotado' : 'Sob consulta') + '</span>') +
           '</div>' +
           '<a class="pcard__ask" href="' + WA + encodeURIComponent('Olá! Tenho interesse em: ' + p.name + '. Está disponível?') + '" target="_blank" rel="noopener">Perguntar disponibilidade</a>' +
         '</div>' +
@@ -109,10 +135,19 @@
 
   if (search) search.addEventListener('input', function () { term = (search.value || '').trim().toLowerCase(); apply(); });
 
+  // Imagem em falta desaparece sem quebrar o cartão. Listener em vez de
+  // onerror="" inline, para o site não depender de 'unsafe-inline' numa CSP.
+  grid.addEventListener('error', function (e) {
+    var img = e.target;
+    if (img && img.tagName === 'IMG') img.style.display = 'none';
+  }, true);
+
   fetch('data/products.json', { cache: 'no-cache' })
     .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(function (data) {
-      all = ((data && data.products) || []).map(function (p, i) { p.id = p.id || slug((p.brand || '') + '-' + p.name + '-' + i); return p; });
+      // Produtos sem SKU são ignorados: sem chave estável não há forma segura
+      // de o servidor revalidar o preço no pagamento.
+      all = ((data && data.products) || []).filter(function (p) { return p && p.sku; });
       window.__products = all;
       // Categoria vinda do teaser da homepage (?cat=...) — pré-seleciona o filtro.
       var qcat = null; try { qcat = new URLSearchParams(location.search).get('cat'); } catch (e) {}

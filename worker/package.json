@@ -1,0 +1,15 @@
+{
+  "name": "armazem-dos-pneus-pay",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Worker de pagamentos (Stripe) do Armazém dos Pneus. Zero dependências de runtime: fala com a REST API da Stripe por fetch().",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "secrets": "wrangler secret list"
+  },
+  "devDependencies": {
+    "wrangler": "^4.36.0"
+  }
+}

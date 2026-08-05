@@ -1,12 +1,59 @@
 name = "armazem-dos-pneus-pay"
 main = "src/index.js"
-compatibility_date = "2025-01-01"
+compatibility_date = "2026-07-01"
+
+[observability]
+enabled = true
+
+# Namespace KV das encomendas. Criar com:
+#   npx wrangler kv namespace create ORDERS
+# e colar aqui o id devolvido (e o preview_id para `wrangler dev`).
+[[kv_namespaces]]
+binding = "ORDERS"
+id = "fe11533f26664a4194853d5c4aa1e9e4"
+preview_id = "0870815be1eb4fc19ea338ca0e376686"
 
 [vars]
-SITE_ORIGIN = "https://renatovalente5.github.io"
-PRODUCTS_URL = "https://renatovalente5.github.io/ArmazemDosPneus/data/products.json"
+# Origens autorizadas a chamar /checkout (separadas por vírgula).
+# O renatovalente5.github.io NÃO consta de propósito: com o domínio próprio
+# configurado, o GitHub Pages responde 301 para armazemdospneus.pt e nenhum
+# browser fica nessa origem. Menos superfície.
+ALLOWED_ORIGINS = "https://armazemdospneus.pt,https://www.armazemdospneus.pt,http://localhost:8096"
 
-# SEGREDOS (NÃO colocar aqui) — definir com:
-#   npx wrangler secret put IFT_MBWAY_KEY
-#   npx wrangler secret put IFT_MB_KEY
-#   npx wrangler secret put IFT_ANTIPHISHING
+# Base pública do site (usada nos links dos emails legais).
+SITE_URL = "https://armazemdospneus.pt"
+
+# Catálogo e definições — lidos pelo servidor para revalidar preços e portes.
+PRODUCTS_URL = "https://armazemdospneus.pt/data/products.json"
+SETTINGS_URL = "https://armazemdospneus.pt/data/settings.json"
+
+SUCCESS_URL = "https://armazemdospneus.pt/obrigado.html"
+CANCEL_URL = "https://armazemdospneus.pt/checkout.html?cancelado=1"
+
+# Email. MAIL_FROM tem de ser um endereço num domínio verificado no Resend.
+# Antes de o domínio estar verificado, usar "onboarding@resend.dev" — que só
+# consegue enviar para o email da conta Resend (o Gmail da loja).
+MAIL_FROM = "Armazém dos Pneus <encomendas@armazemdospneus.pt>"
+MAIL_TO = "armazemdospneus2019@gmail.com"
+STORE_PHONE = "935 218 857"
+
+# Versão da API fixada. Não subir sem ler o changelog: foi em 2026-03-25.dahlia
+# que os valores de ui_mode passaram a hosted_page/embedded_form/elements.
+STRIPE_API_VERSION = "2026-07-29.dahlia"
+
+# Prazos mostrados ao cliente.
+DELIVERY_MIN_DAYS = "2"
+DELIVERY_MAX_BUSINESS_DAYS = "5"
+DELIVERY_MAX_DAYS = "30"
+
+# Pôr a "true" só depois de configurar o URL dos Termos em
+# Stripe → Settings → Branding. Sem esse URL a Stripe rejeita a sessão.
+REQUIRE_TOS_CONSENT = "false"
+
+# ---------------------------------------------------------------------------
+# SEGREDOS — NUNCA aqui. Definir com:
+#   npx wrangler secret put STRIPE_RESTRICTED_KEY   # rk_live_… (não sk_live)
+#   npx wrangler secret put STRIPE_WEBHOOK_SECRET   # whsec_…
+#   npx wrangler secret put RESEND_API_KEY          # re_…
+# Em local, os mesmos nomes com valores de TESTE vão para .dev.vars (gitignored).
+# ---------------------------------------------------------------------------

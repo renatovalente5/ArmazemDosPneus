@@ -16,17 +16,30 @@
     <div class="stripe" aria-hidden="true"></div>
     <div class="container co-header__in">
       <a href="./" aria-label="Armazém dos Pneus — início"><img src="assets/img/logo.png" alt="Armazém dos Pneus" class="co-header__logo" /></a>
-      <a class="co-back" href="./#loja">← Continuar a comprar</a>
+      <a class="co-back" href="loja.html">← Continuar a comprar</a>
     </div>
   </header>
 
   <main class="co container" id="checkout">
     <h1 class="co__title">Finalizar encomenda</h1>
 
+    <!-- Art. 7.º do DL 24/2014: restrições de entrega e meios de pagamento têm
+         de ser indicadas o mais tardar no início do processo de encomenda. -->
+    <p class="co__notice" id="co-notice">
+      Enviamos apenas para <strong>Portugal continental</strong>. Pagamento por
+      <strong>MB WAY</strong>, <strong>cartão</strong> ou <strong>referência Multibanco</strong>.
+    </p>
+
     <div class="co__empty" id="co-empty" hidden>
       <p>O seu carrinho está vazio.</p>
-      <a class="btn btn--primary" href="./#loja">Ver pneus e produtos</a>
+      <a class="btn btn--primary" href="loja.html">Ver pneus e produtos</a>
     </div>
+
+    <div class="co__alert" id="co-cancelado" hidden>
+      Pagamento cancelado. A sua encomenda continua aqui — pode tentar de novo quando quiser.
+    </div>
+
+    <div class="co__alert" id="co-removed" hidden></div>
 
     <form class="co__grid" id="co-form" hidden novalidate>
       <div class="co__main">
@@ -35,27 +48,65 @@
           <div class="co__fields">
             <div class="field"><label for="c-nome">Nome completo *</label><input id="c-nome" name="nome" autocomplete="name" required /></div>
             <div class="field"><label for="c-tel">Telemóvel *</label><input id="c-tel" name="tel" inputmode="tel" autocomplete="tel" required /></div>
-            <div class="field"><label for="c-email">Email</label><input id="c-email" name="email" type="email" autocomplete="email" /></div>
-            <div class="field"><label for="c-nif">NIF (para fatura)</label><input id="c-nif" name="nif" inputmode="numeric" autocomplete="off" /></div>
+          </div>
+          <div class="co__fields">
+            <div class="field"><label for="c-email">Email *</label><input id="c-email" name="email" type="email" autocomplete="email" required /><small class="field__hint">Enviamos a confirmação e a fatura para aqui.</small></div>
+            <div class="field"><label for="c-nif">NIF (para a fatura)</label><input id="c-nif" name="nif" inputmode="numeric" autocomplete="off" maxlength="9" /></div>
           </div>
         </section>
 
         <section class="co__card">
           <h2>2 · Entrega</h2>
           <label class="co__radio"><input type="radio" name="entrega" value="pickup" checked /><span><strong id="pickup-label">Levantar e montar na loja</strong><small>Grátis · Travessa do Navega, 436 F, Arada, Ovar</small></span></label>
-          <label class="co__radio"><input type="radio" name="entrega" value="envio" /><span><strong>Envio para casa (CTT)</strong><small id="envio-note">Portes por peso, calculados abaixo</small></span></label>
+          <label class="co__radio"><input type="radio" name="entrega" value="envio" /><span><strong>Envio para casa (CTT)</strong><small id="envio-note">Portes calculados pelo peso total da encomenda</small></span></label>
           <div class="co__ship-addr" id="ship-addr" hidden>
             <div class="field"><label for="c-morada">Morada de envio *</label><input id="c-morada" name="morada" autocomplete="street-address" /></div>
             <div class="co__fields">
-              <div class="field"><label for="c-cp">Código postal *</label><input id="c-cp" name="cp" autocomplete="postal-code" /></div>
+              <div class="field"><label for="c-cp">Código postal *</label><input id="c-cp" name="cp" autocomplete="postal-code" placeholder="0000-000" /></div>
               <div class="field"><label for="c-loc">Localidade *</label><input id="c-loc" name="localidade" autocomplete="address-level2" /></div>
             </div>
           </div>
         </section>
 
         <section class="co__card">
-          <h2>3 · Notas (opcional)</h2>
-          <div class="field"><textarea id="c-notas" name="notas" rows="3" placeholder="Ex.: pretendo montagem, disponibilidade, horário de contacto…"></textarea></div>
+          <h2>3 · Montagem (opcional)</h2>
+          <!-- Art. 15.º n.º 1 + art. 17.º n.º 1 al. a) do DL 24/2014: sem pedido
+               expresso do consumidor, ele não suporta custo nenhum do serviço. -->
+          <label class="co__check">
+            <input type="checkbox" id="c-montagem" name="montagem" />
+            <span>Quero <strong>montagem na loja</strong>. Combinamos o dia e a hora por telefone depois da encomenda.</span>
+          </label>
+          <div class="co__mount-extra" id="mount-extra" hidden>
+            <div class="field"><label for="c-matricula">Matrícula do veículo</label><input id="c-matricula" name="matricula" maxlength="12" placeholder="AA-00-BB" /></div>
+            <label class="co__check co__check--legal">
+              <input type="checkbox" id="c-montagem-ja" name="montagem_imediata" />
+              <span>Peço que a montagem seja feita <strong>imediatamente</strong> e reconheço que, uma vez integralmente prestado esse serviço, perco o direito de livre resolução <strong>quanto a ele</strong> — mantendo-o quanto aos bens.</span>
+            </label>
+          </div>
+        </section>
+
+        <section class="co__card">
+          <h2>4 · Notas (opcional)</h2>
+          <div class="field"><textarea id="c-notas" name="notas" rows="3" maxlength="500" placeholder="Ex.: disponibilidade, horário de contacto…"></textarea></div>
+        </section>
+
+        <section class="co__card co__card--recap">
+          <h2>5 · Antes de encomendar</h2>
+          <!-- Art. 5.º n.º 2 do DL 24/2014: repetir a informação essencial
+               imediatamente antes de o consumidor concluir a encomenda. -->
+          <ul class="co__recap" id="co-recap">
+            <li><strong>Preço total</strong> com IVA 23% e ecovalor incluídos, mais portes quando aplicável — é o valor indicado ao lado, sem encargos adicionais.</li>
+            <li><strong>Prazo de entrega:</strong> <span id="recap-prazo">2 a 5 dias úteis</span>, nunca mais de <span id="recap-max">30</span> dias.</li>
+            <li><strong>14 dias para mudar de ideias.</strong> Pode resolver o contrato sem indicar qualquer motivo, a contar da data em que recebe os bens. <a href="legal/livre-resolucao.html" target="_blank" rel="noopener">Formulário de livre resolução</a>.</li>
+            <li><strong>Devolução:</strong> <span id="recap-devolucao">os custos de devolução são suportados pela loja.</span></li>
+            <li><strong>Reembolso</strong> em 14 dias, pelo mesmo meio de pagamento, incluindo os portes de entrega standard.</li>
+            <li><strong>Garantia legal</strong> de conformidade nos termos do DL 84/2021.</li>
+            <li>Se pagar por <strong>referência Multibanco</strong>, tem 7 dias para o fazer. A encomenda só é preparada depois de recebermos o pagamento e <strong>o stock não fica reservado</strong> nesse período.</li>
+          </ul>
+          <label class="co__check co__check--legal">
+            <input type="checkbox" id="c-termos" name="termos" required />
+            <span>Li e aceito os <a href="legal/termos.html" target="_blank" rel="noopener">Termos e Condições</a> e a <a href="legal/privacidade.html" target="_blank" rel="noopener">Política de Privacidade</a>. *</span>
+          </label>
         </section>
       </div>
 
@@ -65,20 +116,20 @@
           <div id="co-items" class="co__items"></div>
           <div class="co__line"><span>Subtotal</span><strong id="co-subtotal">—</strong></div>
           <div class="co__line"><span id="co-ship-label">Portes</span><strong id="co-ship">—</strong></div>
-          <div class="co__line co__line--total"><span>Total</span><strong id="co-total">—</strong></div>
+          <div class="co__line co__line--total"><span>Total a pagar</span><strong id="co-total">—</strong></div>
+          <p class="co__vat">IVA 23% e ecovalor incluídos.</p>
           <p class="co__pay-note" id="co-pay-note"></p>
-          <button type="submit" class="btn btn--primary btn--lg co__submit">Enviar encomenda</button>
-          <p class="co__legal">Ao enviar, concorda com os nossos <a href="legal/termos.html" target="_blank" rel="noopener">Termos &amp; Condições</a>. Tem <strong>14 dias</strong> de direito de retratação (DL 24/2014).</p>
+
+          <p class="co__error" id="co-error" hidden role="alert"></p>
+
+          <button type="submit" class="btn btn--primary btn--lg co__submit" id="co-submit">
+            <span class="co__submit-label">Encomendar com obrigação de pagar</span>
+            <span class="co__spin" aria-hidden="true"></span>
+          </button>
+          <p class="co__legal">Ao carregar, é encaminhado para a página segura de pagamento da Stripe. Os dados do cartão nunca passam por este site.</p>
         </div>
       </aside>
     </form>
-
-    <div class="co__done" id="co-done" hidden>
-      <span class="co__done-ic" aria-hidden="true">✓</span>
-      <h2>Encomenda enviada!</h2>
-      <p>Abrimos o WhatsApp com o resumo da sua encomenda. Confirmamos a disponibilidade e combinamos o pagamento e a entrega/montagem consigo. Obrigado!</p>
-      <a class="btn btn--primary" href="./">Voltar à página inicial</a>
-    </div>
   </main>
 
   <div class="stripe" aria-hidden="true"></div>

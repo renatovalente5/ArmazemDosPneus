@@ -24,6 +24,9 @@ content:
         type: object
         list: true
         fields:
+          # O SKU é a chave usada no carrinho e na validação do pagamento.
+          # Se mudar, os carrinhos guardados deixam de encontrar o produto.
+          - { name: sku, label: "Código interno (SKU) — NÃO ALTERAR", type: string }
           - { name: name, label: Nome, type: string }
           - name: category
             label: Categoria
@@ -42,12 +45,36 @@ content:
             type: select
             options:
               values: [Novo, Seminovo]
-          - { name: price, label: "Preço (ex.: 89,90 €)", type: string }
+          # Número, não texto: o preço é cobrado ao cliente. Um preço a 0 ou
+          # vazio faz o produto deixar de ter botão "Adicionar".
+          - { name: price_eur, label: "Preço em € (ex.: 89.90) — IVA e ecovalor incluídos", type: number }
           - { name: weight_kg, label: "Peso (kg) — para portes", type: number }
+          - { name: stock, label: "Stock (unidades à venda online)", type: number }
           - { name: image, label: Imagem, type: image }
+
+          # ---- Etiqueta UE (Reg. 2020/740) — SÓ pneus NOVOS ----
+          - name: tyre_class
+            label: "Etiqueta UE — Classe do pneu (só pneus novos)"
+            type: select
+            options:
+              values: ["", C1, C2, C3]
           - { name: label_fuel, label: "Etiqueta UE — Combustível (A-E)", type: string }
-          - { name: label_grip, label: "Etiqueta UE — Aderência (A-E)", type: string }
-          - { name: label_noise, label: "Etiqueta UE — Ruído (ex.: 71 dB)", type: string }
+          - { name: label_grip, label: "Etiqueta UE — Aderência em molhado (A-E)", type: string }
+          - name: label_noise_class
+            label: "Etiqueta UE — Classe de ruído (A/B/C) — obrigatória"
+            type: select
+            options:
+              values: ["", A, B, C]
+          - { name: label_noise_db, label: "Etiqueta UE — Ruído em dB (ex.: 71)", type: number }
+          - { name: snow_3pmsf, label: "Etiqueta UE — Pictograma de neve (3PMSF)", type: boolean }
+          - { name: ice_grip, label: "Etiqueta UE — Pictograma de gelo", type: boolean }
+          - { name: eprel_id, label: "Etiqueta UE — ID EPREL (ficha do produto)", type: string }
+
+          # ---- SÓ pneus SEMINOVOS (excluídos da etiqueta UE) ----
+          - { name: dot, label: "Seminovo — Código DOT (ex.: 3221)", type: string }
+          - { name: tread_mm, label: "Seminovo — Sulco medido em mm (ex.: 6)", type: number }
+          - { name: warranty_months, label: "Seminovo — Garantia em meses (mínimo 12)", type: number }
+
           - { name: description, label: Descrição, type: text }
           - { name: featured, label: Mostrar como destaque, type: boolean }
           - { name: available, label: Disponível (à venda), type: boolean }
@@ -100,6 +127,29 @@ content:
             fields:
               - { name: max_kg, label: "Até (kg)", type: number }
               - { name: price, label: "Preço (€)", type: number }
+      - name: delivery
+        label: Prazos de entrega
+        type: object
+        fields:
+          - { name: estimate_min_days, label: "Estimativa — mínimo (dias úteis)", type: number }
+          - { name: estimate_max_days, label: "Estimativa — máximo (dias úteis)", type: number }
+          - { name: max_days, label: "Prazo máximo legal (dias) — não passar de 30", type: number }
+          - { name: countries_note, label: "Nota sobre zonas de entrega", type: string }
+      - name: returns
+        label: Devoluções
+        type: object
+        fields:
+          # Sem este valor, a lei (DL 24/2014, art. 4.º n.º 5) diz que o
+          # consumidor NÃO suporta os custos de devolução — ou seja, ficam
+          # por conta da loja. Preencher com o preço real da transportadora.
+          - { name: return_cost_eur, label: "Custo de devolução em € (obrigatório para o poder cobrar)", type: number }
+          - { name: note, label: "Nota sobre devoluções", type: text }
+      - name: mounting
+        label: Montagem
+        type: object
+        fields:
+          - { name: price_eur, label: "Preço da montagem em € (tem de estar publicado)", type: number }
+          - { name: note, label: "Nota sobre a montagem", type: text }
       - name: payment
         label: Pagamento
         type: object
