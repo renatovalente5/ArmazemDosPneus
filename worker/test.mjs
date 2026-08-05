@@ -10,6 +10,7 @@
    ============================================================= */
 import { formEncode, verifyStripeSignature } from './src/stripe.js';
 import { priceOrder, shippingTierCents } from './src/pricing.js';
+import { resolveOrderStatus } from './src/index.js';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { cond ? (pass++, console.log('  ✓', name)) : (fail++, console.log('  ✗', name, extra ?? '')); };
@@ -55,6 +56,34 @@ for (const [kg, cents] of [[0, 499], [5, 499], [5.1, 899], [20, 899], [20.1, 149
   eq(`${kg} kg`, shippingTierCents(kg, settings), cents);
 }
 ok('escalões desordenados são ordenados', shippingTierCents(6, { shipping: { tiers: [{ max_kg: 80, price: 24.99 }, { max_kg: 5, price: 4.99 }, { max_kg: 20, price: 8.99 }] } }) === 899);
+
+/* A sessão da Stripe continua a dizer "paid" depois de um reembolso ou de uma
+   contestação. Um teste real (1 € por MB WAY, reembolsado) mostrou que o
+   endpoint /order reportava "paga" uma encomenda que no armazenamento estava
+   "reembolsada" — a sessão sobrepunha-se ao estado posterior. */
+console.log('\nresolveOrderStatus — a sessão promove, nunca sobrepõe');
+const PAGA = { payment_status: 'paid' };
+const NAO_PAGA = { payment_status: 'unpaid' };
+
+eq('sessão paga promove quem aguardava',
+  resolveOrderStatus({ status: 'aguarda_pagamento' }, PAGA), { status: 'paga', paid: true });
+eq('sessão paga promove quem esperava referência',
+  resolveOrderStatus({ status: 'aguarda_multibanco' }, PAGA), { status: 'paga', paid: true });
+eq('sessão não paga não promove nada',
+  resolveOrderStatus({ status: 'aguarda_multibanco' }, NAO_PAGA), { status: 'aguarda_multibanco', paid: false });
+eq('sem sessão, vale o nosso registo',
+  resolveOrderStatus({ status: 'paga', paid_at: 'x' }, null), { status: 'paga', paid: true });
+
+eq('REEMBOLSADA não é sobreposta por uma sessão que diz paid',
+  resolveOrderStatus({ status: 'reembolsada', paid_at: 'x' }, PAGA), { status: 'reembolsada', paid: true });
+eq('parcialmente reembolsada também não',
+  resolveOrderStatus({ status: 'parcialmente_reembolsada', paid_at: 'x' }, PAGA), { status: 'parcialmente_reembolsada', paid: true });
+eq('contestada também não',
+  resolveOrderStatus({ status: 'contestada', paid_at: 'x' }, PAGA), { status: 'contestada', paid: true });
+eq('voucher expirado não é promovido por engano',
+  resolveOrderStatus({ status: 'voucher_expirado_a_aguardar' }, NAO_PAGA), { status: 'voucher_expirado_a_aguardar', paid: false });
+eq('falhou continua falhou',
+  resolveOrderStatus({ status: 'falhou' }, NAO_PAGA), { status: 'falhou', paid: false });
 
 console.log('\npriceOrder — o servidor decide o valor (catálogo de :8096)');
 const env = {
