@@ -147,7 +147,13 @@
     .then(function (data) {
       // Produtos sem SKU são ignorados: sem chave estável não há forma segura
       // de o servidor revalidar o preço no pagamento.
-      all = ((data && data.products) || []).filter(function (p) { return p && p.sku; });
+      //
+      // Convenção: SKU começado por "zz-" é INTERNO — não aparece no catálogo
+      // mas continua válido no servidor. Serve para testar pagamentos reais na
+      // loja em produção sem expor um artigo de 1 € a quem está a navegar.
+      all = ((data && data.products) || []).filter(function (p) {
+        return p && p.sku && p.sku.indexOf('zz-') !== 0;
+      });
       window.__products = all;
       // Categoria vinda do teaser da homepage (?cat=...) — pré-seleciona o filtro.
       var qcat = null; try { qcat = new URLSearchParams(location.search).get('cat'); } catch (e) {}

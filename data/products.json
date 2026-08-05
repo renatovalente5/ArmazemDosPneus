@@ -397,6 +397,22 @@
       "description": "Óleo sintético 5W-40 ACEA A3/B4, aprovações VW 502.00/505.00. Embalagem 5L.",
       "featured": false,
       "available": true
+    },
+    {
+      "sku": "zz-teste-pagamento",
+      "name": "Teste de pagamento (interno)",
+      "category": "Acessórios",
+      "brand": "",
+      "size": "",
+      "season": "",
+      "condition": "Novo",
+      "price_eur": 1.0,
+      "weight_kg": 0,
+      "stock": 1,
+      "image": "",
+      "description": "Artigo interno para validar o fluxo de pagamento em produção. Não aparece no catálogo (SKU começa por zz-). A remover depois do teste.",
+      "featured": false,
+      "available": true
     }
   ]
 }
