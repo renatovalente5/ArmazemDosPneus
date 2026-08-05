@@ -30,9 +30,12 @@ SETTINGS_URL = "https://armazemdospneus.pt/data/settings.json"
 SUCCESS_URL = "https://armazemdospneus.pt/obrigado.html"
 CANCEL_URL = "https://armazemdospneus.pt/checkout.html?cancelado=1"
 
-# Email. MAIL_FROM tem de ser um endereço num domínio verificado no Resend.
-# Antes de o domínio estar verificado, usar "onboarding@resend.dev" — que só
-# consegue enviar para o email da conta Resend (o Gmail da loja).
+# Email. O domínio armazemdospneus.pt está verificado no Resend (DKIM + SPF +
+# MX no subdomínio "send", mais DMARC p=none), na conta do próprio cliente —
+# registada no Gmail da loja, para que os dados dos clientes finais e a
+# reputação de envio fiquem com o negócio a que pertencem.
+# Com o domínio verificado, o Resend entrega a terceiros, o que é o que permite
+# enviar ao CLIENTE a confirmação exigida pelo art. 6.º do DL 24/2014.
 MAIL_FROM = "Armazém dos Pneus <encomendas@armazemdospneus.pt>"
 MAIL_TO = "armazemdospneus2019@gmail.com"
 STORE_PHONE = "935 218 857"
