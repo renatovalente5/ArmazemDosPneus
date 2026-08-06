@@ -60,7 +60,10 @@
       ? '<img src="' + esc(normImg(p.image)) + '" alt="' + esc(p.name) + '" loading="lazy" />'
       : '<div class="pcard__ph" aria-hidden="true"><img src="assets/img/logo-mark.png" alt="" /></div>';
     var flags = '';
-    if (p.condition === 'Seminovo') flags += '<span class="pcard__flag pcard__flag--used">Seminovo</span>';
+    // Só aparece a quem abriu a loja com ?teste=1. Marcado para não haver
+    // dúvida de que não é um artigo à venda a sério.
+    if (p.hidden === true || p.sku.indexOf('zz-') === 0) flags += '<span class="pcard__flag pcard__flag--test">Teste</span>';
+    else if (p.condition === 'Seminovo') flags += '<span class="pcard__flag pcard__flag--used">Seminovo</span>';
     else if (p.featured) flags += '<span class="pcard__flag">Destaque</span>';
     var ok = sellable(p);
     var hasPrice = Number(p.price_eur) > 0;
@@ -148,11 +151,19 @@
       // Produtos sem SKU são ignorados: sem chave estável não há forma segura
       // de o servidor revalidar o preço no pagamento.
       //
-      // Convenção: SKU começado por "zz-" é INTERNO — não aparece no catálogo
-      // mas continua válido no servidor. Serve para testar pagamentos reais na
-      // loja em produção sem expor um artigo de 1 € a quem está a navegar.
+      // Produtos escondidos: o interruptor "Esconder da loja" do backoffice, e
+      // a convenção antiga de SKU começado por "zz-". Ficam fora do catálogo
+      // mas continuam válidos no servidor — é assim que se testa um pagamento
+      // real em produção sem expor o artigo a quem está a navegar.
+      //
+      // Para os ver e comprar: ?teste=1 no endereço da loja. Tem de ser assim e
+      // não pelo interruptor, senão testar obrigava a publicar duas vezes —
+      // desligar, comprar, voltar a ligar.
+      var verEscondidos = false;
+      try { verEscondidos = new URLSearchParams(location.search).has('teste'); } catch (e) {}
       all = ((data && data.products) || []).filter(function (p) {
-        return p && p.sku && p.sku.indexOf('zz-') !== 0;
+        if (!p || !p.sku) return false;
+        return verEscondidos || !(p.hidden === true || p.sku.indexOf('zz-') === 0);
       });
       window.__products = all;
       // Categoria vinda do teaser da homepage (?cat=...) — pré-seleciona o filtro.

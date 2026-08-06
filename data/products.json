@@ -397,6 +397,23 @@
       "description": "Óleo sintético 5W-40 ACEA A3/B4, aprovações VW 502.00/505.00. Embalagem 5L.",
       "featured": false,
       "available": true
+    },
+    {
+      "sku": "teste-pagamento",
+      "name": "Produto de teste",
+      "category": "Acessórios",
+      "brand": "",
+      "size": "teste",
+      "season": "",
+      "condition": "Novo",
+      "price_eur": 0.5,
+      "weight_kg": 0.1,
+      "stock": 99,
+      "image": "",
+      "description": "Artigo de teste para verificar o processo de pagamento de ponta a ponta. Não é um produto real e não é enviado. Está escondido da loja — só aparece com ?teste=1 no endereço.",
+      "featured": false,
+      "available": true,
+      "hidden": true
     }
   ]
 }

@@ -135,6 +135,16 @@ content:
             type: boolean
             description: "Põe o selo DESTAQUE e coloca o produto à frente na listagem."
 
+          - name: hidden
+            label: Esconder da loja
+            type: boolean
+            description: >-
+              Tira o produto da loja sem o impedir de ser comprado — é o que
+              permite ter um artigo de teste sem os clientes o verem. Para o ver
+              e comprar, abra a loja com ?teste=1 no fim do endereço:
+              armazemdospneus.pt/loja.html?teste=1
+              Não confundir com "Disponível": esse impede mesmo a compra.
+
           # ---- Etiqueta UE — Reg. (UE) 2020/740 — SÓ pneus NOVOS ----
           - name: tyre_class
             label: "Etiqueta UE · Classe do pneu"

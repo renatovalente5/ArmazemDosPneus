@@ -154,6 +154,9 @@ body.menu-open{overflow:hidden}
 .pcard__ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center}.pcard__ph img{width:46%;opacity:.5}
 .pcard__flag{position:absolute;left:12px;top:12px;font-family:var(--font-head);font-weight:600;text-transform:uppercase;font-size:.7rem;letter-spacing:.04em;color:var(--ink);background:var(--yellow);padding:.34em .7em;border-radius:6px}
 .pcard__flag--used{background:var(--ink);color:var(--yellow)}
+/* Vermelho de propósito: quando o artigo de teste aparece (?teste=1) tem de se
+   distinguir à primeira vista dos artigos a sério. */
+.pcard__flag--test{background:#c0392b;color:#fff}
 .pcard__body{display:flex;flex-direction:column;gap:.5rem;padding:1.1rem 1.15rem 1.25rem;flex:1}
 .pcard__meta{display:flex;align-items:center;justify-content:space-between;gap:.5rem}
 .pcard__brand{font-family:var(--font-head);font-weight:600;text-transform:uppercase;letter-spacing:.03em;font-size:.8rem;color:var(--muted)}
