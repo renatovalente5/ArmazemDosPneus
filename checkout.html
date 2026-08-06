@@ -111,19 +111,6 @@
           <p class="co__vat">IVA 23% e ecovalor incluídos.</p>
           <p class="co__pay-note" id="co-pay-note"></p>
 
-          <!-- Das 7 linhas da antiga secção "Antes de encomendar" sobrevivem
-               estas duas. O art. 5.º n.º 2 do DL 24/2014 exige, imediatamente
-               antes de concluir a encomenda, as características essenciais e o
-               preço total — e isso é cumprido pelo bloco de artigos e totais
-               acima, não por uma lista. Estas duas ficam porque omiti-las tem
-               sanção PRÓPRIA: sem informar do direito de livre resolução o
-               prazo passa de 14 dias a 12 meses (art. 10.º n.º 2), e sem
-               informar dos custos de devolução é a loja que os suporta
-               (art. 4.º n.º 5). O resto foi para os Termos e para o email. -->
-          <ul class="co__recap co__recap--mini" id="co-recap">
-            <li>Entrega em <strong id="recap-prazo">2 a 5 dias úteis</strong>, nunca mais de <span id="recap-max">30</span> dias.</li>
-            <li><strong>14 dias para devolver</strong>, sem indicar motivo — <span id="recap-devolucao">os custos de devolução são suportados pela loja.</span> <a href="legal/livre-resolucao.html" target="_blank" rel="noopener">Como devolver</a>.</li>
-          </ul>
 
           <label class="co__check co__check--legal">
             <input type="checkbox" id="c-termos" name="termos" required />
@@ -143,7 +130,18 @@
             <span class="co__submit-label">Pagar agora</span>
             <span class="co__spin" aria-hidden="true"></span>
           </button>
-          <p class="co__legal">Ao carregar, faz a encomenda com obrigação de pagar e é encaminhado para a página segura da Stripe, onde escolhe MB WAY, cartão ou referência Multibanco. Pode desistir até pagar. Os dados do cartão nunca passam por este site.</p>
+          <p class="co__legal">Ao carregar, faz a encomenda com obrigação de pagar e é encaminhado para a página segura da Stripe. <strong>Pode desistir até pagar.</strong></p>
+          <!-- Duas informações que a lei manda dar antes de o consumidor se
+               vincular. Não precisam de estar num bloco em destaque — os Termos
+               (aceites acima) e o email de confirmação cobrem-nas — mas omiti-las
+               da página por completo tem sanção própria: sem informar do direito
+               de livre resolução, o prazo passa de 14 dias a 12 meses
+               (art. 10.º n.º 2 do DL 24/2014). Ficam aqui, compactas. -->
+          <p class="co__fineprint">
+            Entrega em <span id="recap-prazo">2 a 5 dias úteis</span>, nunca mais de <span id="recap-max">30</span> dias.
+            <strong>14 dias para devolver</strong> sem indicar motivo — <span id="recap-devolucao">os custos de devolução são suportados pela loja.</span>
+            <a href="legal/livre-resolucao.html" target="_blank" rel="noopener">Como devolver</a>
+          </p>
         </div>
       </aside>
     </form>

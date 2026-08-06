@@ -356,7 +356,9 @@ a.contact__card:hover{transform:translateY(-3px);box-shadow:var(--shadow);border
 .co__line--total strong{font-size:1.5rem}
 .co__pay-note{font-size:.82rem;color:var(--muted);background:var(--yellow-050);border:1px solid #F1DE9A;border-radius:8px;padding:.6rem .7rem;margin:.8rem 0}
 .co__submit{width:100%}
-.co__legal{font-size:.76rem;color:var(--muted);margin-top:.8rem;text-align:center}
+.co__legal{font-size:.76rem;line-height:1.5;color:var(--muted);margin:.8rem 0 0;text-align:center}
+.co__fineprint{font-size:.72rem;line-height:1.55;color:var(--muted);margin:.6rem 0 0;padding-top:.6rem;border-top:1px solid var(--line);text-align:center}
+.co__fineprint a{color:var(--ink);text-decoration:underline}
 .co__legal a{color:var(--ink);text-decoration:underline}
 .co__empty{text-align:center;padding:3rem 1rem;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:1.1rem}
 .co__done{text-align:center;max-width:36rem;margin:2rem auto;padding:2.5rem 1.5rem;background:#fff;border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow)}
@@ -367,14 +369,14 @@ a.contact__card:hover{transform:translateY(-3px);box-shadow:var(--shadow);border
 /* ---- Pagamento online: avisos, confirmações e estados ---- */
 .co__notice{font-size:.88rem;color:var(--body);background:var(--bg-soft);border:1px solid var(--line-2);border-radius:8px;padding:.7rem .9rem;margin-bottom:1.2rem}
 .co__alert{font-size:.9rem;color:var(--ink);background:var(--yellow-050);border:1px solid #F1DE9A;border-left:4px solid var(--yellow);border-radius:8px;padding:.8rem 1rem;margin-bottom:1.2rem}
-.field__hint{display:block;font-size:.76rem;color:var(--muted);margin-top:-.5rem;margin-bottom:.9rem}
+.field__hint{display:block;font-size:.76rem;line-height:1.4;color:var(--muted);margin:.4rem 0 0}
 
 /* Checkboxes com peso legal: alvo generoso e nunca pré-marcadas. */
 .co__check{display:flex;align-items:flex-start;gap:.7rem;padding:.85rem 1rem;border:1.5px solid var(--line-2);border-radius:var(--radius-sm);cursor:pointer;font-size:.92rem;line-height:1.45;transition:border-color var(--t-fast)}
 .co__check:has(input:checked){border-color:var(--ink);background:var(--bg-soft)}
 .co__check input{margin-top:.2rem;accent-color:var(--ink);flex:none;width:18px;height:18px}
 .co__check a{color:var(--ink);text-decoration:underline}
-.co__check--legal{font-size:.86rem;color:var(--body);margin-top:.9rem}
+.co__check--legal{font-size:.86rem;color:var(--body);margin-top:1.1rem}
 .co__check input[aria-invalid="true"]{outline:2px solid #d33;outline-offset:3px}
 .co__mount-extra{margin-top:.9rem}
 
@@ -388,7 +390,7 @@ a.contact__card:hover{transform:translateY(-3px);box-shadow:var(--shadow);border
 .co__error{font-size:.88rem;color:#8a1f1f;background:#fdf0f0;border:1px solid #f0c8c8;border-radius:8px;padding:.7rem .8rem;margin:.8rem 0}
 
 /* Botão ocupado: o spinner substitui o rótulo sem a caixa saltar. */
-.co__submit{width:100%;position:relative}
+.co__submit{width:100%;position:relative;margin-top:1.1rem}
 .co__submit[disabled]{opacity:.75;cursor:progress}
 .co__spin{display:none;width:16px;height:16px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:co-spin .7s linear infinite;margin-left:.6rem;vertical-align:-2px}
 .co__submit.is-busy .co__spin{display:inline-block}
