@@ -203,6 +203,10 @@ async function handleCheckout(request, env, cors) {
     lines: calc.lines,
     subtotal_cents: calc.subtotal_cents,
     shipping_cents: calc.shipping_cents,
+    // Fica gravado na encomenda para os emails poderem dizer que os portes
+    // ainda não foram cobrados — e para daqui a um ano se perceber porque é
+    // que aquela encomenda foi paga sem portes.
+    shipping_quote_later: calc.shipping_quote_later,
     total_cents: calc.total_cents,
     weight_kg: calc.weight_kg,
     cliente,
@@ -247,7 +251,10 @@ async function handleCheckout(request, env, cors) {
     },
   };
 
-  if (delivery === 'ctt') {
+  // Só há linha de portes quando há portes a cobrar. Com "portes a combinar"
+  // ligado no backoffice, calc.shipping_cents é 0 e uma linha de 0,00 € na
+  // Stripe só confundia quem estava a pagar.
+  if (delivery === 'ctt' && calc.shipping_cents > 0) {
     // A morada NÃO é recolhida pela Stripe de propósito. Era pedida no nosso
     // formulário e outra vez na página dela — o cliente escrevia-a duas vezes.
     // Fica do nosso lado por três razões: os portes calculam-se pelo PESO e não
@@ -298,6 +305,7 @@ async function handleCheckout(request, env, cors) {
     order_id,
     total_cents: calc.total_cents,
     shipping_cents: calc.shipping_cents,
+    shipping_quote_later: calc.shipping_quote_later,
     subtotal_cents: calc.subtotal_cents,
     weight_kg: calc.weight_kg,
   }, 200, cors);

@@ -39,9 +39,16 @@
   function weight() { return items.reduce(function (a, it) { return a + (it.weight || 0) * it.qty; }, 0); }
   function delivery() { var r = doc.querySelector('input[name="entrega"]:checked'); return r ? r.value : 'pickup'; }
 
+  /* Portes por acordar: a loja ainda não tem tabela, por isso não se cobra nada
+     de portes e o valor é combinado depois. O servidor faz o mesmo — isto aqui
+     é só o espelho. */
+  function portesACombinar() {
+    return !!(settings.shipping && settings.shipping.quote_later) && delivery() !== 'pickup';
+  }
+
   /* Espelho da tabela de portes. O valor cobrado é sempre o do servidor. */
   function shipCost() {
-    if (delivery() === 'pickup') return 0;
+    if (delivery() === 'pickup' || portesACombinar()) return 0;
     var w = weight(), tiers = settings.shipping.tiers || [];
     for (var i = 0; i < tiers.length; i++) if (w <= tiers[i].max_kg) return Math.round(tiers[i].price * 100);
     return tiers.length ? Math.round(tiers[tiers.length - 1].price * 100) : 0;
@@ -60,9 +67,18 @@
   function renderTotals() {
     var s = subtotal(), sh = shipCost();
     doc.getElementById('co-subtotal').textContent = fmt(s);
-    doc.getElementById('co-ship-label').textContent = delivery() === 'pickup' ? 'Levantamento na loja' : 'Portes (' + weight().toFixed(0) + ' kg)';
-    doc.getElementById('co-ship').textContent = delivery() === 'pickup' ? 'Grátis' : fmt(sh);
+    var combinar = portesACombinar();
+    doc.getElementById('co-ship-label').textContent = delivery() === 'pickup'
+      ? 'Levantamento na loja'
+      : (combinar ? 'Portes' : 'Portes (' + weight().toFixed(0) + ' kg)');
+    doc.getElementById('co-ship').textContent = delivery() === 'pickup'
+      ? 'Grátis'
+      : (combinar ? 'A combinar' : fmt(sh));
     doc.getElementById('co-total').textContent = fmt(s + sh);
+    // O aviso só aparece com o envio escolhido — no levantamento não há portes
+    // e mostrá-lo lá só assustava quem não vai pagar nada.
+    var aviso = doc.getElementById('envio-combinar');
+    if (aviso) aviso.hidden = !combinar;
   }
 
   function showError(msg) {
@@ -165,7 +181,9 @@
           confirmedTotal = res.d.total_cents;
           busy(false);
           doc.getElementById('co-subtotal').textContent = fmt(res.d.subtotal_cents);
-          doc.getElementById('co-ship').textContent = res.d.shipping_cents ? fmt(res.d.shipping_cents) : 'Grátis';
+          doc.getElementById('co-ship').textContent = res.d.shipping_quote_later
+            ? 'A combinar'
+            : (res.d.shipping_cents ? fmt(res.d.shipping_cents) : 'Grátis');
           doc.getElementById('co-total').textContent = fmt(res.d.total_cents);
           return showError('Os preços foram atualizados entretanto. O total é agora ' + fmt(res.d.total_cents) + '. Carregue outra vez para continuar.');
         }
@@ -185,9 +203,11 @@
     var max = doc.getElementById('recap-max');
     if (max && d.max_days) max.textContent = d.max_days;
 
-    // DL 24/2014 art. 4.º n.º 5: sem o montante indicado, o consumidor NÃO
-    // suporta os custos de devolução. Enquanto o valor real não estiver
-    // preenchido, o texto diz a verdade legal — a loja é que os suporta.
+    // DL 24/2014 art. 10.º n.º 2 al. b): o consumidor só suporta o custo da
+    // devolução se tiver sido previamente informado de que o tem de pagar
+    // (e art. 4.º n.º 4, que o desobriga de encargos não comunicados).
+    // Enquanto o valor real não estiver preenchido, o texto diz a verdade
+    // legal — a loja é que os suporta.
     var dev = doc.getElementById('recap-devolucao');
     if (dev) {
       dev.textContent = (typeof r.return_cost_eur === 'number' && r.return_cost_eur > 0)
@@ -198,7 +218,18 @@
     var payNote = doc.getElementById('co-pay-note');
     if (payNote && settings.payment && settings.payment.note) payNote.textContent = settings.payment.note;
     if (settings.shipping.pickup_label) { var pl = doc.getElementById('pickup-label'); if (pl) pl.textContent = settings.shipping.pickup_label; }
-    if (settings.shipping.note) { var en = doc.getElementById('envio-note'); if (en) en.textContent = settings.shipping.note; }
+    // Com os portes por acordar, o texto da opção é fixo. A nota escrita no
+    // backoffice descreve a tabela de escalões e, nesse modo, contradizia o
+    // "A combinar" que aparece nos totais — dois sítios da mesma página a
+    // dizer coisas diferentes sobre o que o cliente vai pagar.
+    var en = doc.getElementById('envio-note');
+    if (en) {
+      if (settings.shipping && settings.shipping.quote_later) {
+        en.textContent = 'Combinamos o valor do envio consigo depois da encomenda';
+      } else if (settings.shipping.note) {
+        en.textContent = settings.shipping.note;
+      }
+    }
 
     // Montagem. O preço tem de estar publicado para poder ser cobrado, mas não
     // é cobrado aqui: o Worker só factura artigos e portes, e quem paga a

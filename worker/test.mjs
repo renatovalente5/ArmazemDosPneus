@@ -155,11 +155,42 @@ if (!MULTI || !UNICO) {
 }
 console.log(`  (cobaias: ${MULTI} stock=${prod(MULTI).stock}, ${UNICO} stock=1)`);
 
+// Os portes têm dois modos e o teste não pode depender de como a loja está
+// configurada hoje: troca-se o settings.json à socapa e confirma-se que o
+// interruptor manda mesmo. Sem isto, ligar "portes a combinar" no backoffice
+// fazia falhar testes que estavam certos.
+const fetchReal = globalThis.fetch;
+async function comQuoteLater(valor, fn) {
+  globalThis.fetch = async (url, opts) => {
+    if (String(url) === env.SETTINGS_URL) {
+      const s = JSON.parse(JSON.stringify(settingsLive));
+      s.shipping = s.shipping || {};
+      s.shipping.quote_later = valor;
+      return new Response(JSON.stringify(s), { headers: { 'content-type': 'application/json' } });
+    }
+    return fetchReal(url, opts);
+  };
+  try { return await fn(); } finally { globalThis.fetch = fetchReal; }
+}
+
 const r = await priceOrder(env, [{ sku: MULTI, qty: 4 }, { sku: UNICO, qty: 1 }], 'ctt');
 const pesoEsperado = prod(MULTI).weight_kg * 4 + prod(UNICO).weight_kg;
 eq('subtotal em cêntimos', r.subtotal_cents, centsOf(MULTI) * 4 + centsOf(UNICO));
 eq('peso somado', r.weight_kg, pesoEsperado);
-eq('portes = escalão do peso real', r.shipping_cents, shippingTierCents(pesoEsperado, settingsLive));
+
+const comTabela = await comQuoteLater(false, () =>
+  priceOrder(env, [{ sku: MULTI, qty: 4 }, { sku: UNICO, qty: 1 }], 'ctt'));
+eq('com tabela: portes = escalão do peso real', comTabela.shipping_cents, shippingTierCents(pesoEsperado, settingsLive));
+eq('com tabela: sem bandeira de "a combinar"', comTabela.shipping_quote_later, false);
+
+const aCombinar = await comQuoteLater(true, () =>
+  priceOrder(env, [{ sku: MULTI, qty: 4 }, { sku: UNICO, qty: 1 }], 'ctt'));
+eq('a combinar: não se cobram portes', aCombinar.shipping_cents, 0);
+eq('a combinar: total é só o dos artigos', aCombinar.total_cents, aCombinar.subtotal_cents);
+eq('a combinar: bandeira ligada (para o site e os emails avisarem)', aCombinar.shipping_quote_later, true);
+eq('a combinar não afeta o levantamento na loja',
+  (await comQuoteLater(true, () => priceOrder(env, [{ sku: MULTI, qty: 1 }], 'loja'))).shipping_quote_later, false);
+
 eq('total = subtotal + portes', r.total_cents, r.subtotal_cents + r.shipping_cents);
 ok('subtotal é inteiro (sem cêntimos fracionários)', Number.isInteger(r.subtotal_cents));
 eq('levantamento na loja não tem portes', (await priceOrder(env, [{ sku: MULTI, qty: 1 }], 'loja')).shipping_cents, 0);
@@ -180,7 +211,15 @@ eq('preço enviado pelo cliente é IGNORADO', forged.total_cents, centsOf(MULTI)
 // O `shipping` que o corpo do pedido trouxesse nunca é lido: os portes saem
 // sempre da tabela do servidor, pelo peso real.
 const forgedShip = await priceOrder(env, [{ sku: MULTI, qty: 1, shipping: 0, shipping_cents: 0 }], 'ctt');
-eq('portes enviados pelo cliente são IGNORADOS', forgedShip.shipping_cents, shippingTierCents(prod(MULTI).weight_kg, settingsLive));
+// Testado com a tabela ligada, que é o modo em que há um valor para forjar.
+const forgedShipTabela = await comQuoteLater(false, () =>
+  priceOrder(env, [{ sku: MULTI, qty: 1, shipping: 0, shipping_cents: 0 }], 'ctt'));
+eq('portes enviados pelo cliente são IGNORADOS', forgedShipTabela.shipping_cents, shippingTierCents(prod(MULTI).weight_kg, settingsLive));
+// No modo "a combinar" o cliente também não consegue impor um valor de portes:
+// mande o que mandar, o servidor devolve 0 e marca a encomenda como pendente.
+const forgedShipCombinar = await comQuoteLater(true, () =>
+  priceOrder(env, [{ sku: MULTI, qty: 1, shipping: 999, shipping_cents: 999 }], 'ctt'));
+eq('a combinar: portes forjados pelo cliente são IGNORADOS', forgedShipCombinar.shipping_cents, 0);
 await rejectsWith('sku inexistente', [{ sku: 'nao-existe', qty: 1 }], 'loja', 'já não está disponível');
 await rejectsWith('quantidade acima do stock', [{ sku: UNICO, qty: 2 }], 'loja', 'Só temos 1');
 await rejectsWith('quantidade acima do máximo por linha', [{ sku: MULTI, qty: 9 }], 'loja', 'Máximo de 8');

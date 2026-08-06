@@ -8,6 +8,7 @@
   },
   "shipping": {
     "free_pickup": true,
+    "quote_later": true,
     "pickup_label": "Levantar e montar na loja",
     "note": "Portes calculados pelo peso total da encomenda.",
     "tiers": [

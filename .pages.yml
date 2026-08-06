@@ -308,6 +308,20 @@ content:
         label: Portes de envio
         type: object
         fields:
+          - name: quote_later
+            label: Portes a combinar depois
+            type: boolean
+            description: >-
+              Ligado enquanto a loja não souber quanto custa cada envio. O
+              cliente paga só os artigos, e o valor do envio é acordado depois
+              por telefone. O checkout mostra "A combinar" em vez de um preço e
+              avisa que os portes não estão incluídos — isso é obrigatório: o
+              art. 4.º n.º 4 do DL 24/2014 diz que o encargo que não seja
+              comunicado ao cliente ANTES da compra ele "fica desobrigado" de
+              pagar. Nunca cobre portes que o cliente não tenha aceitado.
+              Desligue quando tiver a tabela de escalões preenchida em baixo —
+              a partir daí os portes voltam a ser cobrados no site.
+
           - name: tiers
             label: Escalões de portes (por peso)
             type: object
@@ -387,7 +401,7 @@ content:
             description: >-
               Só pode pôr o custo do reenvio a cargo do cliente se este valor
               estiver preenchido com o custo real da transportadora. Em branco,
-              a lei (DL 24/2014, art. 4.º n.º 5) põe esse custo por conta da
+              a lei (DL 24/2014, art. 10.º n.º 2 al. b)) põe esse custo por conta da
               loja — e o site passa a dizer isso ao cliente, porque é o que
               fica a valer.
           - name: note

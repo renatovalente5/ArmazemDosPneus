@@ -77,7 +77,12 @@ function entregaTexto(order) {
 
   const nome = s.name || c.nome || '';
   const morada = daStripe || doFormulario;
-  const linhas = [`Envio CTT (${order.weight_kg} kg) — ${eur(order.shipping_cents)}`];
+  // Com "portes a combinar", o cliente pagou só os artigos. Tem de ficar dito
+  // aqui, porque estes emails são o suporte duradouro da encomenda — é neles
+  // que o cliente confirma o que pagou e o que ainda falta acordar.
+  const linhas = [order.shipping_quote_later
+    ? `Envio CTT (${order.weight_kg} kg) — portes AINDA NÃO COBRADOS, a combinar`
+    : `Envio CTT (${order.weight_kg} kg) — ${eur(order.shipping_cents)}`];
   if (nome) linhas.push('  ' + nome);
   if (morada) linhas.push('  ' + morada);
   else linhas.push('  ⚠ SEM MORADA — contactar o cliente antes de despachar');
@@ -107,11 +112,16 @@ export function avisoLoja(env, order) {
     'ARTIGOS',
     linhas(order),
     `  Subtotal: ${eur(order.subtotal_cents)}`,
-    `  Portes: ${order.shipping_cents ? eur(order.shipping_cents) : 'grátis'}`,
+    `  Portes: ${order.shipping_quote_later ? 'A COMBINAR — não cobrados' : (order.shipping_cents ? eur(order.shipping_cents) : 'grátis')}`,
     `  TOTAL: ${eur(order.total_cents)}`,
     '',
     'ENTREGA',
     '  ' + entregaTexto(order),
+    order.shipping_quote_later ? '' : null,
+    order.shipping_quote_later ? '  ⚠ PORTES POR ACORDAR. Contacte o cliente com o valor do envio ANTES' : null,
+    order.shipping_quote_later ? '    de despachar. Só pode cobrá-lo se ele aceitar — se não aceitar, fica' : null,
+    order.shipping_quote_later ? '    o levantamento na loja ou o reembolso. Cobre-o à parte (link de' : null,
+    order.shipping_quote_later ? '    pagamento da Stripe, MB WAY ou na loja) e facture-o à parte.' : null,
     '',
     'CLIENTE (para a fatura)',
     `  Nome: ${c.nome || '—'}`,
@@ -160,12 +170,18 @@ export function confirmacaoCliente(env, order) {
     'ARTIGOS',
     linhas(order),
     `  Subtotal: ${eur(order.subtotal_cents)}`,
-    `  Portes: ${order.shipping_cents ? eur(order.shipping_cents) : 'grátis (levantamento na loja)'}`,
+    `  Portes: ${order.shipping_quote_later ? 'não incluídos — a combinar consigo' : (order.shipping_cents ? eur(order.shipping_cents) : 'grátis (levantamento na loja)')}`,
     `  TOTAL PAGO: ${eur(pago)} (IVA 23% incluído)`,
     '',
     'ENTREGA',
     '  ' + entregaTexto(order),
     `  Prazo máximo de entrega: ${env.DELIVERY_MAX_DAYS || 30} dias a contar de hoje.`,
+    order.shipping_quote_later ? '' : null,
+    order.shipping_quote_later ? '  PORTES AINDA NÃO COBRADOS' : null,
+    order.shipping_quote_later ? '  O valor que pagou cobre apenas os artigos. Contactamo-lo com o custo do' : null,
+    order.shipping_quote_later ? '  envio e só despachamos depois de o aceitar. Se não concordar com o valor,' : null,
+    order.shipping_quote_later ? '  pode levantar a encomenda na loja sem pagar portes, ou cancelá-la e ser' : null,
+    order.shipping_quote_later ? '  reembolsado na totalidade.' : null,
     '',
     'DIREITO DE LIVRE RESOLUÇÃO',
     '  Tem 14 dias, a contar da data em que recebe os bens, para resolver este',
@@ -219,7 +235,14 @@ export function confirmacaoCliente(env, order) {
       bloco([
         h2('Entrega'),
         p(esc(entregaTexto(order)).replace(/\n\s*/g, '<br>')),
-        p(`Prazo máximo de entrega: <strong>${esc(env.DELIVERY_MAX_DAYS || 30)} dias</strong> a contar de hoje.`, 'last'),
+        p(`Prazo máximo de entrega: <strong>${esc(env.DELIVERY_MAX_DAYS || 30)} dias</strong> a contar de hoje.`,
+          order.shipping_quote_later ? '' : 'last'),
+        order.shipping_quote_later
+          ? p('<strong>Portes ainda não cobrados.</strong> O valor que pagou cobre apenas os artigos. '
+            + 'Contactamo-lo com o custo do envio e só despachamos depois de o aceitar. Se não concordar '
+            + 'com o valor, pode levantar a encomenda na loja sem pagar portes, ou cancelá-la e ser '
+            + 'reembolsado na totalidade.', 'last')
+          : '',
       ].join(''), '24px 40px 8px 40px'),
       botao(`${site}/obrigado.html`, 'Ver a minha encomenda'),
       separador(),

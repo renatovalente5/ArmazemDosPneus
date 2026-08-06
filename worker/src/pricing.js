@@ -105,12 +105,22 @@ export async function priceOrder(env, rawItems, delivery) {
     });
   }
 
-  const shippingCents = delivery === 'ctt' ? shippingTierCents(weightKg, settings) : 0;
+  // Portes a combinar: enquanto a loja não souber quanto custa cada envio, não
+  // se cobra nada de portes neste pagamento e o valor é acordado depois com o
+  // cliente. Isto só é legítimo porque o site o diz ANTES da compra — o art.
+  // 4.º n.º 1 al. f) do DL 24/2014 admite anunciar que "podem ser devidos
+  // encargos suplementares de transporte" quando não podem ser razoavelmente
+  // calculados de antemão. O n.º 4 do mesmo artigo é o reverso: o que não for
+  // dito ao consumidor antes, ele "fica desobrigado" de pagar. Daí a informação
+  // aparecer no checkout, no botão e nos dois emails.
+  const combinar = !!(settings && settings.shipping && settings.shipping.quote_later);
+  const shippingCents = (delivery === 'ctt' && !combinar) ? shippingTierCents(weightKg, settings) : 0;
 
   return {
     lines,
     subtotal_cents: subtotalCents,
     shipping_cents: shippingCents,
+    shipping_quote_later: combinar && delivery === 'ctt',
     total_cents: subtotalCents + shippingCents,
     weight_kg: Math.round(weightKg * 100) / 100,
     settings,

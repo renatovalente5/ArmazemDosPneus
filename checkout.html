@@ -64,6 +64,16 @@
           <h2>2 · Entrega</h2>
           <label class="co__radio"><input type="radio" name="entrega" value="pickup" checked /><span><strong id="pickup-label">Levantar e montar na loja</strong><small>Grátis · Travessa do Navega, 436 F, Arada, Ovar</small></span></label>
           <label class="co__radio"><input type="radio" name="entrega" value="envio" /><span><strong>Envio para casa (CTT)</strong><small id="envio-note">Portes calculados pelo peso total da encomenda</small></span></label>
+          <!-- Art. 4.º n.º 1 al. f) do DL 24/2014: quando os portes não podem ser
+               calculados de antemão, tem de ficar dito ANTES da compra que podem
+               ser devidos. O n.º 4 do mesmo artigo é o reverso — o encargo que
+               não for comunicado antes, o consumidor "fica desobrigado" dele. -->
+          <p class="co__ship-warn" id="envio-combinar" hidden>
+            <strong>Os portes não estão incluídos neste pagamento.</strong>
+            Contactamo-lo com o valor do envio e só despachamos depois de o aceitar.
+            Se não concordar com o valor, pode levantar a encomenda na loja sem pagar
+            portes, ou cancelá-la e ser reembolsado na totalidade.
+          </p>
           <div class="co__ship-addr" id="ship-addr" hidden>
             <div class="field"><label for="c-morada">Morada de envio *</label><input id="c-morada" name="morada" autocomplete="street-address" /></div>
             <div class="co__fields">
