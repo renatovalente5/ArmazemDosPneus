@@ -1,0 +1,75 @@
+# =============================================================
+# Publicação no GitHub Pages
+# -------------------------------------------------------------
+# Substitui o build "legacy" do Pages, que falhava com a mensagem genérica
+# "Page build failed" sem dar registos — impossível de diagnosticar. Por
+# Actions, cada passo fica registado.
+#
+# Ganho adicional: aqui escolhemos O QUE é publicado. O build legacy servia o
+# repositório inteiro, incluindo armazemdospneus.pt/worker/wrangler.toml (ids
+# do KV, origens permitidas) e os ficheiros .md internos. Nada disso são
+# segredos, mas também não têm razão para estar públicos, e um Disallow no
+# robots.txt esconde do Google e não do público.
+# =============================================================
+name: Publicar no GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Uma publicação de cada vez, sem cancelar a que já está a correr.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Obter o repositório
+        uses: actions/checkout@v4
+
+      - name: Preparar o que vai ser publicado
+        run: |
+          mkdir -p _site
+          # Copia tudo menos o que não deve ser servido ao público.
+          rsync -a ./ _site/ \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude '_site' \
+            --exclude 'worker' \
+            --exclude '_source' \
+            --exclude '*.md' \
+            --exclude '.gitignore'
+          # O .nojekyll TEM de sobreviver: sem ele o Jekyll corre e ignora
+          # pastas começadas por underscore.
+          touch _site/.nojekyll
+          echo "--- ficheiros publicados ---"
+          find _site -type f | sort | sed 's|^_site/|  |'
+          echo "--- verificações ---"
+          test -f _site/index.html      || { echo "FALTA index.html"; exit 1; }
+          test -f _site/CNAME           || { echo "FALTA CNAME (domínio próprio)"; exit 1; }
+          test -f _site/.nojekyll       || { echo "FALTA .nojekyll"; exit 1; }
+          test ! -d _site/worker        || { echo "worker/ NÃO devia ser publicado"; exit 1; }
+          echo "ok"
+
+      - name: Configurar o Pages
+        uses: actions/configure-pages@v5
+
+      - name: Enviar o artefacto
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Publicar
+        id: deploy
+        uses: actions/deploy-pages@v4

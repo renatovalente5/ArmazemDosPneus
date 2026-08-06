@@ -1,9 +1,10 @@
 User-agent: *
 Allow: /
 
-# Não rastrear: o backoffice e os ficheiros do Worker.
+# O backoffice não é para rastrear. A pasta worker/ deixou de ser publicada
+# (ver .github/workflows/pages.yml), portanto já não precisa de Disallow — um
+# Disallow escondia do Google e não do público; não publicar resolve as duas.
 Disallow: /admin/
-Disallow: /worker/
 
 # NOTA: checkout.html e obrigado.html NÃO estão aqui de propósito. Ambos têm
 # <meta name="robots" content="noindex">, e o Google nunca lê o noindex de uma
