@@ -1,8 +1,13 @@
 User-agent: *
 Allow: /
+
+# Não rastrear: o backoffice e os ficheiros do Worker.
 Disallow: /admin/
-Disallow: /checkout.html
-Disallow: /obrigado.html
-Disallow: /legal/livre-resolucao.html
+Disallow: /worker/
+
+# NOTA: checkout.html e obrigado.html NÃO estão aqui de propósito. Ambos têm
+# <meta name="robots" content="noindex">, e o Google nunca lê o noindex de uma
+# página que não pode rastrear — os dois mecanismos juntos cancelam-se e o URL
+# acaba indexado sem snippet. Um mecanismo por página, nunca os dois.
 
 Sitemap: https://armazemdospneus.pt/sitemap.xml

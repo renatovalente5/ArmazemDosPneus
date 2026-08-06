@@ -32,6 +32,100 @@
   <script>document.documentElement.classList.add('js');</script>
   <link rel="stylesheet" href="assets/css/base.css" />
   <link rel="stylesheet" href="assets/css/styles.css" />
+  <!-- Dados estruturados. Notas para quem vier depois "melhorar" isto:
+       · O array de @type é suportado; additionalType não é. Não existe
+         "TireShop" em schema.org — inventá-lo dá um tipo desconhecido.
+       · SEM potentialAction/SearchAction: o sitelinks searchbox foi retirado
+         globalmente pelo Google em novembro de 2024 e a marcação não produz nada.
+       · SEM aggregateRating e SEM review sobre o próprio negócio: páginas cujo
+         dono controla as próprias avaliações são inelegíveis para a estrela, e
+         inventar dados cai nas políticas de spam. As estrelas vêm do Perfil de
+         Empresa, não daqui.
+       · SEM geo: a coordenada tem de ser copiada do pino do Perfil de Empresa
+         depois de corrigido, para não haver dois pontos diferentes.
+       · Os horários são os mesmos que o site mostra. Se mudarem, mudam nos dois
+         sítios — o JSON-LD nunca pode divergir do visível. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": ["AutoRepair", "AutoPartsStore"],
+        "@id": "https://armazemdospneus.pt/#business",
+        "name": "Armazém dos Pneus",
+        "legalName": "Motivar & Lucrar Unipessoal Lda",
+        "url": "https://armazemdospneus.pt/",
+        "description": "Venda e montagem de pneus novos e seminovos, jantes, baterias e óleos, com oficina auto em Arada, Ovar.",
+        "image": [
+          "https://armazemdospneus.pt/assets/uploads/hero.jpg",
+          "https://armazemdospneus.pt/assets/uploads/about.jpg"
+        ],
+        "logo": "https://armazemdospneus.pt/assets/img/logo.png",
+        "telephone": "+351935218857",
+        "email": "armazemdospneus2019@gmail.com",
+        "vatID": "PT516324950",
+        "taxID": "516324950",
+        "priceRange": "€€",
+        "currenciesAccepted": "EUR",
+        "paymentAccepted": "Dinheiro, Multibanco, MB WAY, Cartão",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "Travessa do Navega, 436 F",
+          "addressLocality": "Arada",
+          "addressRegion": "Aveiro",
+          "postalCode": "3885-183",
+          "addressCountry": "PT"
+        },
+        "openingHoursSpecification": [
+          { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday"], "opens": "09:00", "closes": "19:00" },
+          { "@type": "OpeningHoursSpecification", "dayOfWeek": "Saturday", "opens": "09:00", "closes": "13:00" },
+          { "@type": "OpeningHoursSpecification", "dayOfWeek": "Sunday", "opens": "00:00", "closes": "00:00" }
+        ],
+        "sameAs": ["https://www.facebook.com/armazem.dospeneus/"],
+        "areaServed": [
+          { "@type": "City", "name": "Ovar" },
+          { "@type": "City", "name": "Estarreja" },
+          { "@type": "City", "name": "Espinho" },
+          { "@type": "City", "name": "Santa Maria da Feira" },
+          { "@type": "City", "name": "São João da Madeira" }
+        ],
+        "hasOfferCatalog": {
+          "@type": "OfferCatalog",
+          "name": "Serviços de oficina",
+          "itemListElement": [
+            { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Montagem e equilibragem de pneus" } },
+            { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Alinhamento de direção (geometria)" } },
+            { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Reparação de furos e vulcanização" } },
+            { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Travões — discos e calços" } },
+            { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Amortecedores" } },
+            { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Revisões e mudança de óleo" } },
+            { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Embraiagem" } },
+            { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Kit de distribuição" } },
+            { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Carregamento de ar condicionado" } }
+          ]
+        }
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://armazemdospneus.pt/#website",
+        "url": "https://armazemdospneus.pt/",
+        "name": "Armazém dos Pneus",
+        "alternateName": "Armazém dos Pneus Ovar",
+        "inLanguage": "pt-PT",
+        "publisher": { "@id": "https://armazemdospneus.pt/#business" }
+      },
+      {
+        "@type": "WebPage",
+        "@id": "https://armazemdospneus.pt/",
+        "url": "https://armazemdospneus.pt/",
+        "isPartOf": { "@id": "https://armazemdospneus.pt/#website" },
+        "about": { "@id": "https://armazemdospneus.pt/#business" },
+        "primaryImageOfPage": "https://armazemdospneus.pt/assets/uploads/hero.jpg",
+        "inLanguage": "pt-PT"
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
   <a class="skip-link" href="#conteudo">Saltar para o conteúdo</a>

@@ -1,8 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Sem <priority> nem <changefreq>: o Google ignora ambos.
+     Sem <lastmod>: loja.html muda de conteúdo quando o cliente edita
+     data/products.json no backoffice SEM que loja.html mude, portanto qualquer
+     data escrita à mão fica errada — e o Google descarta lastmod que considere
+     pouco fiável. Mentir é pior do que omitir.
+     checkout.html e obrigado.html ficam de fora: têm noindex. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://armazemdospneus.pt/</loc><priority>1.0</priority></url>
-  <url><loc>https://armazemdospneus.pt/loja.html</loc><priority>0.9</priority></url>
-  <url><loc>https://armazemdospneus.pt/legal/privacidade.html</loc><priority>0.3</priority></url>
-  <url><loc>https://armazemdospneus.pt/legal/cookies.html</loc><priority>0.3</priority></url>
-  <url><loc>https://armazemdospneus.pt/legal/termos.html</loc><priority>0.3</priority></url>
+  <url><loc>https://armazemdospneus.pt/</loc></url>
+  <url><loc>https://armazemdospneus.pt/loja.html</loc></url>
+  <url><loc>https://armazemdospneus.pt/legal/termos.html</loc></url>
+  <url><loc>https://armazemdospneus.pt/legal/privacidade.html</loc></url>
+  <url><loc>https://armazemdospneus.pt/legal/cookies.html</loc></url>
+  <url><loc>https://armazemdospneus.pt/legal/livre-resolucao.html</loc></url>
 </urlset>

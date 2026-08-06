@@ -24,6 +24,34 @@
   <script>document.documentElement.classList.add('js');</script>
   <link rel="stylesheet" href="assets/css/base.css" />
   <link rel="stylesheet" href="assets/css/styles.css" />
+  <!-- BreadcrumbList: resultado rico ainda vivo, substitui o URL cru na linha do
+       SERP. Mínimo de dois ListItem (requisito da documentação). O último item,
+       a página atual, deliberadamente não leva "item". -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "@id": "https://armazemdospneus.pt/loja.html#breadcrumb",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Início", "item": "https://armazemdospneus.pt/" },
+          { "@type": "ListItem", "position": 2, "name": "Loja" }
+        ]
+      },
+      {
+        "@type": "CollectionPage",
+        "@id": "https://armazemdospneus.pt/loja.html",
+        "url": "https://armazemdospneus.pt/loja.html",
+        "name": "Loja — pneus, jantes, baterias e óleos",
+        "isPartOf": { "@id": "https://armazemdospneus.pt/#website" },
+        "about": { "@id": "https://armazemdospneus.pt/#business" },
+        "breadcrumb": { "@id": "https://armazemdospneus.pt/loja.html#breadcrumb" },
+        "inLanguage": "pt-PT"
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
   <a class="skip-link" href="#conteudo">Saltar para o conteúdo</a>
