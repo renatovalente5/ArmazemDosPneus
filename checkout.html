@@ -79,8 +79,12 @@
                expresso do consumidor, ele não suporta custo nenhum do serviço. -->
           <label class="co__check">
             <input type="checkbox" id="c-montagem" name="montagem" />
-            <span>Quero <strong>montagem na loja</strong>. Combinamos o dia e a hora por telefone depois da encomenda.</span>
+            <span>Quero <strong>montagem na loja</strong>.<span id="mount-price"></span></span>
           </label>
+          <!-- Texto e preço vêm das Definições do backoffice. O preço tem de
+               estar publicado antes de poder ser cobrado, e não entra neste
+               pagamento — é pago na oficina. -->
+          <p class="co__mount-note" id="mount-note" hidden></p>
           <div class="co__mount-extra" id="mount-extra" hidden>
             <div class="field"><label for="c-matricula">Matrícula do veículo</label><input id="c-matricula" name="matricula" maxlength="12" placeholder="AA-00-BB" /></div>
             <label class="co__check co__check--legal">

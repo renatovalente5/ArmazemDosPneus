@@ -199,6 +199,19 @@
     if (payNote && settings.payment && settings.payment.note) payNote.textContent = settings.payment.note;
     if (settings.shipping.pickup_label) { var pl = doc.getElementById('pickup-label'); if (pl) pl.textContent = settings.shipping.pickup_label; }
     if (settings.shipping.note) { var en = doc.getElementById('envio-note'); if (en) en.textContent = settings.shipping.note; }
+
+    // Montagem. O preço tem de estar publicado para poder ser cobrado, mas não
+    // é cobrado aqui: o Worker só factura artigos e portes, e quem paga a
+    // montagem paga-a na oficina. Por isso diz-se as duas coisas na mesma
+    // frase. Em branco no backoffice não se mostra preço nenhum — mais vale
+    // não dizer nada do que inventar um valor.
+    var mt = settings.mounting || {};
+    var mp = doc.getElementById('mount-price');
+    if (mp && typeof mt.price_eur === 'number' && mt.price_eur > 0) {
+      mp.textContent = ' ' + fmt(Math.round(mt.price_eur * 100)) + ' — pago na oficina, não entra neste pagamento.';
+    }
+    var mn = doc.getElementById('mount-note');
+    if (mn && mt.note) { mn.textContent = mt.note; mn.hidden = false; }
   }
 
   function init() {
@@ -291,6 +304,12 @@
       settings.delivery = Object.assign(settings.delivery, s.delivery || {});
       settings.returns = Object.assign(settings.returns, s.returns || {});
       if (s.shipping) settings.shipping = Object.assign(settings.shipping, s.shipping);
+      // store e mounting não estavam a ser copiados. O código mais abaixo já
+      // lia settings.store.phone para o aviso de pagamentos desligados, mas
+      // como nunca era preenchido caía sempre no número escrito à mão — mudar
+      // o telefone no backoffice não mudava nada.
+      settings.store = s.store || {};
+      settings.mounting = s.mounting || {};
     }
     if (cat && cat.products) resync(cat.products);
   }).then(init);

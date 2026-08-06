@@ -2,6 +2,20 @@
 # Backoffice (Pages CMS) — Armazém dos Pneus
 # Gere Produtos, Imagens do site e Definições, sem tocar em código.
 # Docs: https://pagescms.org/docs/
+#
+# Regras seguidas nesta configuração:
+#  · O que o dono da loja precisa de saber vai em "description", que aparece
+#    debaixo do campo. Comentários de YAML como este NÃO são visíveis no
+#    backoffice — antes, avisos importantes (ex.: o custo de devolução) estavam
+#    só em comentários e nunca chegavam a quem decide.
+#  · Campos com valores fixos são "select", não texto livre. Escrever "a"
+#    em vez de "A" numa classe da etiqueta UE passava sem ninguém notar.
+#  · "required" só nos campos que estão preenchidos em todos os 19 produtos.
+#    Marcar como obrigatório um campo hoje vazio (ex.: classe de ruído)
+#    trancava o backoffice: deixava de se poder gravar qualquer alteração.
+#  · Campos que nada no site nem no servidor lê estão "hidden", para não
+#    prometerem o que não fazem. Ficam na configuração para os valores não
+#    serem apagados do ficheiro.
 # =====================================================================
 
 media:
@@ -22,62 +36,207 @@ content:
       - name: products
         label: Produtos
         type: object
-        list: true
+        # Cada produto aparece fechado, com um resumo em vez de "Item 1".
+        # Com 19 produtos e 25 campos cada, a lista toda aberta era
+        # impossível de percorrer.
+        list:
+          collapsible:
+            collapsed: true
+            summary: "{name} · {size} · {price_eur} €"
         fields:
-          # O SKU é a chave usada no carrinho e na validação do pagamento.
-          # Se mudar, os carrinhos guardados deixam de encontrar o produto.
-          - { name: sku, label: "Código interno (SKU) — NÃO ALTERAR", type: string }
-          - { name: name, label: Nome, type: string }
+          # ---- o essencial, pela ordem em que se pensa num produto ----
+          - name: name
+            label: Nome
+            type: string
+            required: true
+            description: "Como aparece na loja, no carrinho e na fatura. Ex.: Michelin Primacy 4+"
+
           - name: category
             label: Categoria
             type: select
+            required: true
             options:
               values: [Pneus Novos, Pneus Seminovos, Jantes, Baterias, Óleos, Acessórios]
-          - { name: brand, label: Marca, type: string }
-          - { name: size, label: "Medida / Especificação", type: string }
-          - name: season
-            label: Estação (pneus)
-            type: select
+            description: "Decide em que filtro da loja o produto aparece."
+
+          - name: brand
+            label: Marca
+            type: string
+            description: "Escreva Genérica se não tiver marca definida."
+
+          - name: size
+            label: Medida ou especificação
+            type: string
+            description: "Pneus: 205/55 R16 91V. Baterias: 60Ah 540A. Óleos: 5W30 5L."
+
+          - name: price_eur
+            label: "Preço (€)"
+            type: number
+            required: true
             options:
-              values: ["", Verão, Inverno, "4 Estações"]
+              min: 0
+            description: >-
+              Preço final ao cliente, com IVA e ecovalor já incluídos. Use ponto
+              decimal: 89.90. A zero, o produto passa a "Sob consulta" e perde o
+              botão de compra.
+
+          - name: stock
+            label: Stock (unidades à venda online)
+            type: number
+            required: true
+            options:
+              min: 0
+            description: "A zero, o produto deixa de poder ser comprado. Máximo 8 unidades por linha na mesma encomenda."
+
+          - name: weight_kg
+            label: "Peso (kg)"
+            type: number
+            required: true
+            options:
+              min: 0.01
+            description: >-
+              Peso real, já com embalagem. É este número que escolhe o escalão
+              dos portes — um peso a menos e a loja paga a diferença do envio.
+
+          - name: image
+            label: Fotografia
+            type: image
+            description: "Vertical fica melhor. Ideal 1050×1400 px, até cerca de 300 KB."
+
+          - name: description
+            label: Descrição
+            type: text
+            description: "Texto livre mostrado na ficha do produto."
+
           - name: condition
             label: Estado
             type: select
+            required: true
             options:
               values: [Novo, Seminovo]
-          # Número, não texto: o preço é cobrado ao cliente. Um preço a 0 ou
-          # vazio faz o produto deixar de ter botão "Adicionar".
-          - { name: price_eur, label: "Preço em € (ex.: 89.90) — IVA e ecovalor incluídos", type: number }
-          - { name: weight_kg, label: "Peso (kg) — para portes", type: number }
-          - { name: stock, label: "Stock (unidades à venda online)", type: number }
-          - { name: image, label: Imagem, type: image }
+            description: >-
+              Novo pede a etiqueta UE (campos mais abaixo). Seminovo está
+              excluído dessa etiqueta, mas pede DOT, sulco e garantia.
 
-          # ---- Etiqueta UE (Reg. 2020/740) — SÓ pneus NOVOS ----
+          - name: season
+            label: Estação
+            type: select
+            options:
+              values: ["", Verão, Inverno, "4 Estações"]
+            description: "Só para pneus. Deixe vazio em jantes, baterias, óleos e acessórios."
+
+          - name: available
+            label: Disponível (à venda)
+            type: boolean
+            description: "Desligue para retirar da loja sem perder a ficha do produto."
+
+          - name: featured
+            label: Mostrar como destaque
+            type: boolean
+            description: "Põe o selo DESTAQUE e coloca o produto à frente na listagem."
+
+          # ---- Etiqueta UE — Reg. (UE) 2020/740 — SÓ pneus NOVOS ----
           - name: tyre_class
-            label: "Etiqueta UE — Classe do pneu (só pneus novos)"
+            label: "Etiqueta UE · Classe do pneu"
             type: select
             options:
               values: ["", C1, C2, C3]
-          - { name: label_fuel, label: "Etiqueta UE — Combustível (A-E)", type: string }
-          - { name: label_grip, label: "Etiqueta UE — Aderência em molhado (A-E)", type: string }
+            description: >-
+              C1 ligeiros, C2 comerciais/furgões, C3 pesados. Os campos
+              seguintes, todos começados por "Etiqueta UE", só se aplicam a
+              pneus NOVOS e vêm da ficha do fornecedor.
+
+          - name: label_fuel
+            label: "Etiqueta UE · Eficiência de combustível"
+            type: select
+            options:
+              values: ["", A, B, C, D, E]
+            description: "Letra da etiqueta. A é a mais eficiente."
+
+          - name: label_grip
+            label: "Etiqueta UE · Aderência em piso molhado"
+            type: select
+            options:
+              values: ["", A, B, C, D, E]
+            description: "Letra da etiqueta. A é a que trava melhor na chuva."
+
           - name: label_noise_class
-            label: "Etiqueta UE — Classe de ruído (A/B/C) — obrigatória"
+            label: "Etiqueta UE · Classe de ruído"
             type: select
             options:
               values: ["", A, B, C]
-          - { name: label_noise_db, label: "Etiqueta UE — Ruído em dB (ex.: 71)", type: number }
-          - { name: snow_3pmsf, label: "Etiqueta UE — Pictograma de neve (3PMSF)", type: boolean }
-          - { name: ice_grip, label: "Etiqueta UE — Pictograma de gelo", type: boolean }
-          - { name: eprel_id, label: "Etiqueta UE — ID EPREL (ficha do produto)", type: string }
+            description: >-
+              OBRIGATÓRIA para anunciar um pneu novo. Enquanto estiver vazia,
+              não ligue "Disponível" neste pneu — anunciá-lo sem esta
+              informação é uma infração ao Reg. (UE) 2020/740.
 
-          # ---- SÓ pneus SEMINOVOS (excluídos da etiqueta UE) ----
-          - { name: dot, label: "Seminovo — Código DOT (ex.: 3221)", type: string }
-          - { name: tread_mm, label: "Seminovo — Sulco medido em mm (ex.: 6)", type: number }
-          - { name: warranty_months, label: "Seminovo — Garantia em meses (mínimo 12)", type: number }
+          - name: label_noise_db
+            label: "Etiqueta UE · Ruído (dB)"
+            type: number
+            options:
+              min: 50
+              max: 99
+            description: "Valor em decibéis que vem na etiqueta. Normalmente entre 66 e 75."
 
-          - { name: description, label: Descrição, type: text }
-          - { name: featured, label: Mostrar como destaque, type: boolean }
-          - { name: available, label: Disponível (à venda), type: boolean }
+          - name: snow_3pmsf
+            label: "Etiqueta UE · Pictograma de neve (3PMSF)"
+            type: boolean
+            description: "Ligue só se a etiqueta tiver o símbolo da montanha com três picos e o floco."
+
+          - name: ice_grip
+            label: "Etiqueta UE · Pictograma de gelo"
+            type: boolean
+            description: "Ligue só se a etiqueta tiver o símbolo de gelo. Raro fora de pneus nórdicos."
+
+          - name: eprel_id
+            label: "Etiqueta UE · Ficha EPREL"
+            type: string
+            description: >-
+              Número de registo do pneu na base de dados EPREL da União
+              Europeia. Vem na documentação do fornecedor. Também é obrigatório
+              para poder anunciar o pneu.
+
+          # ---- SÓ pneus SEMINOVOS ----
+          - name: dot
+            label: "Seminovo · Código DOT"
+            type: string
+            pattern:
+              regex: "^$|^[0-9]{4}$"
+              message: "Quatro dígitos, ou vazio. Ex.: 3221."
+            description: "Semana e ano de fabrico. 3221 = semana 32 de 2021."
+
+          - name: tread_mm
+            label: "Seminovo · Sulco medido (mm)"
+            type: number
+            options:
+              min: 0
+              max: 20
+            description: >-
+              Profundidade real que mediu. O mínimo legal para circular é
+              1,6 mm, portanto um pneu à venda tem de estar bem acima disso.
+              A zero, não ligue "Disponível".
+
+          - name: warranty_months
+            label: "Seminovo · Garantia (meses)"
+            type: number
+            options:
+              min: 12
+              max: 36
+            description: "Em bens usados a garantia não pode ser inferior a 12 meses (DL 84/2021)."
+
+          # ---- plumbing: último, porque quase nunca se toca ----
+          - name: sku
+            label: Código interno
+            type: string
+            required: true
+            pattern:
+              regex: "^[a-z0-9][a-z0-9-]*$"
+              message: "Só minúsculas sem acentos, números e hífens. Ex.: michelin-primacy-4"
+            description: >-
+              Identifica o produto no carrinho e na validação do pagamento.
+              Num produto novo, invente um a partir do nome. Num produto que já
+              existe, NÃO altere: os carrinhos já guardados nos telemóveis dos
+              clientes deixam de encontrar o produto e o pagamento é recusado.
 
   # ---------------- IMAGENS DO SITE ----------------
   - name: content
@@ -87,15 +246,21 @@ content:
     icon: image
     fields:
       - name: hero
-        label: Destaque (topo)
+        label: Topo da página inicial
         type: object
         fields:
-          - { name: image, label: Imagem do topo, type: image }
+          - name: image
+            label: Imagem do topo
+            type: image
+            description: "Aparece ao lado do título na página inicial. Vertical, ideal 1050×1400 px."
       - name: sobre
-        label: Sobre nós
+        label: Secção "Sobre nós"
         type: object
         fields:
-          - { name: image, label: Imagem da secção "Sobre", type: image }
+          - name: image
+            label: Imagem da secção Sobre
+            type: image
+            description: "Vertical, ideal 1050×1400 px."
 
   # ---------------- DEFINIÇÕES ----------------
   - name: settings
@@ -105,61 +270,157 @@ content:
     icon: settings
     fields:
       - name: store
-        label: Loja
+        label: Contactos
         type: object
         fields:
-          - { name: name, label: Nome, type: string }
-          - { name: phone, label: Telefone, type: string }
-          - { name: whatsapp, label: "WhatsApp (ex.: 351935218857)", type: string }
-          - { name: email, label: Email, type: string }
-          - { name: address, label: Morada, type: string }
+          - name: phone
+            label: Telefone
+            type: string
+            description: >-
+              Usado no aviso que aparece quando os pagamentos online estão
+              desligados. Os números mostrados no resto do site estão escritos
+              nas páginas — se mudarem, avise quem trata do site.
+          - name: whatsapp
+            label: WhatsApp
+            type: string
+            pattern:
+              regex: "^[0-9]{9,15}$"
+              message: "Só dígitos, com indicativo e sem espaços nem +. Ex.: 351935218857"
+            description: "Com indicativo do país e sem espaços. Ex.: 351935218857"
+          # Nada no site nem no servidor lê os três campos seguintes: o nome, o
+          # email e a morada estão escritos nas páginas e nos dados
+          # estruturados. Ficam aqui só para não se perderem do ficheiro.
+          - { name: name, label: Nome, type: string, hidden: true }
+          - { name: email, label: Email, type: string, hidden: true }
+          - { name: address, label: Morada, type: string, hidden: true }
+
       - name: shipping
         label: Portes de envio
         type: object
         fields:
-          - { name: free_pickup, label: Levantamento na loja grátis, type: boolean }
-          - { name: pickup_label, label: "Texto do levantamento", type: string }
-          - { name: note, label: "Nota dos portes", type: string }
           - name: tiers
-            label: "Escalões de portes (por peso)"
+            label: Escalões de portes (por peso)
             type: object
-            list: true
+            list:
+              min: 1
+            description: >-
+              O preço do envio sai do peso total da encomenda. O último escalão
+              deve ter um peso muito alto (ex.: 100000) para apanhar tudo o que
+              passe dos anteriores. Um escalão com o peso ou o preço em branco é
+              ignorado pelo servidor; se não sobrar nenhum válido, a encomenda é
+              recusada em vez de ser cobrada mal.
             fields:
-              - { name: max_kg, label: "Até (kg)", type: number }
-              - { name: price, label: "Preço (€)", type: number }
+              - name: max_kg
+                label: "Até (kg)"
+                type: number
+                required: true
+                options:
+                  min: 0.01
+              - name: price
+                label: "Preço (€)"
+                type: number
+                required: true
+                options:
+                  min: 0.01
+          - name: pickup_label
+            label: Texto da opção de levantamento
+            type: string
+            description: 'Aparece no checkout na opção grátis. Ex.: "Levantar e montar na loja".'
+          - name: note
+            label: Nota dos portes
+            type: string
+            description: "Frase curta mostrada junto à opção de envio."
+          # O checkout mostra sempre o levantamento como grátis; este
+          # interruptor não é lido por ninguém.
+          - { name: free_pickup, label: Levantamento grátis, type: boolean, hidden: true }
+
       - name: delivery
         label: Prazos de entrega
         type: object
         fields:
-          - { name: estimate_min_days, label: "Estimativa — mínimo (dias úteis)", type: number }
-          - { name: estimate_max_days, label: "Estimativa — máximo (dias úteis)", type: number }
-          - { name: max_days, label: "Prazo máximo legal (dias) — não passar de 30", type: number }
-          - { name: countries_note, label: "Nota sobre zonas de entrega", type: string }
+          - name: estimate_min_days
+            label: "Estimativa — mínimo (dias úteis)"
+            type: number
+            required: true
+            options:
+              min: 1
+            description: "O checkout mostra ao cliente: entrega em X a Y dias úteis."
+          - name: estimate_max_days
+            label: "Estimativa — máximo (dias úteis)"
+            type: number
+            required: true
+            options:
+              min: 1
+          - name: max_days
+            label: "Prazo máximo (dias)"
+            type: number
+            required: true
+            options:
+              min: 1
+              max: 30
+            description: >-
+              Prazo limite prometido ao cliente. A lei não deixa passar dos 30
+              dias sem acordo expresso, por isso não ponha mais do que 30.
+          # Ninguém lê esta nota: a regra de só entregar no continente está
+          # imposta no formulário e no servidor, com a mensagem já escrita lá.
+          - { name: countries_note, label: Nota sobre zonas de entrega, type: string, hidden: true }
+
       - name: returns
         label: Devoluções
         type: object
         fields:
-          # Sem este valor, a lei (DL 24/2014, art. 4.º n.º 5) diz que o
-          # consumidor NÃO suporta os custos de devolução — ou seja, ficam
-          # por conta da loja. Preencher com o preço real da transportadora.
-          - { name: return_cost_eur, label: "Custo de devolução em € (obrigatório para o poder cobrar)", type: number }
-          - { name: note, label: "Nota sobre devoluções", type: text }
-      - name: mounting
-        label: Montagem
-        type: object
-        fields:
-          - { name: price_eur, label: "Preço da montagem em € (tem de estar publicado)", type: number }
-          - { name: note, label: "Nota sobre a montagem", type: text }
-      - name: payment
-        label: Pagamento
-        type: object
-        fields:
-          # Interruptor de emergência. "online" = a loja cobra normalmente.
-          # "reserva" = deixa de aceitar pagamentos e encaminha os clientes para
-          # telefone/WhatsApp. É imposto também no servidor, não é só um aviso.
-          - name: mode
-            label: "Pagamentos online — LIGADOS (online) ou DESLIGADOS (reserva)"
-            type: select
+          - name: return_cost_eur
+            label: "Custo de devolução (€)"
+            type: number
             options:
-              values: [online, reserva]
-          - { name: note, label: "Nota de pagamento (mostrada no checkout)", type: text }
+              min: 0
+            description: >-
+              Só pode pôr o custo do reenvio a cargo do cliente se este valor
+              estiver preenchido com o custo real da transportadora. Em branco,
+              a lei (DL 24/2014, art. 4.º n.º 5) põe esse custo por conta da
+              loja — e o site passa a dizer isso ao cliente, porque é o que
+              fica a valer.
+          - name: note
+            label: Nota sobre devoluções
+            type: text
+
+      - name: mounting
+        label: Montagem na oficina
+        type: object
+        fields:
+          - name: price_eur
+            label: "Preço da montagem (€)"
+            type: number
+            options:
+              min: 0
+            description: >-
+              Mostrado no checkout a quem pede montagem. Tem de estar publicado
+              antes de ser cobrado. Não é cobrado online — o cliente paga na
+              oficina —, por isso o site diz isso mesmo ao lado do preço. Em
+              branco, não aparece preço nenhum.
+          - name: note
+            label: Nota sobre a montagem
+            type: text
+            description: "Frase mostrada debaixo da opção de montagem no checkout."
+
+      - name: payment
+        label: Pagamentos
+        type: object
+        fields:
+          - name: mode
+            label: Pagamentos online
+            type: select
+            required: true
+            options:
+              values:
+                - { name: online, label: "Ligados — a loja cobra normalmente" }
+                - { name: reserva, label: "DESLIGADOS — encaminhar para telefone e WhatsApp" }
+            description: >-
+              Interruptor de emergência, para poder desligar a cobrança sozinho
+              numa avaria. Em DESLIGADOS o checkout deixa de aceitar pagamentos
+              e mostra os contactos, e o servidor recusa também — não é só um
+              aviso na página. Volte a Ligados quando estiver resolvido.
+          - name: note
+            label: Nota de pagamento
+            type: text
+            description: "Texto mostrado no checkout junto aos métodos de pagamento."

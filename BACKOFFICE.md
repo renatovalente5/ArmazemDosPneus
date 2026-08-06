@@ -10,17 +10,21 @@ O site usa o **[Pages CMS](https://pagescms.org)** (gratuito) para o cliente ger
    (Sign in → *Install/authorize* → escolher o repo).
 3. Abrir o repo no Pages CMS. Ele lê o ficheiro **`.pages.yml`** e mostra 3 secções:
    - **Produtos** — adicionar/editar/remover pneus, jantes, baterias, óleos.
-     Campos que importam para a loja funcionar:
-     · **Código interno (SKU)** — é a chave usada no carrinho e na validação do pagamento.
-       **Não alterar** num produto já existente: carrinhos guardados deixam de o encontrar.
-       Num produto novo, escrever um código curto sem acentos nem espaços (ex. `michelin-primacy-4`).
-     · **Preço em €** — é um número (`89.90`), não texto. Sem preço, o produto deixa de ter
-       botão de compra — de propósito, para nunca cobrar 0 €.
-     · **Stock** — quantas unidades se vendem online. A zero, aparece "Esgotado".
-     · **Disponível** — o interruptor para tirar algo de venda sem apagar.
-     · Etiqueta UE dos pneus e dados dos seminovos — ver `ENCOMENDAS.md`.
+     A lista aparece fechada, um produto por linha, com nome, medida e preço no resumo.
+     Cada campo tem a explicação por baixo, no próprio backoffice — incluindo o que
+     acontece se ficar mal preenchido. Vale a pena ler antes de perguntar.
+     · **Preço**, **Stock** e **Peso** são obrigatórios: são eles que decidem o que é
+       cobrado e quanto custam os portes.
+     · **Disponível** — o interruptor para tirar algo de venda sem apagar a ficha.
+     · **Etiqueta UE** (pneus novos) e **Seminovo** (DOT, sulco, garantia) — campos
+       agrupados pelo prefixo do nome. Um pneu novo sem classe de ruído e sem ficha
+       EPREL não pode ser anunciado; ver `ENCOMENDAS.md`.
+     · **Código interno** — está no fim do formulário, porque quase nunca se toca.
+       **Não alterar** num produto já existente: carrinhos guardados nos telemóveis
+       dos clientes deixam de o encontrar e o pagamento é recusado.
    - **Imagens do site** — imagem do topo (hero) e da secção "Sobre".
-   - **Definições** — contactos da loja, escalões de portes (por peso) e modo de pagamento.
+   - **Definições** — portes por peso, prazos de entrega, devoluções, montagem,
+     o interruptor dos pagamentos online e os contactos usados no aviso de avaria.
 4. **Convidar o cliente**: em *Settings → Collaborators*, convidar por **email**
    (o cliente entra com um link, **sem precisar de conta GitHub**).
 

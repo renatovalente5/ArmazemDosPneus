@@ -385,6 +385,7 @@ a.contact__card:hover{transform:translateY(-3px);box-shadow:var(--shadow);border
 .co__check--legal{font-size:.86rem;color:var(--body);margin-top:1.1rem}
 .co__check input[aria-invalid="true"]{outline:2px solid #d33;outline-offset:3px}
 .co__mount-extra{margin-top:.9rem}
+.co__mount-note{font-size:.82rem;line-height:1.5;color:var(--muted);margin:.6rem 0 0}
 
 .co__card--recap{background:var(--bg-soft)}
 .co__recap{list-style:none;display:flex;flex-direction:column;gap:.6rem;font-size:.88rem;line-height:1.5;color:var(--body);margin:0 0 .4rem}
