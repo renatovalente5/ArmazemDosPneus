@@ -77,7 +77,7 @@
     elSubmit.disabled = on;
     elSubmit.classList.toggle('is-busy', on);
     var l = elSubmit.querySelector('.co__submit-label');
-    if (l) l.textContent = on ? 'A preparar o pagamento…' : 'Encomendar com obrigação de pagar';
+    if (l) l.textContent = on ? 'A preparar o pagamento…' : 'Pagar agora';
   }
 
   function invalid(el, msg) {
@@ -97,7 +97,12 @@
     if (nif && !/^[0-9]{9}$/.test(nif)) return invalid(f.nif, 'O NIF tem de ter 9 dígitos.');
     if (delivery() === 'envio') {
       if ((f.morada.value || '').trim().length < 5) return invalid(f.morada, 'Indique a morada de envio.');
-      if (!/^[0-9]{4}-[0-9]{3}$/.test((f.cp.value || '').trim())) return invalid(f.cp, 'O código postal deve ter o formato 0000-000.');
+      var cp = (f.cp.value || '').trim();
+      if (!/^[0-9]{4}-[0-9]{3}$/.test(cp)) return invalid(f.cp, 'O código postal deve ter o formato 0000-000.');
+      // Códigos começados por 9 são Madeira e Açores. O site promete só
+      // continente; quem valida a sério é o servidor, isto é para o cliente
+      // saber antes de chegar ao pagamento.
+      if (!/^[1-8]/.test(cp)) return invalid(f.cp, 'Só entregamos em Portugal continental. Para a Madeira ou os Açores, ligue-nos: 935 218 857.');
       if ((f.localidade.value || '').trim().length < 2) return invalid(f.localidade, 'Indique a localidade.');
     }
     if (!f.termos.checked) return invalid(f.termos, 'Tem de aceitar os Termos e Condições e a Política de Privacidade.');

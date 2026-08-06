@@ -174,6 +174,7 @@ export function confirmacaoCliente(env, order) {
     `  ${env.SITE_URL}/legal/livre-resolucao.html`,
     '  Reembolsamos em 14 dias, pelo mesmo meio de pagamento, incluindo os',
     '  portes de entrega standard.',
+    '  Os custos de devolução dos bens são suportados pela loja.',
     // Só se ele pediu EXPRESSAMENTE a montagem imediata. Dizer isto a quem
     // apenas pediu montagem seria afirmar uma renúncia que não existiu.
     c.montagem_imediata
@@ -224,7 +225,7 @@ export function confirmacaoCliente(env, order) {
       separador(),
       bloco([
         h2('Direito de livre resolução'),
-        p(`Tem <strong>14 dias</strong>, a contar da data em que recebe os bens, para resolver este contrato sem indicar qualquer motivo. Para o exercer, basta comunicar-nos a sua decisão — por email, telefone, ou usando o formulário em ${link(site + '/legal/livre-resolucao.html', 'armazemdospneus.pt/legal/livre-resolucao.html')}. Reembolsamos em 14 dias, pelo mesmo meio de pagamento, incluindo os portes de entrega standard.`),
+        p(`Tem <strong>14 dias</strong>, a contar da data em que recebe os bens, para resolver este contrato sem indicar qualquer motivo. Para o exercer, basta comunicar-nos a sua decisão — por email, telefone, ou usando o formulário em ${link(site + '/legal/livre-resolucao.html', 'armazemdospneus.pt/legal/livre-resolucao.html')}. Reembolsamos em 14 dias, pelo mesmo meio de pagamento, incluindo os portes de entrega standard, e <strong>os custos de devolução dos bens são suportados pela loja</strong>.`),
         c.montagem_imediata
           ? p('Pediu expressamente a montagem imediata. Uma vez prestado esse serviço, perde o direito de livre resolução <strong>quanto a ele</strong> — mantendo-o integralmente quanto aos bens.')
           : '',
