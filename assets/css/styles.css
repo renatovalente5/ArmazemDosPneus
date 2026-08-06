@@ -3,9 +3,15 @@
    ============================================================= */
 
 /* ---------------- HEADER / NAVBAR ---------------- */
-.site-header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(255,255,255,.9);backdrop-filter:saturate(150%) blur(12px);-webkit-backdrop-filter:saturate(150%) blur(12px);border-bottom:1px solid transparent;transition:background var(--t),box-shadow var(--t),border-color var(--t)}
+/* Branco opaco, de propósito. Antes era rgba(255,255,255,.9) e o header lia-se
+   cinzento na página inicial: o hero tem fundo rgb(28,28,28) a começar em y=0 e
+   passa por trás do header fixo, logo 0,9×255 + 0,1×28 = 232 (#E8E8E8). Pior, a
+   cor mudava ao rolar, porque #inicio e #servicos são escuros e o resto claro.
+   Sem transparência o backdrop-filter não desfoca nada — só custava uma camada
+   de composição — e sai. Não afeta a loja: essa página só tem secções claras. */
+.site-header{position:fixed;top:0;left:0;right:0;z-index:100;background:#fff;border-bottom:1px solid transparent;transition:box-shadow var(--t),border-color var(--t)}
 .site-header .stripe{height:5px;transition:height var(--t)}
-.site-header.is-scrolled{background:rgba(255,255,255,.96);box-shadow:0 8px 30px -18px rgba(20,20,20,.5);border-bottom-color:var(--line)}
+.site-header.is-scrolled{box-shadow:0 8px 30px -18px rgba(20,20,20,.5);border-bottom-color:var(--line)}
 .site-header.is-scrolled .stripe{height:4px}
 .nav{display:flex;align-items:center;gap:1.1rem;padding-block:12px;transition:padding var(--t)}
 .site-header.is-scrolled .nav{padding-block:7px}
