@@ -49,7 +49,11 @@ jobs:
             --exclude 'worker' \
             --exclude '_source' \
             --exclude '*.md' \
-            --exclude '.gitignore'
+            --exclude '.gitignore' \
+            --exclude '.pages.yml'
+          # O .pages.yml é a configuração do backoffice. O Pages CMS lê-o do
+          # repositório, não do site, por isso excluí-lo não lhe faz falta —
+          # e estava a ser servido em armazemdospneus.pt/.pages.yml.
           # O .nojekyll TEM de sobreviver: sem ele o Jekyll corre e ignora
           # pastas começadas por underscore.
           touch _site/.nojekyll
@@ -60,6 +64,8 @@ jobs:
           test -f _site/CNAME           || { echo "FALTA CNAME (domínio próprio)"; exit 1; }
           test -f _site/.nojekyll       || { echo "FALTA .nojekyll"; exit 1; }
           test ! -d _site/worker        || { echo "worker/ NÃO devia ser publicado"; exit 1; }
+          test ! -e _site/.pages.yml    || { echo ".pages.yml NÃO devia ser publicado"; exit 1; }
+          test -z "$(find _site -name '*.md')" || { echo "ficheiros .md NÃO deviam ser publicados"; exit 1; }
           echo "ok"
 
       - name: Configurar o Pages
