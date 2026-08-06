@@ -1,6 +1,6 @@
 # Armazém dos Pneus — Loja online + Oficina
 
-E-commerce da **Armazém dos Pneus** (Motivar & Lucrar Unipessoal Lda) — venda de pneus novos e
+E-commerce da **Armazém dos Pneus** (Motivar & Lucrar, Unipessoal, Lda.) — venda de pneus novos e
 seminovos, jantes, baterias e peças, e serviços de oficina em Arada, Ovar.
 _"Os nossos clientes são a nossa prioridade!"_
 

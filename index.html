@@ -41,8 +41,9 @@
          dono controla as próprias avaliações são inelegíveis para a estrela, e
          inventar dados cai nas políticas de spam. As estrelas vêm do Perfil de
          Empresa, não daqui.
-       · SEM geo: a coordenada tem de ser copiada do pino do Perfil de Empresa
-         depois de corrigido, para não haver dois pontos diferentes.
+       · O geo é a coordenada do PINO do Perfil de Empresa (confirmada pelo
+         cliente em 2026-08-06), não o centroide da rua — que ficava a ~180 m.
+         Se o pino for movido, esta coordenada muda com ele.
        · Os horários são os mesmos que o site mostra. Se mudarem, mudam nos dois
          sítios — o JSON-LD nunca pode divergir do visível. -->
   <script type="application/ld+json">
@@ -53,7 +54,7 @@
         "@type": ["AutoRepair", "AutoPartsStore"],
         "@id": "https://armazemdospneus.pt/#business",
         "name": "Armazém dos Pneus",
-        "legalName": "Motivar & Lucrar Unipessoal Lda",
+        "legalName": "Motivar & Lucrar, Unipessoal, Lda.",
         "url": "https://armazemdospneus.pt/",
         "description": "Venda e montagem de pneus novos e seminovos, jantes, baterias e óleos, com oficina auto em Arada, Ovar.",
         "image": [
@@ -76,6 +77,12 @@
           "postalCode": "3885-183",
           "addressCountry": "PT"
         },
+        "geo": {
+          "@type": "GeoCoordinates",
+          "latitude": 40.8992781,
+          "longitude": -8.6205027
+        },
+        "hasMap": "https://maps.app.goo.gl/7zmkjQksjeACTZBy6",
         "openingHoursSpecification": [
           { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday"], "opens": "09:00", "closes": "19:00" },
           { "@type": "OpeningHoursSpecification", "dayOfWeek": "Saturday", "opens": "09:00", "closes": "13:00" },
