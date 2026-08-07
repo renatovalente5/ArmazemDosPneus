@@ -16,6 +16,14 @@
 #  · Campos que nada no site nem no servidor lê estão "hidden", para não
 #    prometerem o que não fazem. Ficam na configuração para os valores não
 #    serem apagados do ficheiro.
+#  · Todo o campo numérico que aceite decimais TEM de levar "step". O Pages CMS
+#    passa as options directamente para <input type="number">, e sem step o HTML
+#    assume step=1 — o backoffice recusava 89.90 com "the two nearest valid
+#    values are 89 and 90". Pior: com "min" definido, o min passa a ser a BASE do
+#    step, e min:0.01 sem step tornava inválidos TODOS os pesos do catálogo
+#    (5, 9, 18...), bloqueando a gravação de qualquer produto. O step não está
+#    na documentação deles, mas está no código: fields/core/number/edit-component.tsx
+#    faz step={field?.options?.step ?? undefined}.
 # =====================================================================
 
 media:
@@ -74,6 +82,7 @@ content:
             type: number
             required: true
             options:
+              step: 0.01
               min: 0
             description: >-
               Preço final ao cliente, com IVA e ecovalor já incluídos. Use ponto
@@ -93,6 +102,7 @@ content:
             type: number
             required: true
             options:
+              step: 0.01
               min: 0.01
             description: >-
               Peso real, já com embalagem. É este número que escolhe o escalão
@@ -219,6 +229,7 @@ content:
             label: "Seminovo · Sulco medido (mm)"
             type: number
             options:
+              step: 0.1
               min: 0
               max: 20
             description: >-
@@ -339,12 +350,14 @@ content:
                 type: number
                 required: true
                 options:
+                  step: 0.01
                   min: 0.01
               - name: price
                 label: "Preço (€)"
                 type: number
                 required: true
                 options:
+                  step: 0.01
                   min: 0.01
           - name: pickup_label
             label: Texto da opção de levantamento
@@ -397,6 +410,7 @@ content:
             label: "Custo de devolução (€)"
             type: number
             options:
+              step: 0.01
               min: 0
             description: >-
               Só pode pôr o custo do reenvio a cargo do cliente se este valor
@@ -416,6 +430,7 @@ content:
             label: "Preço da montagem (€)"
             type: number
             options:
+              step: 0.01
               min: 0
             description: >-
               Mostrado no checkout a quem pede montagem. Tem de estar publicado
