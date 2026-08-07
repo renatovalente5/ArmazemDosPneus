@@ -137,7 +137,15 @@ export function avisoLoja(env, order) {
     mm ? '  0. CONFIRMAR O VALOR REAL NA STRIPE ANTES DE FATURAR (ver aviso no topo).' : null,
     '  1. Emitir a fatura no programa certificado, com data de HOJE',
     '     (data do pagamento, não a da encomenda), na série ONLINE.',
-    '  2. Linhas separadas: artigos (IVA 23%), portes (IVA 23%), ecovalor.',
+    // Sem portes cobrados não há linha de portes para facturar. Mandar fazer
+    // "linhas separadas: artigos, portes" numa encomenda sem portes só levava
+    // a uma fatura errada.
+    order.shipping_quote_later
+      ? '  2. Linhas separadas: artigos (IVA 23%) e ecovalor. SEM linha de portes —'
+      : '  2. Linhas separadas: artigos (IVA 23%), portes (IVA 23%), ecovalor.',
+    order.shipping_quote_later
+      ? '     ainda não foram cobrados. O envio é faturado depois, à parte.'
+      : null,
     '  3. Enviar a fatura ao cliente.',
     '',
     `Método: ${order.payment_method || '—'} · Stripe: ${order.payment_intent || '—'}`,
