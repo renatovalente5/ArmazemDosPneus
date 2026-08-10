@@ -19,6 +19,31 @@
       if (!ticking) { window.requestAnimationFrame(onScroll); ticking = true; }
     }, { passive: true });
     onScroll();
+
+    /* Onde um salto para âncora tem de parar.
+       O CSS tinha scroll-padding-top:78px fixo, que não corresponde a nenhum
+       estado real do cabeçalho: mede 106/71 px no desktop, 86/65 até 920 px e
+       78/67 até 420 px. Resultado, o título da secção ficava por baixo do
+       cabeçalho em alguns tamanhos de ecrã e com um vão a mais noutros.
+       Mede-se o estado "rolado" porque é nesse que qualquer salto acaba — a
+       página só salta para longe, e a essa altura já há scroll. */
+    var ajustarOffset = function () {
+      var tinha = header.classList.contains('is-scrolled');
+      // A classe é posta e tirada dentro do mesmo bloco síncrono, com as
+      // transições desligadas: getBoundingClientRect força o cálculo do
+      // layout, mas nada chega a ser pintado, logo não há tremura visível.
+      header.classList.add('no-anim');
+      header.classList.add('is-scrolled');
+      var alt = Math.round(header.getBoundingClientRect().height);
+      if (!tinha) header.classList.remove('is-scrolled');
+      header.classList.remove('no-anim');
+      if (alt > 0) doc.documentElement.style.scrollPaddingTop = (alt + 14) + 'px';
+    };
+    ajustarOffset();
+    var tRedim;
+    window.addEventListener('resize', function () {
+      clearTimeout(tRedim); tRedim = setTimeout(ajustarOffset, 150);
+    });
   }
 
   /* ---------- Menu mobile (ecrã inteiro) ---------- */

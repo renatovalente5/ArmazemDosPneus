@@ -11,6 +11,9 @@
    de composição — e sai. Não afeta a loja: essa página só tem secções claras. */
 .site-header{position:fixed;top:0;left:0;right:0;z-index:100;background:#fff;border-bottom:1px solid transparent;transition:box-shadow var(--t),border-color var(--t)}
 .site-header .stripe{height:5px;transition:height var(--t)}
+/* Usada pelo main.js para medir a altura do cabeçalho no estado "rolado" sem
+   que a medição se veja: a classe entra e sai no mesmo bloco síncrono. */
+.site-header.no-anim,.site-header.no-anim *{transition:none!important}
 .site-header.is-scrolled{box-shadow:0 8px 30px -18px rgba(20,20,20,.5);border-bottom-color:var(--line)}
 .site-header.is-scrolled .stripe{height:4px}
 .nav{display:flex;align-items:center;gap:1.1rem;padding-block:12px;transition:padding var(--t)}
@@ -107,10 +110,15 @@ body.menu-open{overflow:hidden}
 .hero__chip--b{right:-14px;bottom:34px;border-left:4px solid var(--ink)}
 
 .hero__marquee{position:relative;z-index:1;border-top:1px solid rgba(255,255,255,.1);overflow:hidden;padding-block:1.1rem;-webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)}
-.hero__marquee-track{display:inline-flex;align-items:center;gap:1.6rem;white-space:nowrap;animation:marquee 32s linear infinite}
+.hero__marquee-track{--mq-gap:1.6rem;display:inline-flex;align-items:center;gap:var(--mq-gap);white-space:nowrap;animation:marquee 32s linear infinite}
 .hero__marquee-track span{font-family:var(--font-head);font-weight:600;text-transform:uppercase;letter-spacing:.04em;font-size:clamp(1.1rem,2.3vw,1.6rem);color:#EDEDED}
 .hero__marquee-track i{color:var(--yellow);font-style:normal;font-size:1.1em}
-@keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+/* Meio gap a mais, de propósito. A faixa tem duas cópias iguais da lista de
+   marcas, mas o "gap" entra entre TODOS os 32 elementos e o -50% da largura só
+   conta metade desses espaçamentos. Faltava meio gap (12,8 px), e o salto dava-se
+   sempre na costura — logo depois de "Lassa", o último nome da primeira cópia.
+   O avanço certo de uma cópia é 1092 px e o -50% dava 1079 px. */
+@keyframes marquee{from{transform:translateX(0)}to{transform:translateX(calc(-50% - var(--mq-gap) / 2))}}
 @media (prefers-reduced-motion:reduce){.hero__marquee-track{animation:none}}
 
 @media (max-width:860px){

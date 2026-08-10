@@ -121,6 +121,32 @@
     grid.innerHTML = list.map(card).join('') + (more ? moreCard(remaining) : '');
   }
 
+  /* Repõe o destino da âncora depois de os cartões existirem.
+     O browser salta para #servicos no instante em que carrega a página — antes
+     de estes cartões terem sido buscados e injetados. Quando entram, empurram
+     as secções de baixo cerca de 3745 px, e quem vinha da loja clicar em
+     "Serviços" ficava a milhares de píxeis do destino, sem perceber porquê.
+     Só na primeira renderização, e só se o visitante ainda não tiver mexido:
+     corrigir a posição por baixo de quem já está a ler é pior do que o erro. */
+  var mexeu = false, jaRepos = false;
+  ['wheel', 'touchstart', 'keydown', 'mousedown'].forEach(function (ev) {
+    window.addEventListener(ev, function () { mexeu = true; }, { passive: true, once: true });
+  });
+  function reporAncora() {
+    if (jaRepos) return;
+    jaRepos = true;
+    if (mexeu) return;
+    var id = (location.hash || '').replace('#', '');
+    if (!id) return;
+    var alvo = null;
+    try { alvo = document.getElementById(decodeURIComponent(id)); } catch (e) { alvo = document.getElementById(id); }
+    if (!alvo) return;
+    // Sem animação: o salto é de milhares de píxeis e vê-lo a correr dava a
+    // sensação de que a página se tinha descontrolado.
+    try { alvo.scrollIntoView({ block: 'start', behavior: 'instant' }); }
+    catch (e) { alvo.scrollIntoView(true); }
+  }
+
   function buildFilters() {
     if (!filters) return;
     var cats = ['Todos'];
@@ -170,6 +196,7 @@
       var qcat = null; try { qcat = new URLSearchParams(location.search).get('cat'); } catch (e) {}
       if (qcat && all.some(function (p) { return p.category === qcat; })) activeCat = qcat;
       buildFilters(); apply();
+      reporAncora();
     })
     .catch(function () { grid.innerHTML = '<p class="catalog__loading">Não foi possível carregar os produtos. Contacte-nos por WhatsApp.</p>'; });
 })();
