@@ -414,7 +414,7 @@
       "condition": "Novo",
       "available": true,
       "featured": false,
-      "hidden": false,
+      "hidden": true,
       "snow_3pmsf": false,
       "ice_grip": false,
       "sku": "teste-pagamento"
