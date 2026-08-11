@@ -1,14 +1,27 @@
 User-agent: *
 Allow: /
 
-# O backoffice não é para rastrear. A pasta worker/ deixou de ser publicada
-# (ver .github/workflows/pages.yml), portanto já não precisa de Disallow — um
-# Disallow escondia do Google e não do público; não publicar resolve as duas.
-Disallow: /admin/
-
-# NOTA: checkout.html e obrigado.html NÃO estão aqui de propósito. Ambos têm
-# <meta name="robots" content="noindex">, e o Google nunca lê o noindex de uma
-# página que não pode rastrear — os dois mecanismos juntos cancelam-se e o URL
-# acaba indexado sem snippet. Um mecanismo por página, nunca os dois.
+# REGRA DESTE FICHEIRO: um mecanismo por página, nunca os dois.
+# O Google não lê o noindex de uma página que não pode rastrear. Na
+# documentação deles: "Google can't index the content of pages which are
+# disallowed for crawling, but it may still index the URL and show it in search
+# results without a snippet." Ou seja, Disallow + noindex cancelam-se e o URL
+# acaba na pesquisa sem descrição — o pior dos dois mundos.
+#
+# Por isso NÃO há Disallow para nada que tenha noindex na própria página:
+#   /admin/                    — noindex em admin/index.html
+#   /checkout.html             — noindex
+#   /obrigado.html             — noindex
+#   /legal/privacidade.html    — noindex (fora da pesquisa por decisão do dono)
+#
+# O /admin/ tinha aqui um Disallow além do noindex. Além de se anularem, o
+# Disallow estava separado do User-agent por uma linha em branco, e os parsers
+# que seguem a norma antiga terminam o grupo aí — ou seja, era ignorado por
+# uns e contraproducente nos outros. A página é só uma porta de entrada para o
+# Pages CMS, sem nada de sensível, portanto o noindex basta e é o que funciona.
+#
+# A pasta worker/ também não precisa de Disallow: deixou de ser publicada
+# (ver .github/workflows/pages.yml). Um Disallow escondia do Google e não do
+# público; não publicar resolve as duas coisas.
 
 Sitemap: https://armazemdospneus.pt/sitemap.xml
