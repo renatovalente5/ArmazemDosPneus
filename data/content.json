@@ -1,4 +1,8 @@
 {
-  "hero": { "image": "assets/uploads/hero.jpg" },
-  "sobre": { "image": "assets/uploads/about.jpg" }
+  "hero": {
+    "image": "/assets/uploads/file_000000003eb472469a32167e1b2c37f9.png"
+  },
+  "sobre": {
+    "image": "/assets/uploads/about.jpg"
+  }
 }
