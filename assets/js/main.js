@@ -113,8 +113,23 @@
     window.addEventListener('load', function () { showInView(); setTimeout(revealAll, 4000); });
   } else { revealAll(); }
 
-  /* ---------- Imagens editáveis (data/content.json) ---------- */
+  /* ---------- Imagens editáveis (data/content.json) ----------
+     SÓ EM DESENVOLVIMENTO. Em produção quem escreve estes caminhos no HTML
+     é a publicação (.github/injetar-imagens.py), e é isso que evita ver a
+     foto antiga antes da nova.
+  
+     Este bloco NÃO pode correr em produção: o HTML publicado aponta para a
+     versão reduzida da foto (assets/uploads/opt/...) e o content.json
+     aponta para o original que o cliente carregou. São caminhos diferentes
+     de propósito, portanto o JS julgava-se desactualizado e trocava a foto
+     de 322 KB pelo PNG original de 2,4 MB — trazia o piscar de olhos de
+     volta e descarregava oito vezes mais. Medido, não suposto.
+  
+     Localmente o servidor serve o repositório tal como está, sem passar
+     pela publicação; sem isto eu veria sempre a foto antiga e concluiria
+     que a alteração do cliente não tinha funcionado. */
   (function () {
+    if (!/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) return;
     var slots = doc.querySelectorAll('[data-img]'); if (!slots.length) return;
     function normImg(p) { if (!p) return ''; if (/^https?:\/\//.test(p)) return p; return p.replace(/^\/+/, ''); }
     var MAP = { 'hero': ['hero', 'image'], 'sobre': ['sobre', 'image'] };

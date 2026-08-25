@@ -38,6 +38,13 @@ jobs:
       - name: Obter o repositório
         uses: actions/checkout@v4
 
+      - name: Instalar o que reduz as fotos
+        # O injetar-imagens.py usa Pillow para converter as fotos do backoffice
+        # em JPEG redimensionado. Sem isto o passo seguinte falha — de
+        # propósito: mais vale a publicação parar do que publicar um PNG de
+        # 2,4 MB no topo da página inicial.
+        run: python3 -m pip install --quiet 'pillow>=10,<12'
+
       - name: Preparar o que vai ser publicado
         run: |
           mkdir -p _site
@@ -57,6 +64,12 @@ jobs:
           # O .nojekyll TEM de sobreviver: sem ele o Jekyll corre e ignora
           # pastas começadas por underscore.
           touch _site/.nojekyll
+          # Escreve no HTML as fotos escolhidas no backoffice. Sem isto, o
+          # index.html publicava o caminho antigo e o main.js trocava-o já
+          # depois de a pagina estar pintada — via-se a foto antiga e logo a
+          # nova, e as duas eram descarregadas. Ver .github/injetar-imagens.py.
+          echo "--- imagens do backoffice ---"
+          python3 .github/injetar-imagens.py _site data/content.json
           echo "--- ficheiros publicados ---"
           find _site -type f | sort | sed 's|^_site/|  |'
           echo "--- verificações ---"
