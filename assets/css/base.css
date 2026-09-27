@@ -90,7 +90,9 @@ h1,h2,h3,h4{font-family:var(--font-head);color:var(--ink);line-height:1.05;font-
 
 .eyebrow{display:inline-flex;align-items:center;gap:.55em;font-family:var(--font-head);font-weight:600;font-size:.85rem;letter-spacing:.18em;text-transform:uppercase;color:var(--ink)}
 .eyebrow::before{content:"";width:30px;height:4px;border-radius:2px;background:var(--yellow)}
-.section--dark .eyebrow{color:#fff}
+/* O hero também é escuro (gradiente #1c1c1c→#0a0a0a) mas não tem a classe
+   .section--dark: o sobretítulo dele saía #141414 sobre preto — invisível. */
+.section--dark .eyebrow,.hero .eyebrow{color:#fff}
 .section-head{max-width:46rem;margin-bottom:clamp(2rem,4vw,3rem)}
 .section-head--center{margin-inline:auto;text-align:center}
 .section-title{font-size:var(--fs-h2);margin:.55rem 0 .6rem}
@@ -112,6 +114,13 @@ h1,h2,h3,h4{font-family:var(--font-head);color:var(--ink);line-height:1.05;font-
 .btn--ghost{background:transparent;color:var(--ink);border-color:var(--line-2)}.btn--ghost:hover{border-color:var(--ink);}
 .btn--outline-light{background:transparent;color:#fff;border-color:rgba(255,255,255,.35)}.btn--outline-light:hover{border-color:var(--yellow);color:var(--yellow)}
 .btn--lg{padding:1.08em 2em;font-size:1.08rem}
+/* Um botão grande com texto comprido («Pedir orçamento sem compromisso») não
+   cabe num telemóvel com white-space:nowrap: saía 20 px do ecrã a 390 e 90 a
+   320 — e numa grelha de uma coluna arrastava os vizinhos (o formulário e os
+   cartões de contacto ficavam com 338 px a 320). O overflow-x:hidden do body
+   escondia-o: não deslizava, cortava. Abaixo de 480 px pode quebrar linha e
+   nunca passa da largura que tem. */
+@media (max-width:480px){.btn--lg{white-space:normal;max-width:100%;line-height:1.2;text-align:center}}
 .btn--sm{padding:.6em 1.1em;font-size:.88rem}
 .btn svg{width:1.15em;height:1.15em;fill:currentColor;flex:none}
 
