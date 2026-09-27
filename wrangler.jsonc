@@ -26,6 +26,18 @@
     // devolvia uma página em branco).
     "not_found_handling": "404-page"
   },
+  // O DOMÍNIO CHEGA POR ROUTE, E NÃO POR «CUSTOM DOMAIN». Um Custom Domain
+  // obriga a apagar primeiro os registos A que lá estão (apontavam para o
+  // GitHub Pages); um resolvedor que pergunte nesse intervalo guarda a falta
+  // durante o mínimo do SOA (1800 s, que no plano Free não se muda). Com uma
+  // route, os A ficam onde estão e só passam a «Proxied»: a resposta nunca
+  // fica vazia, e todo o pedido ao domínio é servido por estes ficheiros (a
+  // origem nunca é contactada). O www vai para o apex por uma Redirect Rule
+  // da zona. «teste» é o ensaio num subdomínio descartável; sai a seguir.
+  "routes": [
+    { "pattern": "armazemdospneus.pt/*", "zone_name": "armazemdospneus.pt" },
+    { "pattern": "teste.armazemdospneus.pt/*", "zone_name": "armazemdospneus.pt" }
+  ],
   // O endereço de ensaio em workers.dev fica ligado até o domínio passar para
   // aqui; depois desliga-se.
   "workers_dev": true,
