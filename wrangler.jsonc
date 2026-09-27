@@ -1,0 +1,33 @@
+// O SITE NA CLOUDFLARE: um Worker só com ficheiros estáticos — a pasta _site
+// que o CI prepara (.github/workflows/pages.yml). Sem código: cada pedido é
+// servido directamente, sem contar para a quota de pedidos do Worker.
+//
+// PORQUÊ: os termos do GitHub Pages proíbem usá-lo para uma loja online
+// («not intended for or allowed to be used … to run your online business,
+// e-commerce site» — GitHub Terms for Additional Products and Features, Pages).
+//
+// PUBLICA-SE SÓ PELO CI. A _site é preparada lá (fotos do backoffice reduzidas
+// e injectadas no HTML, _redirects gerado a partir das páginas que existem);
+// um `wrangler deploy` à mão não a tem. O Worker dos pagamentos é outro, em
+// worker/ — este ficheiro não lhe toca.
+{
+  "name": "armazem-dos-pneus-site",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "./_site",
+    // AS MORADAS SÃO AS DO .html: os canonicals, o sitemap e as ligações
+    // dizem /loja.html. Com o valor por omissão («auto-trailing-slash») a
+    // Cloudflare mandava /loja.html para /loja com um 307, contra os
+    // canonicals. Com «none» serve-se o ficheiro pedido; a página inicial,
+    // o /admin/ e as moradas sem .html (que o GitHub Pages aceitava) vêm do
+    // _redirects que o CI escreve.
+    "html_handling": "none",
+    // Uma morada que não existe mostra a 404.html (sem ela, a Cloudflare
+    // devolvia uma página em branco).
+    "not_found_handling": "404-page"
+  },
+  // O endereço de ensaio em workers.dev fica ligado até o domínio passar para
+  // aqui; depois desliga-se.
+  "workers_dev": true,
+  "preview_urls": false
+}
