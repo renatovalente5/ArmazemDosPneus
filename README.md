@@ -4,7 +4,9 @@ E-commerce da **Armazém dos Pneus** (Motivar & Lucrar, Unipessoal, Lda.) — ve
 seminovos, jantes, baterias e peças, e serviços de oficina em Arada, Ovar.
 _"Os nossos clientes são a nossa prioridade!"_
 
-**https://armazemdospneus.pt** — site estático (HTML/CSS/JS) em **GitHub Pages**, com
+**https://armazemdospneus.pt** — site estático (HTML/CSS/JS) num **Worker da Cloudflare** só de
+ficheiros (`wrangler.jsonc`, publicado pelo CI em `.github/workflows/pages.yml`; o GitHub Pages
+foi deixado em setembro de 2026 porque os termos dele proíbem lojas), com
 **backoffice** (Pages CMS) e **pagamentos online** (cartão, MB WAY, Multibanco, Klarna) via
 **Stripe**, através de um **Cloudflare Worker**.
 

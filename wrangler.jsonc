@@ -33,13 +33,13 @@
   // route, os A ficam onde estão e só passam a «Proxied»: a resposta nunca
   // fica vazia, e todo o pedido ao domínio é servido por estes ficheiros (a
   // origem nunca é contactada). O www vai para o apex por uma Redirect Rule
-  // da zona. «teste» é o ensaio num subdomínio descartável; sai a seguir.
+  // da zona. (Ensaiado a 27 set 2026 em teste.armazemdospneus.pt, a apontar
+  // para um IP que não leva a lado nenhum: tudo veio do Worker.)
   "routes": [
-    { "pattern": "armazemdospneus.pt/*", "zone_name": "armazemdospneus.pt" },
-    { "pattern": "teste.armazemdospneus.pt/*", "zone_name": "armazemdospneus.pt" }
+    { "pattern": "armazemdospneus.pt/*", "zone_name": "armazemdospneus.pt" }
   ],
-  // O endereço de ensaio em workers.dev fica ligado até o domínio passar para
-  // aqui; depois desliga-se.
-  "workers_dev": true,
+  // O endereço workers.dev serviu de ensaio até o domínio passar para aqui;
+  // desligado, para o site não existir também noutra morada.
+  "workers_dev": false,
   "preview_urls": false
 }
