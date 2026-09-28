@@ -1,17 +1,18 @@
 # =============================================================
-# Publicação no GitHub Pages
+# Publicação na Cloudflare
 # -------------------------------------------------------------
-# Substitui o build "legacy" do Pages, que falhava com a mensagem genérica
-# "Page build failed" sem dar registos — impossível de diagnosticar. Por
-# Actions, cada passo fica registado.
+# Desde 27 set 2026 o site vive num Worker da Cloudflare só de ficheiros
+# («armazem-dos-pneus-site», wrangler.jsonc na raiz, route
+# armazemdospneus.pt/*). Saiu do GitHub Pages porque os termos do GitHub
+# Pages proíbem lojas.
 #
-# Ganho adicional: aqui escolhemos O QUE é publicado. O build legacy servia o
-# repositório inteiro, incluindo armazemdospneus.pt/worker/wrangler.toml (ids
-# do KV, origens permitidas) e os ficheiros .md internos. Nada disso são
-# segredos, mas também não têm razão para estar públicos, e um Disallow no
-# robots.txt esconde do Google e não do público.
+# Aqui escolhemos O QUE é publicado: nunca o repositório inteiro. Ficam de
+# fora worker/ (ids do KV, origens permitidas), os ficheiros .md internos e a
+# configuração do backoffice. Nada disso são segredos, mas também não têm
+# razão para estar públicos, e um Disallow no robots.txt esconde do Google e
+# não do público.
 # =============================================================
-name: Publicar no GitHub Pages
+name: Publicar
 
 on:
   push:
@@ -20,23 +21,15 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 # Uma publicação de cada vez, sem cancelar a que já está a correr.
 concurrency:
-  group: pages
+  group: publicar
   cancel-in-progress: false
 
 jobs:
   publicar:
     runs-on: ubuntu-latest
-    env:
-      # A Cloudflare só entra quando o token existir (ver os passos no fim).
-      TEM_CLOUDFLARE: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - name: Obter o repositório
         uses: actions/checkout@v4
@@ -65,9 +58,6 @@ jobs:
           # O .pages.yml é a configuração do backoffice. O Pages CMS lê-o do
           # repositório, não do site, por isso excluí-lo não lhe faz falta —
           # e estava a ser servido em armazemdospneus.pt/.pages.yml.
-          # O .nojekyll TEM de sobreviver: sem ele o Jekyll corre e ignora
-          # pastas começadas por underscore.
-          touch _site/.nojekyll
           # Escreve no HTML as fotos escolhidas no backoffice. Sem isto, o
           # index.html publicava o caminho antigo e o main.js trocava-o já
           # depois de a pagina estar pintada — via-se a foto antiga e logo a
@@ -78,41 +68,21 @@ jobs:
           find _site -type f | sort | sed 's|^_site/|  |'
           echo "--- verificações ---"
           test -f _site/index.html      || { echo "FALTA index.html"; exit 1; }
-          test -f _site/CNAME           || { echo "FALTA CNAME (domínio próprio)"; exit 1; }
-          test -f _site/.nojekyll       || { echo "FALTA .nojekyll"; exit 1; }
           test ! -d _site/worker        || { echo "worker/ NÃO devia ser publicado"; exit 1; }
           test ! -e _site/.pages.yml    || { echo ".pages.yml NÃO devia ser publicado"; exit 1; }
           test -z "$(find _site -name '*.md')" || { echo "ficheiros .md NÃO deviam ser publicados"; exit 1; }
           echo "ok"
 
-      - name: Configurar o Pages
-        uses: actions/configure-pages@v5
-
-      - name: Enviar o artefacto
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-
-      - name: Publicar
-        id: deploy
-        uses: actions/deploy-pages@v4
-
-      # A MESMA _site VAI PARA A CLOUDFLARE (o Worker só de ficheiros de
-      # wrangler.jsonc). Os termos do GitHub Pages proíbem lojas; enquanto o
-      # domínio não passa para o Worker, publica-se nos dois sítios, e o
-      # GitHub Pages desliga-se depois. Precisa do segredo CLOUDFLARE_API_TOKEN
-      # (modelo «Edit Cloudflare Workers», limitado à zona armazemdospneus.pt,
-      # criado pelo dono da conta) e da variável CLOUDFLARE_ACCOUNT_ID; sem o
-      # segredo, estes passos não correm e nada falha.
-      # Vêm DEPOIS do artefacto do Pages de propósito: o _redirects, o
-      # _headers e o .assetsignore são da Cloudflare, e no Pages seriam
-      # ficheiros publicados como lixo.
+      # O Worker só de ficheiros de wrangler.jsonc. Precisa do segredo
+      # CLOUDFLARE_API_TOKEN (modelo «Edit Cloudflare Workers», limitado à
+      # zona armazemdospneus.pt, criado pelo dono da conta) e da variável
+      # CLOUDFLARE_ACCOUNT_ID. Sem o segredo, a publicação FALHA — de
+      # propósito: melhor um CI vermelho do que edições do backoffice que
+      # nunca chegam ao site.
       - name: Preparar para a Cloudflare
-        if: env.TEM_CLOUDFLARE == 'true'
         run: .github/preparar-cloudflare.sh _site
 
       - name: Publicar na Cloudflare
-        if: env.TEM_CLOUDFLARE == 'true'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
