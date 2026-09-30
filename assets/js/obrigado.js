@@ -17,6 +17,12 @@
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function fmt(c) { return (c / 100).toFixed(2).replace('.', ',') + ' €'; }
+  /* O telefone vem da meta ap:telefone, que a publicação escreve a partir do
+     painel (.github/injetar-conteudo.py); o de hoje fica como recurso. */
+  function telefone() {
+    var m = doc.querySelector('meta[name="ap:telefone"]');
+    return m && /^\+?[0-9][0-9 ]{7,18}[0-9]$/.test(m.content) ? m.content : '935 218 857';
+  }
   function show(id) {
     ['ob-loading', 'ob-paid', 'ob-pending', 'ob-unknown'].forEach(function (x) {
       var el = doc.getElementById(x); if (el) el.hidden = (x !== id);
@@ -43,7 +49,7 @@
     s.push('Recebe a <strong>fatura</strong> por email, emitida hoje.');
     if (d.entrega === 'ctt') {
       s.push('Preparamos e expedimos a encomenda pelos CTT.');
-      s.push('Recebe em casa. Se precisar de ajuda, ligue 935 218 857.');
+      s.push('Recebe em casa. Se precisar de ajuda, ligue ' + esc(telefone()) + '.');
     } else {
       s.push('Contactamos para combinar o <strong>levantamento e a montagem</strong>.');
       s.push('Leve o número da encomenda quando vier à loja.');

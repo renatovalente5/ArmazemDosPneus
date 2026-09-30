@@ -33,6 +33,23 @@
       return raw.filter(function (it) { return it && it.sku && it.price_cents > 0; });
     } catch (e) { return []; }
   }
+  /* Os contactos da loja vêm das metas ap:telefone e ap:whatsapp, que a
+     publicação escreve a partir do painel (.github/injetar-conteudo.py). Os de
+     hoje ficam como recurso, se a meta faltar ou vier estragada. */
+  function meta(nome, valida, recurso) {
+    var m = doc.querySelector('meta[name="' + nome + '"]');
+    return m && valida.test(m.content) ? m.content : recurso;
+  }
+  var TELEFONE = meta('ap:telefone', /^\+?[0-9][0-9 ]{7,18}[0-9]$/, '935 218 857');
+  var WHATSAPP = meta('ap:whatsapp', /^[0-9]{9,15}$/, '351935218857');
+  /* «935 218 857» → «+351935218857»; um número com + ou 00 fica com o dele. */
+  function telInternacional(t) {
+    var d = t.replace(/\D/g, '');
+    if (/^\s*\+/.test(t)) return '+' + d;
+    if (/^00/.test(d)) return '+' + d.slice(2);
+    return d.length === 9 ? '+351' + d : '+' + d;
+  }
+
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function fmt(c) { return (c / 100).toFixed(2).replace('.', ',') + ' €'; }
   function subtotal() { return items.reduce(function (a, it) { return a + it.price_cents * it.qty; }, 0); }
@@ -118,7 +135,7 @@
       // Códigos começados por 9 são Madeira e Açores. O site promete só
       // continente; quem valida a sério é o servidor, isto é para o cliente
       // saber antes de chegar ao pagamento.
-      if (!/^[1-8]/.test(cp)) return invalid(f.cp, 'Só entregamos em Portugal continental. Para a Madeira ou os Açores, ligue-nos: 935 218 857.');
+      if (!/^[1-8]/.test(cp)) return invalid(f.cp, 'Só entregamos em Portugal continental. Para a Madeira ou os Açores, ligue-nos: ' + TELEFONE + '.');
       if ((f.localidade.value || '').trim().length < 2) return invalid(f.localidade, 'Indique a localidade.');
     }
     if (!f.termos.checked) return invalid(f.termos, 'Tem de aceitar os Termos e Condições e a Política de Privacidade.');
@@ -262,12 +279,14 @@
     if (settings.payment && settings.payment.mode && settings.payment.mode !== 'online') {
       var off = doc.getElementById('co-offline');
       if (off) {
-        var tel = (settings.store && settings.store.phone) || '935 218 857';
-        var wa = (settings.store && settings.store.whatsapp) || '351935218857';
+        // Os contactos são os do painel (metas), e não o settings.store — esse
+        // é o legado do Pages CMS e deixou de se mudar lá.
+        var tel = TELEFONE;
+        var wa = WHATSAPP;
         off.innerHTML = '<h2>Pagamento online temporariamente indisponível</h2>' +
           '<p>Estamos a resolver um problema técnico. A sua encomenda pode ser feita por telefone ou WhatsApp — ' +
           'guardamos os artigos e combinamos o pagamento e a entrega consigo.</p>' +
-          '<p><a class="btn btn--primary btn--lg" href="tel:+351' + esc(tel.replace(/\s/g, '')) + '">Ligar ' + esc(tel) + '</a> ' +
+          '<p><a class="btn btn--primary btn--lg" href="tel:' + esc(telInternacional(tel)) + '">Ligar ' + esc(tel) + '</a> ' +
           '<a class="btn btn--ghost btn--lg" href="https://wa.me/' + esc(wa) + '" target="_blank" rel="noopener">Falar por WhatsApp</a></p>';
         off.hidden = false;
       }

@@ -56,11 +56,11 @@ export const FICHEIROS = {
   empresa: 'data/empresa.json',
 };
 
-/* Os ficheiros novos do A2 (site.json, empresa.json) chegam depois das guardas.
-   Até lá são OPCIONAIS: ausente → sem regras; presente → todas. O commit do A2
-   passa isto a ['site', 'empresa'] e, a partir daí, faltarem pára a publicação
-   (e o guardas.mjs passa a exigir as metas ap:* nas páginas). */
-export const OBRIGATORIOS = [];
+/* Os ficheiros do A2 (site.json, empresa.json): a publicação escreve-os nas
+   páginas (.github/injetar-conteudo.py), por isso faltarem pára a publicação
+   — e o guardas.mjs exige as metas ap:* em todas as páginas menos a do Pages
+   CMS. (Antes do A2 esta lista estava vazia: ausentes, não tinham regras.) */
+export const OBRIGATORIOS = ['site', 'empresa'];
 
 export const CATEGORIAS = ['Pneus Novos', 'Pneus Seminovos', 'Jantes', 'Baterias', 'Óleos', 'Acessórios'];
 export const ESTADOS = ['Novo', 'Seminovo'];
@@ -596,13 +596,18 @@ function problemasDoSite(lido, lista) {
   };
 
   // --- contactos (DL 7/2004: um contacto directo e o email) ---------------
+  /* O telefone e o WhatsApp são os dois obrigatórios: a lei pede um contacto
+     directo, e as páginas precisam dos dois — o telefone está no cabeçalho, no
+     rodapé e nas páginas legais, e os botões «Pedir orçamento» vão para o
+     WhatsApp. Sem um deles a publicação não tinha o que lá escrever. */
   const c = s.contactos;
   if (!eObjecto(c)) {
     bloqueia('contactos', E_CONT, 'contactos', 'Os contactos da loja não estão gravados.');
   } else {
     if (vazio(c.email)) bloqueia('contactos.email', E_CONT, 'contactos.email', 'O email da loja está vazio (a lei obriga a mostrá-lo).');
     else if (typeof c.email !== 'string' || !RE_EMAIL.test(c.email.trim())) bloqueia('contactos.email', E_CONT, 'contactos.email', 'O email da loja não está bem escrito.');
-    if (vazio(c.telefone) && vazio(c.whatsapp)) bloqueia('contactos.telefone', E_CONT, 'contactos.telefone', 'Falta um telefone ou um WhatsApp da loja (a lei obriga a um contacto directo).');
+    if (vazio(c.telefone)) bloqueia('contactos.telefone', E_CONT, 'contactos.telefone', 'O telefone da loja está vazio (aparece em todas as páginas, e a lei obriga a um contacto directo).');
+    if (vazio(c.whatsapp)) bloqueia('contactos.whatsapp', E_CONT, 'contactos.whatsapp', 'O WhatsApp da loja está vazio (os botões «Pedir orçamento» do site vão para ele).');
     for (const [campo, nome] of [['telefone', 'O telefone'], ['telefone2', 'O segundo telefone']]) {
       const v = c[campo];
       if (vazio(v)) continue;

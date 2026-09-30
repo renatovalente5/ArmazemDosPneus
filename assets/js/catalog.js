@@ -10,7 +10,12 @@
   var search = document.getElementById('catalog-search');
   if (!grid) return;
 
-  var WA = 'https://wa.me/351935218857?text=';
+  /* O número do WhatsApp vem da meta ap:whatsapp, que a publicação escreve a
+     partir do painel (.github/injetar-conteudo.py). O de hoje fica como
+     recurso, se a meta faltar ou vier estragada. */
+  var waMeta = document.querySelector('meta[name="ap:whatsapp"]');
+  var WA_NUM = waMeta && /^[0-9]{9,15}$/.test(waMeta.content) ? waMeta.content : '351935218857';
+  var WA = 'https://wa.me/' + WA_NUM + '?text=';
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function normImg(p) { if (!p) return ''; if (/^https?:\/\//.test(p)) return p; return p.replace(/^\/+/, ''); }
   function fmt(n) { return Number(n).toFixed(2).replace('.', ',') + ' €'; }

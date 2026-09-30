@@ -50,8 +50,8 @@ const correr = (cmd, args, opcoes = {}) => {
   return { status: r.status, out: r.stdout || '', err: r.stderr || '' };
 };
 
-const TEXTO = { products: ler('data/products.json'), settings: ler('data/settings.json'), content: ler('data/content.json') };
-const HOJE = { products: JSON.parse(TEXTO.products), settings: JSON.parse(TEXTO.settings), content: JSON.parse(TEXTO.content) };
+const TEXTO = Object.fromEntries(Object.entries(R.FICHEIROS).map(([qual, rel]) => [qual, ler(rel)]));
+const HOJE = Object.fromEntries(Object.entries(TEXTO).map(([qual, t]) => [qual, JSON.parse(t)]));
 const UPLOADS = readdirSync(join(RAIZ, 'assets', 'uploads')).filter((f) => statSync(join(RAIZ, 'assets', 'uploads', f)).isFile());
 const existeHoje = G.imagemExisteEm(RAIZ);
 
@@ -90,7 +90,7 @@ const EMPRESA_OK = {
   livro_reclamacoes: 'https://www.livroreclamacoes.pt/inicio',
 };
 
-const dadosDeHoje = () => ({ products: clonar(HOJE.products), settings: clonar(HOJE.settings), content: clonar(HOJE.content) });
+const dadosDeHoje = () => clonar(HOJE);
 const tem = (lista, classe, chave) => lista.some((p) => p.classe === classe && (chave instanceof RegExp ? chave.test(p.chave) : p.chave === chave));
 const deClasse = (lista, classe) => lista.filter((p) => p.classe === classe);
 const indicePorSku = (sku) => HOJE.products.products.findIndex((p) => p.sku === sku);
@@ -168,7 +168,7 @@ try {
   const tocam = R.BLOQUEADOS.filter((b) => EDITAVEIS.some((e) => b === e || b.startsWith(e + '.') || e.startsWith(b + '.')));
   certo(tocam.length === 0, 'BLOQUEADOS sem campos de conteúdo (os prazos e a devolução são do dono)', tocam.join(', '));
   certo(R.BLOQUEADOS.every((b) => ['store', 'shipping.free_pickup'].includes(b)), 'BLOQUEADOS = só o legado store e o free_pickup que ninguém lê', R.BLOQUEADOS.join(', '));
-  certo(R.OBRIGATORIOS.length === 0, 'site.json e empresa.json ainda opcionais (o A2 passa-os a obrigatórios)');
+  certo(JSON.stringify(R.OBRIGATORIOS) === '["site","empresa"]', 'site.json e empresa.json obrigatórios (desde o A2)');
 
   /* ================================================================== */
   secao('os dados de hoje');
@@ -186,7 +186,9 @@ try {
   certo(real.status === 0, 'a guarda verdadeira, sobre o repositório, sai com 0', real.err);
   certo(relHoje.bloqueia === 0 && relHoje.neutralizados.length === 0 && relHoje.problemas.length === relHoje.avisa && relHoje.avisa > 0, `o relatório diz 0 que param, 0 neutralizados e ${relHoje.avisa} avisos (e lê-se)`);
   certo(G.paginasHtml(RAIZ).length >= 9, `lê as páginas do site (${G.paginasHtml(RAIZ).length})`);
-  certo(G.paginasHtml(RAIZ).every((p) => G.problemasDoHtml(p, ler(p), { exigirMetas: false }).length === 0), 'as páginas de hoje não têm marcadores partidos');
+  const partidas = G.paginasHtml(RAIZ).flatMap((p) => G.problemasDoHtml(p, ler(p), { exigirMetas: true }));
+  certo(partidas.length === 0, 'as páginas de hoje: nenhum marcador partido, e as duas metas em cada uma', partidas.map((x) => x.mensagem).join(' | '));
+  certo(R.serializar(HOJE.site, '\n') === TEXTO.site && R.serializar(HOJE.empresa, '\n') === TEXTO.empresa, 'site.json e empresa.json estão como o painel os grava (2 espaços, \\n no fim)');
   certo(G.avisosDoWorker(TEXTO, { wranglerToml: ler('worker/wrangler.toml'), fontes: '' }).length === 0, 'os prazos de hoje batem com os DELIVERY_* do Worker dos pagamentos');
 
   /* ================================================================== */
@@ -196,10 +198,14 @@ try {
   const commits = git('log', '--format=%H %h', '--reverse', '--', 'data/').trim().split('\n').map((l) => l.split(' '));
   const desde = commits.findIndex(([, h]) => h === 'e37161a');
   certo(desde >= 0, 'o e37161a (7 ago, quando entrou o hidden) está no histórico de data/');
+  /* Os commits de antes do A2 não tinham site.json nem empresa.json: entram os
+     de hoje, para a pergunta ser a de sempre — «as gravações do Pages CMS
+     teriam parado a publicação?» — e não «faltava um ficheiro que não
+     existia». */
   const noCommit = (c) => {
     const dados = {};
     for (const [qual, rel] of Object.entries(R.FICHEIROS)) {
-      try { dados[qual] = execFileSync('git', ['-C', RAIZ, 'show', `${c}:${rel}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch { dados[qual] = undefined; }
+      try { dados[qual] = execFileSync('git', ['-C', RAIZ, 'show', `${c}:${rel}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch { dados[qual] = R.OBRIGATORIOS.includes(qual) ? TEXTO[qual] : undefined; }
     }
     const arvore = new Set(git('ls-tree', '-r', '--name-only', c, '--', 'assets/uploads').trim().split('\n'));
     return R.problemas(dados, { imagemExiste: (x) => arvore.has(x.replace(/^\/+/, '')) });
@@ -350,13 +356,16 @@ try {
   secao('site.json e empresa.json (fase A2)');
   const comA2 = (site, empresa) => R.problemas({ ...TEXTO, site, empresa }, { imagemExiste: existeHoje }).filter((p) => /site|empresa/.test(p.ficheiro));
   certo(comA2(SITE_OK, EMPRESA_OK).length === 0, 'os dois ficheiros completos passam limpos', comA2(SITE_OK, EMPRESA_OK).map((p) => p.chave).join(', '));
-  certo(comA2(undefined, undefined).length === 0, 'ausentes, e ainda opcionais: sem regras');
-  certo(tem(R.problemas({ ...TEXTO }, { obrigatorios: ['site', 'empresa'] }), 'bloqueia', 'site:ausente') && tem(R.problemas({ ...TEXTO }, { obrigatorios: ['site', 'empresa'] }), 'bloqueia', 'empresa:ausente'), 'obrigatórios (A2) e ausentes: param');
+  certo(tem(comA2(undefined, undefined), 'bloqueia', 'site:ausente') && tem(comA2(undefined, undefined), 'bloqueia', 'empresa:ausente'), 'ausentes (obrigatórios desde o A2): param');
+  certo(R.problemas({ ...TEXTO, site: undefined, empresa: undefined }, { obrigatorios: [] }).filter((p) => /site|empresa/.test(p.ficheiro)).length === 0, 'com a lista vazia (como antes do A2), ausentes não tinham regras');
+  certo(comA2(TEXTO.site, TEXTO.empresa).length === 0, 'os site.json e empresa.json do repositório passam limpos', comA2(TEXTO.site, TEXTO.empresa).map((p) => p.chave).join(', '));
+  certo(tem(R.problemas({ ...TEXTO, site: undefined, empresa: undefined }, { obrigatorios: ['site', 'empresa'] }), 'bloqueia', 'site:ausente') && tem(R.problemas({ ...TEXTO, site: undefined, empresa: undefined }, { obrigatorios: ['site', 'empresa'] }), 'bloqueia', 'empresa:ausente'), 'obrigatórios (A2) e ausentes: param');
   const CASOS_A2 = [
     ['site ilegível', (s) => '{', null, 'bloqueia', 'site:ilegivel'],
     ['sem email', (s) => { delete s.contactos.email; }, null, 'bloqueia', 'site:contactos.email'],
     ['email mal escrito', (s) => { s.contactos.email = 'loja@'; }, null, 'bloqueia', 'site:contactos.email'],
-    ['sem telefone nem WhatsApp', (s) => { delete s.contactos.telefone; delete s.contactos.telefone2; delete s.contactos.whatsapp; }, null, 'bloqueia', 'site:contactos.telefone'],
+    ['sem telefone (as páginas têm-no em todo o lado)', (s) => { delete s.contactos.telefone; }, null, 'bloqueia', 'site:contactos.telefone'],
+    ['sem WhatsApp (os botões «Pedir orçamento» vão para ele)', (s) => { s.contactos.whatsapp = ''; }, null, 'bloqueia', 'site:contactos.whatsapp'],
     ['telefone com 8 algarismos', (s) => { s.contactos.telefone = '93 521 885'; }, null, 'bloqueia', 'site:contactos.telefone'],
     ['WhatsApp com +', (s) => { s.contactos.whatsapp = '+351935218857'; }, null, 'bloqueia', 'site:contactos.whatsapp'],
     ['Facebook sem https', (s) => { s.contactos.facebook = 'http://facebook.com/x'; }, null, 'bloqueia', 'site:contactos.facebook'],
@@ -401,7 +410,7 @@ try {
     certo(tem(lista, classe, chave), `${desc} → ${classe}`, lista.map((p) => `${p.classe} ${p.chave}`).join(', ') || 'nenhum');
   }
   const SEM_PROBLEMA_A2 = [
-    ['só WhatsApp (sem telefone, sem nota da chamada)', (s) => { delete s.contactos.telefone; delete s.contactos.telefone2; delete s.contactos.nota_chamada; }, null],
+    ['sem o segundo telefone nem o Facebook', (s) => { delete s.contactos.telefone2; delete s.contactos.facebook; }, null],
     ['domingo fechado e sexta com almoço', () => {}, null],
     ['capital social de 5000 € e conservatória', null, (e) => { e.capital_social = 5000; e.conservatoria = 'Conservatória do Registo Comercial de Ovar'; }],
     ['sem mapa nem coordenadas', null, (e) => { delete e.mapa; delete e.geo; }],
@@ -526,16 +535,18 @@ try {
     if (/^shipping\.tiers/.test(c)) return 'avisa';        // hoje os portes são combinados: a tabela só avisa
     return 'bloqueia';
   });
-  varrer('site.json', SITE_OK, (s) => ({ ...TEXTO, site: s, empresa: EMPRESA_OK }), (c) => {
-    // Um telefone sem o outro, ou só o WhatsApp, continua a ser um contacto directo.
-    if (/^(contactos\.(telefone2|facebook|telefone|whatsapp)|horario\.nota)$/.test(c)) return null;
-    return 'bloqueia';
-  });
-  varrer('empresa.json', EMPRESA_OK, (e) => ({ ...TEXTO, site: SITE_OK, empresa: e }), (c) => {
+  // O segundo telefone, o Facebook e a nota do horário são opcionais; o resto pára.
+  const esperaSite = (c) => (/^(contactos\.(telefone2|facebook)|horario\.nota)$/.test(c) ? null : 'bloqueia');
+  const esperaEmpresa = (c) => {
     if (/^(capital_social|conservatoria|geo|mapa)$/.test(c)) return null;
     if (/^(morada\.(concelho|distrito)|geo\.(lat|lng))$/.test(c)) return 'avisa';
     return 'bloqueia';
-  });
+  };
+  varrer('site.json (exemplo)', SITE_OK, (s) => ({ ...TEXTO, site: s, empresa: EMPRESA_OK }), esperaSite);
+  varrer('empresa.json (exemplo)', EMPRESA_OK, (e) => ({ ...TEXTO, site: SITE_OK, empresa: e }), esperaEmpresa);
+  // E o caminho do cliente: os ficheiros VERDADEIROS do repositório, chave a chave.
+  varrer('site.json do repositório', HOJE.site, (s) => ({ ...TEXTO, site: s }), esperaSite);
+  varrer('empresa.json do repositório', HOJE.empresa, (e) => ({ ...TEXTO, empresa: e }), esperaEmpresa);
 
   secao('varrimento: cada categoria, e ligar/desligar cada produto');
   let nCat = 0; const fCat = [];
@@ -582,6 +593,28 @@ try {
   certo(H('<iframe data-ap-attr="data-map-embed:mapa-embed">').length === 0 && H('<iframe data-ap-attr="mapa-embed">').length === 1, 'data-ap-attr: «atributo:nome»');
   certo(H('<head></head>', { exigirMetas: true }).length === 2 && H('<meta content="351935218857" name="ap:whatsapp"><meta name="ap:telefone" content="935 218 857">', { exigirMetas: true }).length === 0, 'metas: exigidas quando o site.json for obrigatório (em qualquer ordem de atributos)');
   certo(G.problemasDoHtml('admin/index.html', '<head></head>', { exigirMetas: true }).length === 0, 'a página do Pages CMS não precisa de metas');
+  certo(H('<!--ap:portes se=outra-->a<!--/ap:portes-->').some((p) => /tem de ser «se=a-combinar»/.test(p.mensagem)), 'variante com a condição errada: pára');
+  certo(H('<!--ap:portes-->a<!--/ap:portes-->').some((p) => /é uma variante/.test(p.mensagem)), 'variante sem condição: pára');
+  certo(H('<!--ap:telefone se=existe-->a<!--/ap:telefone-->').some((p) => /não é uma variante/.test(p.mensagem)), 'condição num marcador que não é variante: pára');
+  certo(H('<!--ap:morada-linha--><!--ap:nif-->1<!--/ap:nif--><!--/ap:morada-linha-->').some((p) => /trocado por inteiro/.test(p.mensagem)), 'marcador dentro de outro que é trocado por inteiro: pára');
+  certo(H('<!--ap:devolucao se=loja-paga-->a<!--ap:devolucao senao-->b <!--ap:custo-devolucao-->1<!--/ap:custo-devolucao--><!--/ap:devolucao-->').length === 0, 'marcador dentro de um ramo de uma variante: bem');
+
+  secao('o injector e a guarda falam a mesma língua');
+  {
+    const r = spawnSync(PY, [join(RAIZ, '.github', 'injetar-conteudo.py'), '--listas'], { encoding: 'utf8' });
+    let L = null; try { L = JSON.parse(r.stdout); } catch { /* fica null */ }
+    certo(r.status === 0 && L && Array.isArray(L.marcadores) && L.marcadores.length > 20, 'o injector diz as suas listas (--listas)', r.stderr);
+    if (L) {
+      certo(JSON.stringify(L.marcadores) === JSON.stringify(G.MARCADORES), 'marcadores: a mesma lista, pela mesma ordem', `injector ${L.marcadores.join(',')} / guarda ${G.MARCADORES.join(',')}`);
+      certo(JSON.stringify(L.atributos) === JSON.stringify(G.ATRIBUTOS), 'atributos: a mesma lista');
+      certo(JSON.stringify(L.metas) === JSON.stringify(G.METAS), 'metas: a mesma lista');
+      certo(JSON.stringify(L.variantes) === JSON.stringify(G.VARIANTES), 'variantes: as mesmas condições');
+      certo(JSON.stringify(L.icones) === JSON.stringify(R.ICONES_SERVICOS), 'os desenhos dos serviços do injector são os ICONES_SERVICOS das regras');
+    }
+    const prep = ler('.github/preparar-site.sh');
+    const iConteudo = prep.indexOf('.github/injetar-conteudo.py'); const iImagens = prep.indexOf('.github/injetar-imagens.py');
+    certo(iConteudo > 0 && iImagens > iConteudo, 'o preparar-site.sh injecta o conteúdo ANTES das fotografias');
+  }
 
   secao('o que o Worker dos pagamentos ainda tem escrito');
   const toml = ler('worker/wrangler.toml');

@@ -38,26 +38,32 @@ export const MAX_ANOTACOES = 9;
 /* Os marcadores das páginas (fase A2, §5.2 do plano)                  */
 /* ------------------------------------------------------------------ */
 
-/* A lista fechada do .github/injetar-conteudo.py (A2). Um nome que não esteja
-   aqui, ou um marcador aberto sem fecho, pára a publicação: o injector deixava
-   o valor de reserva, ou comia o resto da página. */
+/* As listas fechadas do .github/injetar-conteudo.py — IGUAIS às de lá (a
+   bateria confere-as com «injetar-conteudo.py --listas»). Um nome que não
+   esteja aqui, um marcador aberto sem fecho, uma variante com a condição
+   errada ou um marcador dentro de outro que é trocado por inteiro param a
+   publicação AQUI, com a mensagem certa, e não mais à frente no injector. */
 export const MARCADORES = [
   'telefone', 'telefone-2', 'telefones', 'whatsapp', 'email', 'nota-chamada',
-  'morada-rua', 'morada-cp-localidade', 'morada-linha', 'nif', 'denominacao', 'identificacao',
+  'morada-rua', 'morada-localidade', 'morada-cp-localidade', 'morada-linha',
+  'nif', 'denominacao', 'nome', 'registo',
   'horario', 'servicos', 'servicos-frase', 'marcas', 'marcas-chip',
   'topo-sobretitulo', 'topo-titulo', 'topo-frase', 'topo-destaques',
   'sobre-titulo', 'sobre-texto', 'sobre-pontos', 'contactos-frase', 'rodape-frase',
-  'portes', 'ral',
-  // O dono muda os prazos e o custo de devolução: os Termos acompanham-nos.
-  'prazo-entrega', 'prazo-maximo', 'devolucao',
+  // O dono muda os portes, os prazos e o custo de devolução: os Termos acompanham-nos.
+  'portes', 'devolucao', 'custo-devolucao', 'prazo-entrega', 'prazo-maximo',
+  'ral', 'facebook',
 ];
+/* Os marcadores que são variantes (<!--ap:x se=…-->A<!--ap:x senao-->B<!--/ap:x-->),
+   e a condição de cada um. Os outros não levam condição. */
+export const VARIANTES = { portes: 'a-combinar', devolucao: 'loja-paga', facebook: 'existe' };
 export const ATRIBUTOS = [
   'tel', 'tel-2', 'whatsapp', 'whatsapp-orcamento', 'whatsapp-orcamento-servico', 'mailto',
   'facebook', 'mapa-embed', 'mapa-link', 'ral-url', 'livro-reclamacoes',
 ];
-/* As metas que o JS lê (catalog.js, main.js, checkout.js, obrigado.js). Só se
-   exigem quando o site.json for obrigatório (OBRIGATORIOS, no A2), e não na
-   página do Pages CMS (admin/), que sai na fase G. */
+/* As metas que o JS lê (catalog.js, main.js, checkout.js, obrigado.js). Exigem-se
+   quando o site.json é obrigatório (OBRIGATORIOS, desde o A2), e não na página
+   do Pages CMS (admin/), que sai na fase G. */
 export const METAS = ['ap:whatsapp', 'ap:telefone'];
 const SEM_METAS = /^admin\//;
 
@@ -77,7 +83,8 @@ export function problemasDoHtml(caminho, html, { exigirMetas = false } = {}) {
 
   const pilha = [];
   for (const m of html.matchAll(/<!--\s*(\/?)ap:([^\s>]*?)(\s[^>]*?)?\s*-->/g)) {
-    const [, fecho, nome, resto = ''] = m;
+    const [, fecho, nome, restoBruto = ''] = m;
+    const resto = restoBruto.trim();
     const linha = linhaDe(m.index);
     if (!MARCADORES.includes(nome)) { bloqueia(`desconhecido:${linha}`, `o marcador «${nome}» (linha ${linha}) não existe.`); continue; }
     if (fecho) {
@@ -86,12 +93,18 @@ export function problemasDoHtml(caminho, html, { exigirMetas = false } = {}) {
         bloqueia(`fecho:${linha}`, `o marcador «${nome}» fecha na linha ${linha} sem ter aberto${topo ? ` (estava aberto «${topo.nome}», da linha ${topo.linha})` : ''}.`);
         if (topo) pilha.push(topo);
       }
-    } else if (/^\s*senao\s*$/.test(resto)) {
+    } else if (resto === 'senao') {
       const topo = pilha[pilha.length - 1];
       if (!topo || topo.nome !== nome || !topo.variante || topo.senao) bloqueia(`senao:${linha}`, `o «senão» de «${nome}» (linha ${linha}) está fora de sítio.`);
       else topo.senao = true;
     } else {
-      pilha.push({ nome, linha, variante: /\bse=/.test(resto), senao: false });
+      const cond = (resto.match(/^se=([a-z0-9-]+)$/) || [])[1];
+      if (resto && !cond) bloqueia(`resto:${linha}`, `o marcador «${nome}» (linha ${linha}) tem «${resto}», que não se percebe.`);
+      else if (VARIANTES[nome] && cond !== VARIANTES[nome]) bloqueia(`variante:${linha}`, `o marcador «${nome}» (linha ${linha}) é uma variante e tem de ser «se=${VARIANTES[nome]}».`);
+      else if (!VARIANTES[nome] && cond) bloqueia(`variante:${linha}`, `o marcador «${nome}» (linha ${linha}) não é uma variante (não leva «se=»).`);
+      const pai = pilha[pilha.length - 1];
+      if (pai && !pai.variante) bloqueia(`dentro:${linha}`, `o marcador «${nome}» (linha ${linha}) está dentro de «${pai.nome}», que é trocado por inteiro.`);
+      pilha.push({ nome, linha, variante: Boolean(cond), senao: false });
     }
   }
   for (const x of pilha) bloqueia(`aberto:${x.linha}`, `o marcador «${x.nome}» abre na linha ${x.linha} e não fecha.`);

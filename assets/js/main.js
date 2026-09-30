@@ -181,7 +181,11 @@
       if (!nome) { form.nome.focus(); form.nome.setAttribute('aria-invalid', 'true'); return; }
       form.nome.removeAttribute('aria-invalid');
       var text = 'Olá! Sou ' + nome + '.' + (servico ? ' Preciso de: ' + servico + '.' : '') + (msg ? ' ' + msg : '') + ' Podem dar-me um orçamento?';
-      window.open('https://wa.me/351935218857?text=' + encodeURIComponent(text), '_blank', 'noopener');
+      // O número vem da meta ap:whatsapp (escrita na publicação a partir do
+      // painel); o de hoje fica como recurso.
+      var m = doc.querySelector('meta[name="ap:whatsapp"]');
+      var wa = m && /^[0-9]{9,15}$/.test(m.content) ? m.content : '351935218857';
+      window.open('https://wa.me/' + wa + '?text=' + encodeURIComponent(text), '_blank', 'noopener');
     });
   })();
 
