@@ -22,7 +22,9 @@ admin/              Acesso ao backoffice (Pages CMS)
 .pages.yml          Configuração do backoffice
 worker/             Cloudflare Worker de pagamentos — ver worker/README.md
 assets/css|js|img|fonts|uploads
-data/               products.json, content.json, settings.json
+data/               products.json, content.json, settings.json; site.json (contactos, horário,
+                    serviços, textos, marcas) e empresa.json (dados legais) — escritos nas
+                    páginas na publicação, ver «Conteúdo nas páginas»
 legal/              privacidade, cookies, termos, formulário de livre resolução
 _source/            Fotos em alta + logo vetorial (NÃO publicado — ver .gitignore)
 .github/            O CI: pages.yml, as guardas do conteúdo e o que monta a _site
@@ -58,8 +60,21 @@ dados legais) pára a publicação.
 
 ```bash
 PYTHON=<python com Pillow> node .github/test-guardas.mjs   # a bateria das guardas e do CI
+<python com Pillow> .github/test-injetar.py                # a bateria do injector do conteúdo
 PYTHON=<python com Pillow> .github/provar-publicacao.sh <base> [commit]   # uma mudança ao CI não muda o site (diff -r)
+PYTHON=<python com Pillow> scripts/comparar-site.sh <base> [depois]       # a injecção não muda o site nem o SEO sem querer
 ```
+
+## Conteúdo nas páginas
+Os contactos, o horário, os serviços, os textos da página inicial, as marcas e os dados da
+empresa **não se escrevem no HTML**: vivem em `data/site.json` e `data/empresa.json` (o dono
+muda-os no painel) e `.github/injetar-conteudo.py` escreve-os nas páginas publicadas e no JSON-LD.
+Nos Termos, também os portes, os prazos e o custo de devolução de `data/settings.json`. No HTML
+ficam **marcadores** com o valor de hoje lá dentro (a página em bruto continua a abrir):
+`<!--ap:telefone-->935 218 857<!--/ap:telefone-->`, `data-ap-href="tel"`, as metas `ap:*` que o
+JavaScript lê, e variantes como `<!--ap:portes se=a-combinar-->…<!--ap:portes senao-->…<!--/ap:portes-->`.
+A lista fechada dos nomes está no injector e no `.github/guardas.mjs` (a bateria confere que
+são iguais); um nome desconhecido ou um marcador aberto pára a publicação.
 
 ## Diagnóstico rápido
 ```
