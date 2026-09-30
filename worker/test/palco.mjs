@@ -162,16 +162,28 @@ export const eventos = {
  * verificar-contra-a-fonte-certa).
  */
 export async function workerDeAntes(ref, pastaRepo) {
+  // Uma corrida morta a meio (um kill não corre o finally) deixa a pasta para
+  // trás: as nossas com mais de 10 minutos vão-se aqui.
+  for (const n of fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('ap-worker-antes-'))) {
+    const p = path.join(os.tmpdir(), n);
+    try { if (Date.now() - fs.statSync(p).mtimeMs > 10 * 60_000) fs.rmSync(p, { recursive: true, force: true }); } catch { /* outra corrida */ }
+  }
   const git = (...a) => execFileSync('git', ['-C', pastaRepo, ...a], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
   // --full-tree: corrido de dentro de worker/, o ls-tree filtra pela pasta actual e não devolve nada.
   const ficheiros = git('ls-tree', '--full-tree', '--name-only', `${ref}:worker/src`).split('\n').filter(Boolean);
   if (!ficheiros.includes('index.js')) throw new Error(`o git não deu os ficheiros de worker/src em ${ref}`);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ap-worker-antes-'));
-  fs.mkdirSync(path.join(dir, 'src'));
-  fs.writeFileSync(path.join(dir, 'package.json'), '{"type":"module"}\n');
-  for (const f of ficheiros) fs.writeFileSync(path.join(dir, 'src', f), git('show', `${ref}:worker/src/${f}`));
-  const mod = await import(pathToFileURL(path.join(dir, 'src', 'index.js')).href);
-  return { worker: mod.default, ficheiros, apagar: () => fs.rmSync(dir, { recursive: true, force: true }) };
+  const apagar = () => fs.rmSync(dir, { recursive: true, force: true });
+  try {
+    fs.mkdirSync(path.join(dir, 'src'));
+    fs.writeFileSync(path.join(dir, 'package.json'), '{"type":"module"}\n');
+    for (const f of ficheiros) fs.writeFileSync(path.join(dir, 'src', f), git('show', `${ref}:worker/src/${f}`));
+    const mod = await import(pathToFileURL(path.join(dir, 'src', 'index.js')).href);
+    return { worker: mod.default, ficheiros, apagar };
+  } catch (e) {
+    apagar();
+    throw e;
+  }
 }
 
 /* O número da encomenda e o fim da sessão mudam de corrida para corrida; o
