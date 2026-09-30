@@ -216,6 +216,8 @@ body.menu-open{overflow:hidden}
    saía da gaveta («109,9» em vez de «109,90 €»). */
 .citem{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:.8rem;align-items:start;padding:1rem 0;border-bottom:1px solid var(--line)}
 .citem__img{width:64px;height:64px;border-radius:10px;object-fit:cover;background:var(--bg-mut);display:block}
+/* Sem fotografia: o logótipo, inteiro e esbatido, como no cartão da loja (.pcard__ph). */
+.citem__img--ph{object-fit:contain;padding:14px;opacity:.55}
 .citem__name{font-family:var(--font-head);text-transform:uppercase;font-size:.92rem;line-height:1.15;color:var(--ink)}
 .citem__price{font-size:.82rem;color:var(--muted);margin:.15rem 0 .4rem}
 .citem__cap{font-size:.72rem;color:var(--muted);margin:.35rem 0 0}

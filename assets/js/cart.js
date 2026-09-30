@@ -24,6 +24,12 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function cents(v) { return Math.round(parseFloat(String(v).replace(',', '.')) * 100) || 0; }
   function fmt(c) { return (c / 100).toFixed(2).replace('.', ',') + ' €'; }
+  /* Igual ao catalog.js: o painel e o Pages CMS gravam /assets/…, o HTML usa
+     caminhos relativos. */
+  function normImg(p) { if (!p) return ''; if (/^https?:\/\//.test(p)) return p; return String(p).replace(/^\/+/, ''); }
+  /* Sem fotografia (ou com uma que já não existe) aparece o logótipo, como no
+     cartão da loja — nunca um quadrado vazio nem uma imagem partida. */
+  var SEM_FOTO = 'assets/img/logo-mark.png';
 
   function count() { return items.reduce(function (a, it) { return a + it.qty; }, 0); }
   function subtotal() { return items.reduce(function (a, it) { return a + it.price_cents * it.qty; }, 0); }
@@ -74,7 +80,9 @@
     var atCap = it.qty >= capOf(it);
     return '' +
       '<div class="citem" data-sku="' + esc(it.sku) + '">' +
-        (it.image ? '<img class="citem__img" src="' + esc(it.image) + '" alt="" />' : '<span class="citem__img"></span>') +
+        (it.image
+          ? '<img class="citem__img" src="' + esc(it.image) + '" alt="" />'
+          : '<img class="citem__img citem__img--ph" src="' + SEM_FOTO + '" alt="" />') +
         '<div class="citem__info">' +
           '<p class="citem__name">' + esc(it.name) + '</p>' +
           '<p class="citem__price">' + fmt(it.price_cents) + '</p>' +
@@ -140,14 +148,23 @@
   });
   doc.addEventListener('keydown', function (e) { if (e.key === 'Escape' && drawer && drawer.classList.contains('is-open')) close(); });
 
-  // Imagem em falta no carrinho não deve deixar um quadrado partido.
-  if (body) body.addEventListener('error', function (e) { if (e.target && e.target.tagName === 'IMG') e.target.style.visibility = 'hidden'; }, true);
+  // Uma fotografia que falhe (apagada no painel, ou o carrinho guardado há
+  // semanas com o nome antigo) passa a mostrar o logótipo. Se até o logótipo
+  // falhar, esconde-se: nunca uma imagem partida. Um ouvinte no corpo do
+  // carrinho, e não onerror="…" na etiqueta, porque as imagens são criadas de
+  // novo a cada render.
+  if (body) body.addEventListener('error', function (e) {
+    var img = e.target;
+    if (!img || img.tagName !== 'IMG') return;
+    if (img.getAttribute('src') !== SEM_FOTO) { img.classList.add('citem__img--ph'); img.setAttribute('src', SEM_FOTO); }
+    else img.style.visibility = 'hidden';
+  }, true);
 
   /* ---------- Sincronização com o catálogo ----------
      O carrinho vive no localStorage e pode ter semanas. Sem isto, mostrava
      preços que já não existem — e o cliente só descobriria a diferença ao
-     pagar. Aqui os preços, nomes e stock são realinhados com o catálogo, e
-     o que desapareceu ou esgotou sai do carrinho. */
+     pagar. Aqui os preços, nomes, fotografias e stock são realinhados com o
+     catálogo, e o que desapareceu ou esgotou sai do carrinho. */
   function resync(products) {
     var bySku = {};
     products.forEach(function (p) { if (p && p.sku) bySku[p.sku] = p; });
@@ -163,6 +180,10 @@
       if (it.price_cents !== price) { it.price_cents = price; changed = true; }
       if (it.stock !== stock) { it.stock = stock; changed = true; }
       if (it.name !== p.name) { it.name = p.name; changed = true; }
+      // A fotografia também: trocada ou tirada no painel, o carrinho mostrava a
+      // antiga (e, se tivesse sido apagada, uma imagem partida).
+      var img = normImg(p.image);
+      if ((it.image || '') !== img) { it.image = img; changed = true; }
       var w = Number(p.weight_kg) || 0;
       if (it.weight !== w) { it.weight = w; changed = true; }
       if (it.qty > stock) { it.qty = stock; changed = true; }
