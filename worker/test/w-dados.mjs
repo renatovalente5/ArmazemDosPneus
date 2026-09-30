@@ -22,7 +22,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import worker from '../src/index.js';
 import { CACHE_DADOS } from '../src/pricing.js';
-import { normalizarTermos, termosDeRecurso, termosDaEncomenda, termosDasFontes, nifValido } from '../src/termos.js';
+import { normalizarTermos, termosDeRecurso, termosDaEncomenda, nifValido, moradaLinha, contactoLinha } from '../src/termos.js';
 import { esc } from '../src/email-html.js';
 import { kvFalso, redeFalsa, palco, eventos, workerDeAntes, semAcaso, varsDoToml } from './palco.mjs';
 import { ENV_HOJE, PRODUTOS, SETTINGS_HOJE, SITE_A2, EMPRESA_A2, PEDIDOS, nifCom } from './dados.mjs';
@@ -518,6 +518,9 @@ export async function correr({ ok }) {
       ['Livro de Reclamações com utilizador', E({ livro_reclamacoes: 'https://eu:senha@exemplo.pt/' }), { 'empresa.livro_reclamacoes': R.empresa.livro_reclamacoes }, 'livro_reclamacoes'],
       ['Livro de Reclamações com aspas e tags (aceite, normalizado)', E({ livro_reclamacoes: 'https://exemplo.pt/"><script>alert(1)</script>' }),
         { 'empresa.livro_reclamacoes': 'https://exemplo.pt/%22%3E%3Cscript%3Ealert(1)%3C/script%3E' }, null],
+      // 190 caracteres de aspas: passa o tecto à entrada, e passava de 200 depois de normalizado.
+      ['Livro de Reclamações que cresce ao normalizar', E({ livro_reclamacoes: 'https://exemplo.pt/' + '"'.repeat(171) }),
+        { 'empresa.livro_reclamacoes': R.empresa.livro_reclamacoes }, 'livro_reclamacoes'],
       ['empresa.json é uma lista', { empresa: '[]' }, { empresa: R.empresa }, null],
     ];
 
@@ -552,6 +555,52 @@ export async function correr({ ok }) {
     const Ru = await correrCenario(NOVO, CEN.loja, E({ livro_reclamacoes: 'https://exemplo.pt/"><script>alert(1)</script>' }));
     ok('Livro de Reclamações com aspas: o href não fecha o atributo',
       confirmacao(Ru).html.includes('<a href="https://exemplo.pt/%22%3E%3Cscript%3Ealert(1)%3C/script%3E" style=') && !confirmacao(Ru).html.includes('"><script>'));
+    // Mil retratos ao acaso (semente fixa): normalizar nunca lança, é
+    // idempotente, e nenhuma linha que vai para o email leva caracteres de
+    // controlo, separadores de linha ou de direcção.
+    let semente = 20260930;
+    const acaso = () => { semente = (semente * 1103515245 + 12345) % 2147483648; return semente / 2147483648; };
+    const PEDACOS = ['9', ' ', '+', '(', '-', '.', 'a', 'Á', '@', '<', '>', '"', '&', '[', ']', ':', '*', '_', '/', ',', 'º', '\n', '\r', '\t',
+      String.fromCharCode(0x2028), String.fromCharCode(0x202e), String.fromCharCode(0x200b), String.fromCharCode(0), 'https://', 'x.pt', '3885-183', '516324950'];
+    const texto = () => Array.from({ length: Math.floor(acaso() * 40) }, () => PEDACOS[Math.floor(acaso() * PEDACOS.length)]).join('');
+    const valor = () => { const r = acaso(); return r < 0.5 ? texto() : r < 0.6 ? Math.floor(acaso() * 60) - 5 : r < 0.7 ? acaso() * 2000 : r < 0.8 ? null : r < 0.9 ? [texto()] : { x: texto() }; };
+    // Metade das vezes um valor bom, às vezes com um pedaço metido no meio; a
+    // outra metade, lixo. Só lixo quase nunca passava, e só provava o recurso.
+    const perto = (bom) => {
+      const r = acaso();
+      if (r < 0.35) return bom;
+      if (r < 0.7 && typeof bom === 'string') { const i = Math.floor(acaso() * (bom.length + 1)); return bom.slice(0, i) + PEDACOS[Math.floor(acaso() * PEDACOS.length)] + bom.slice(i); }
+      return valor();
+    };
+    const PROIBIDOS = new RegExp(`[${[[0, 0x1f], [0x7f, 0x9f], [0x2028, 0x202e], [0x200b, 0x200f]].map(([a, b]) => String.fromCharCode(a) + '-' + String.fromCharCode(b)).join('')}]`);
+    const falhas = [];
+    const aceites = {};
+    for (let i = 0; i < 1000; i++) {
+      const bruto = {
+        prazos: { min_dias: perto(2), max_dias_uteis: perto(5), max_dias: perto(30) },
+        devolucao: { custo_eur: perto(12.5), nota: perto('Na loja ou por CTT.') },
+        contactos: { telefone: perto('912 345 678'), email: perto('geral@loja.pt') },
+        empresa: { nome: perto('Casa Rodas'), denominacao: perto('Rodas & Filhos, Lda.'), nif: perto('516324950'),
+          livro_reclamacoes: perto('https://www.livroreclamacoes.pt/inicio'),
+          morada: acaso() < 0.8 ? { rua: perto('Rua da Estação, 12'), cp: perto('3880-100'), localidade: perto('Ovar'), concelho: perto('Ovar') } : valor() },
+      };
+      try {
+        const { termos: uma, origem } = normalizarTermos(bruto, ENV_HOJE);
+        for (const [g, o] of Object.entries(origem)) if (o === 'dados') aceites[g] = (aceites[g] || 0) + 1;
+        if (JSON.stringify(normalizarTermos(uma, ENV_HOJE).termos) !== JSON.stringify(uma)) falhas.push(['não idempotente', bruto]);
+        const linhas = [moradaLinha(uma), contactoLinha(uma), uma.empresa.denominacao, uma.empresa.nome, uma.empresa.nif, uma.empresa.livro_reclamacoes];
+        if (linhas.some((l) => typeof l !== 'string' || PROIBIDOS.test(l))) falhas.push(['carácter proibido', linhas]);
+      } catch (e) {
+        falhas.push(['lançou', e.message]);
+      }
+    }
+    eq('mil retratos ao acaso: nunca lança, idempotente, sem caracteres de controlo', falhas.slice(0, 3), []);
+    // A guarda da guarda: o acaso também produz valores ACEITES (senão só
+    // provava o recurso), e a verificação de caracteres sabe dizer «sim».
+    ok(`o acaso produz valores aceites em todos os grupos ${JSON.stringify(aceites)}`,
+      ['prazos', 'custo_devolucao', 'nota_devolucao', 'telefone', 'email', 'nome', 'identidade', 'morada', 'livro_reclamacoes'].every((g) => aceites[g] > 0));
+    ok('a verificação de caracteres apanha um \\n e um U+2028', PROIBIDOS.test('a\nb') && PROIBIDOS.test('a' + String.fromCharCode(0x2028)) && !PROIBIDOS.test('Rua A, 1'));
+
     // Um valor bom não é recusado: nenhum registo de «recusado» com os ficheiros de A2.
     const Rb = await correrCenario(NOVO, CEN.loja, { site: SITE_A2, empresa: EMPRESA_A2 });
     eq('com os ficheiros bons, nada é recusado (a guarda também sabe dizer «não»)', Rb.erros.filter((l) => l.includes('termos:')), []);

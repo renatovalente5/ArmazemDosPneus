@@ -159,13 +159,18 @@ function moradaValida(m) {
   return { rua, cp, localidade, concelho };
 }
 
-/** Só https, sem utilizador nem palavra-passe; devolve o URL já normalizado (aspas viram %22). */
+/**
+ * Só https, sem utilizador nem palavra-passe; devolve o URL já normalizado
+ * (aspas viram %22). O tecto conta DEPOIS de normalizar: cada aspa vira três
+ * caracteres, e um URL que só passasse antes era recusado ao reler o retrato —
+ * o email deixava de repetir o que o checkout guardou.
+ */
 function urlHttps(v) {
   const t = texto(v, 10, 200);
   if (!t) return null;
   try {
     const u = new URL(t);
-    return u.protocol === 'https:' && !u.username && !u.password ? u.href : null;
+    return u.protocol === 'https:' && !u.username && !u.password && u.href.length <= 200 ? u.href : null;
   } catch {
     return null;
   }
