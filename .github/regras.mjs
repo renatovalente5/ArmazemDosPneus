@@ -107,12 +107,13 @@ export const TAMANHOS = {
 export const BLOQUEADOS = ['store', 'shipping.free_pickup'];
 
 const RE_SKU = /^[a-z0-9][a-z0-9-]{0,79}$/;
-/* As fotografias vivem em /assets/uploads (o Pages CMS grava com a barra à
-   frente e o normImg do catálogo aceita). Maiúsculas aceitam-se: o Pages CMS,
-   ainda em uso até à fase G, pode gravar o nome tal como veio do telemóvel.
-   Espaços não (um nome com espaço deita fora o candidato inteiro de um srcset),
-   nem «..». */
-const RE_IMAGEM = /^\/assets\/uploads\/[A-Za-z0-9_.\/-]+\.(?:jpe?g|png|webp)$/i;
+/* As fotografias vivem em assets/uploads. O Pages CMS e o painel gravam com a
+   barra à frente; até 13 ago o content.json tinha-as sem ela, escritas à mão —
+   o normImg do catálogo e o injetar-imagens.py aceitam as duas. Maiúsculas
+   aceitam-se: o Pages CMS, ainda em uso até à fase G, pode gravar o nome tal
+   como veio do telemóvel. Espaços não (um nome com espaço deita fora o
+   candidato inteiro de um srcset), nem «..». */
+const RE_IMAGEM = /^\/?assets\/uploads\/[A-Za-z0-9_.\/-]+\.(?:jpe?g|png|webp)$/i;
 const RE_DOT = /^[0-9]{4}$/;
 const RE_EPREL = /^[0-9]{3,12}$/;
 const RE_HORA = /^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/;

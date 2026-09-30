@@ -145,7 +145,8 @@ const lerJson = (t) => { try { return typeof t === 'string' ? JSON.parse(t) : t;
 export function avisosDoWorker(dados, { wranglerToml = '', fontes = '' } = {}) {
   const out = [];
   const vars = varsDoToml(wranglerToml);
-  const avisa = (chave, ecra, ficheiro, mensagem) => out.push({ classe: 'avisa', chave: `worker:${chave}`, ficheiro, ecra, lembrete: true, mensagem: `${mensagem} O Renato tem de actualizar o Worker dos pagamentos.` });
+  // Não é lembrete: pede uma coisa ao Renato, e não pode ficar tapado pelos lembretes.
+  const avisa = (chave, ecra, ficheiro, mensagem) => out.push({ classe: 'avisa', chave: `worker:${chave}`, ficheiro, ecra, mensagem: `${mensagem} O Renato tem de actualizar o Worker dos pagamentos.` });
 
   const s = lerJson(dados.settings);
   const d = s && s.delivery;
@@ -180,7 +181,8 @@ export function avisosDoWorker(dados, { wranglerToml = '', fontes = '' } = {}) {
     const nifs = [...new Set([...fontes.matchAll(/NIF\s+(\d{9})/g)].map((m) => m[1]))];
     if (e.nif && nifs.some((n) => n !== String(e.nif))) avisa('nif', 'Dados da empresa', FICHEIROS.empresa, `O NIF mudou no painel, mas os emails das encomendas ainda dizem ${nifs.join(', ')}.`);
     const m = e.morada;
-    const cps = [...new Set([...fontes.matchAll(/\b(\d{4}-\d{3})\b/g)].map((x) => x[1]))];
+    // O 0000-000 é o modelo do formato nas mensagens do checkout, não uma morada.
+    const cps = [...new Set([...fontes.matchAll(/\b(\d{4}-\d{3})\b/g)].map((x) => x[1]))].filter((cp) => cp !== '0000-000');
     if (m && typeof m === 'object' && cps.length && (cps.some((cp) => cp !== m.cp) || (m.rua && !fontes.includes(m.rua)))) {
       avisa('morada', 'Dados da empresa', FICHEIROS.empresa, 'A morada mudou no painel, mas a página de pagamento e os emails das encomendas ainda têm a antiga.');
     }
