@@ -128,6 +128,9 @@ jobs:
           ZONA_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
         run: |
           test -f site.tgz || { echo "FALTA o site.tgz"; exit 1; }
+          # Só o embrulho: um package.json ou um .npmrc ao lado dele mudava o
+          # que o wrangler-action instala e corre nesta pasta, com o token.
+          test "$(ls -A)" = "site.tgz" || { echo "o artefacto traz mais do que o site.tgz: $(ls -A | tr '\n' ' ')"; exit 1; }
           # O embrulho, antes de o abrir: nada de caminhos absolutos nem «..»,
           # e só ficheiros e pastas (nada de ligações nem ficheiros especiais).
           # Para ficheiro e só depois o grep: um grep -q a meio de um pipe

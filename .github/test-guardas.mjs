@@ -620,7 +620,7 @@ try {
   const WJ = JSON.parse(ler('wrangler.jsonc').replace(/^\s*\/\/.*$/gm, ''));
   const embrulhar = (montar, { comTar } = {}) => {
     const d = mkdtempSync(join(TMP, 'pub-'));
-    const s = join(d, 'fonte'); mkdirSync(s);
+    const s = mkdtempSync(join(TMP, 'fonte-'));   // fora da pasta do job: lá só pode estar o site.tgz
     writeFileSync(join(s, 'index.html'), '<!doctype html>'); writeFileSync(join(s, '.assetsignore'), 'CNAME\n');
     mkdirSync(join(s, 'assets')); writeFileSync(join(s, 'assets', 'a.css'), 'a{}');
     if (montar) montar(s);
@@ -670,6 +670,13 @@ t.close()`, join(d, 'site.tgz'), s, ...membros]);
     const d = embrulhar(montar);
     const r = abrir(d);
     certo(r.status !== 0 && !existsSync(join(d, 'wrangler.json')), `recusa ${desc}`, `saiu ${r.status}`);
+    rmSync(d, { recursive: true, force: true });
+  }
+  {
+    const d = embrulhar();
+    writeFileSync(join(d, '.npmrc'), 'registry=https://mal.example/\n');
+    const r = abrir(d);
+    certo(r.status !== 0 && !existsSync(join(d, '_site')) && /mais do que o site\.tgz/.test(r.out + r.err), 'recusa um artefacto que traga mais do que o site.tgz (um .npmrc ao lado mudava o que o wrangler-action instala)', r.out + r.err);
     rmSync(d, { recursive: true, force: true });
   }
   for (const [desc, membros] of [['um membro «../fora.txt» no embrulho', ['../fora.txt']], ['um membro com caminho absoluto', ['/tmp/ap-guardas-absoluto.txt']], ['um membro «a/../../fora.txt»', ['a/../../fora.txt']]]) {
