@@ -58,6 +58,7 @@ dados legais) pára a publicação.
 
 ```bash
 PYTHON=<python com Pillow> node .github/test-guardas.mjs   # a bateria das guardas e do CI
+PYTHON=<python com Pillow> .github/provar-publicacao.sh <base> [commit]   # uma mudança ao CI não muda o site (diff -r)
 ```
 
 ## Diagnóstico rápido
