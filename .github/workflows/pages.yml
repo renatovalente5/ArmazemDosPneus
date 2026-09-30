@@ -2,15 +2,28 @@
 # Publicação na Cloudflare
 # -------------------------------------------------------------
 # Desde 27 set 2026 o site vive num Worker da Cloudflare só de ficheiros
-# («armazem-dos-pneus-site», wrangler.jsonc na raiz, route
-# armazemdospneus.pt/*). Saiu do GitHub Pages porque os termos do GitHub
-# Pages proíbem lojas.
+# («armazem-dos-pneus-site», route armazemdospneus.pt/*). Saiu do GitHub Pages
+# porque os termos do GitHub Pages proíbem lojas.
 #
-# Aqui escolhemos O QUE é publicado: nunca o repositório inteiro. Ficam de
-# fora worker/ (ids do KV, origens permitidas), os ficheiros .md internos e a
-# configuração do backoffice. Nada disso são segredos, mas também não têm
-# razão para estar públicos, e um Disallow no robots.txt esconde do Google e
-# não do público.
+# TRÊS JOBS, E O TOKEN DA CLOUDFLARE LONGE DO CÓDIGO DO REPOSITÓRIO.
+# Quem pode escrever no repositório — a App do Pages CMS hoje, a do painel
+# amanhã, as duas com «contents: write» — muda TUDO menos esta pasta
+# .github/workflows/: o wrangler.jsonc (um build.command corre DENTRO do
+# wrangler deploy, com o token no ambiente) e os scripts que o CI corre. E o
+# token da Cloudflare publica qualquer Worker da conta, incluindo o dos
+# pagamentos. Por isso:
+#   · construir — corre o código do repositório (fotografias, _redirects…) e
+#                 NÃO tem segredo nenhum;
+#   · publicar  — tem o token e NÃO corre nada do repositório: não faz
+#                 checkout, e a config do wrangler e as verificações de fuga
+#                 estão escritas AQUI (só muda isto quem tem a permissão
+#                 Workflows, e nenhuma App a tem);
+#   · avisar    — abre, comenta ou fecha a issue «Publicação parada». O GitHub
+#                 só avisa quem disparou a corrida, e as corridas dos bots do
+#                 Pages CMS e do painel não avisam ninguém.
+#
+# Aqui escolhe-se O QUE é publicado: nunca o repositório inteiro (ver
+# .github/preparar-site.sh e o passo «Abrir e conferir…»).
 # =============================================================
 name: Publicar
 
@@ -18,6 +31,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      ensaiar_aviso:
+        description: 'Abrir e fechar uma issue de ensaio, para confirmar que o aviso chega por email'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -28,11 +46,18 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publicar:
+  # ---------------------------------------------------------------
+  # Corre código do repositório. NÃO TEM SEGREDOS — e não pode passar a ter.
+  # ---------------------------------------------------------------
+  construir:
     runs-on: ubuntu-latest
     steps:
       - name: Obter o repositório
         uses: actions/checkout@v4
+        with:
+          # O GITHUB_TOKEN (só leitura) não fica em .git/config ao alcance dos
+          # scripts que correm a seguir.
+          persist-credentials: false
 
       - name: Instalar o que reduz as fotos
         # O injetar-imagens.py usa Pillow para converter as fotos do backoffice
@@ -42,50 +67,177 @@ jobs:
         run: python3 -m pip install --quiet 'pillow>=10,<12'
 
       - name: Preparar o que vai ser publicado
-        run: |
-          mkdir -p _site
-          # Copia tudo menos o que não deve ser servido ao público.
-          rsync -a ./ _site/ \
-            --exclude '.git' \
-            --exclude '.github' \
-            --exclude '_site' \
-            --exclude 'worker' \
-            --exclude '_source' \
-            --exclude '*.md' \
-            --exclude '.gitignore' \
-            --exclude '.pages.yml' \
-            --exclude 'wrangler.jsonc'
-          # O .pages.yml é a configuração do backoffice. O Pages CMS lê-o do
-          # repositório, não do site, por isso excluí-lo não lhe faz falta —
-          # e estava a ser servido em armazemdospneus.pt/.pages.yml.
-          # Escreve no HTML as fotos escolhidas no backoffice. Sem isto, o
-          # index.html publicava o caminho antigo e o main.js trocava-o já
-          # depois de a pagina estar pintada — via-se a foto antiga e logo a
-          # nova, e as duas eram descarregadas. Ver .github/injetar-imagens.py.
-          echo "--- imagens do backoffice ---"
-          python3 .github/injetar-imagens.py _site data/content.json
-          echo "--- ficheiros publicados ---"
-          find _site -type f | sort | sed 's|^_site/|  |'
-          echo "--- verificações ---"
-          test -f _site/index.html      || { echo "FALTA index.html"; exit 1; }
-          test ! -d _site/worker        || { echo "worker/ NÃO devia ser publicado"; exit 1; }
-          test ! -e _site/.pages.yml    || { echo ".pages.yml NÃO devia ser publicado"; exit 1; }
-          test -z "$(find _site -name '*.md')" || { echo "ficheiros .md NÃO deviam ser publicados"; exit 1; }
-          echo "ok"
+        run: .github/preparar-site.sh _site
 
-      # O Worker só de ficheiros de wrangler.jsonc. Precisa do segredo
-      # CLOUDFLARE_API_TOKEN (modelo «Edit Cloudflare Workers», limitado à
-      # zona armazemdospneus.pt, criado pelo dono da conta) e da variável
-      # CLOUDFLARE_ACCOUNT_ID. Sem o segredo, a publicação FALHA — de
-      # propósito: melhor um CI vermelho do que edições do backoffice que
-      # nunca chegam ao site.
       - name: Preparar para a Cloudflare
         run: .github/preparar-cloudflare.sh _site
 
+      # A _site viaja num tar: o upload-artifact ignora por omissão os ficheiros
+      # começados por ponto, e o .assetsignore é um deles.
+      - name: Embrulhar
+        run: tar -czf "$RUNNER_TEMP/site.tgz" -C _site .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: ${{ runner.temp }}/site.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  # ---------------------------------------------------------------
+  # Tem o token. NÃO faz checkout nem corre nada que venha do repositório.
+  # ---------------------------------------------------------------
+  publicar:
+    needs: construir
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: publicar
+
+      # O que aqui se recusa não pode depender de ficheiros do repositório: é
+      # o último sítio antes do token. Uma ligação simbólica para
+      # /proc/self/environ publicava o ambiente do próprio wrangler, com o
+      # token lá dentro.
+      - name: Abrir e conferir o que vai ser publicado
+        working-directory: publicar
+        env:
+          ZONA_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+        run: |
+          test -f site.tgz || { echo "FALTA o site.tgz"; exit 1; }
+          # O embrulho, antes de o abrir: nada de caminhos absolutos nem «..»,
+          # e só ficheiros e pastas (nada de ligações nem ficheiros especiais).
+          # Para ficheiro e só depois o grep: um grep -q a meio de um pipe
+          # deixava o tar a morrer de SIGPIPE, e o if lia isso como «limpo».
+          tar -tzf site.tgz > nomes.txt
+          tar -tvzf site.tgz > tipos.txt
+          if grep -Eq '(^/|(^|/)\.\.(/|$))' nomes.txt; then echo "caminhos proibidos no embrulho"; exit 1; fi
+          if grep -Evq '^[-d]' tipos.txt; then echo "ligações ou ficheiros especiais no embrulho"; grep -Ev '^[-d]' tipos.txt; exit 1; fi
+          rm nomes.txt tipos.txt
+          mkdir _site && tar -xzf site.tgz -C _site && rm site.tgz
+          # O que ficou.
+          test -f _site/index.html                    || { echo "FALTA index.html"; exit 1; }
+          test -z "$(find _site -type l)"             || { echo "ligações simbólicas na _site"; exit 1; }
+          test -z "$(find _site ! -type f ! -type d)" || { echo "ficheiros especiais na _site"; exit 1; }
+          for x in worker .github .git _source scripts .pages.yml wrangler.jsonc wrangler.toml .dev.vars .env; do
+            test ! -e "_site/$x" || { echo "$x NÃO devia ser publicado"; exit 1; }
+          done
+          test -z "$(find _site -name '*.md')"        || { echo ".md NÃO devia ser publicado"; exit 1; }
+          # A config do wrangler, escrita aqui e não lida do repositório (o
+          # wrangler.jsonc da raiz fica como documentação e para o wrangler dev).
+          # A zona vai pelo id (variável CLOUDFLARE_ZONE_ID): o wrangler não
+          # precisa de a procurar pelo nome, o que poupa uma permissão ao token.
+          # Até a variável existir, vai pelo nome, como antes.
+          if [ -n "${ZONA_ID:-}" ]; then
+            [[ "$ZONA_ID" =~ ^[0-9a-f]{32}$ ]] || { echo "CLOUDFLARE_ZONE_ID não parece um id de zona"; exit 1; }
+            ZONA="\"zone_id\": \"$ZONA_ID\""
+          else
+            ZONA='"zone_name": "armazemdospneus.pt"'
+          fi
+          cat > wrangler.json <<JSON
+          {
+            "name": "armazem-dos-pneus-site",
+            "compatibility_date": "2026-09-01",
+            "assets": { "directory": "./_site", "html_handling": "none", "not_found_handling": "404-page" },
+            "routes": [ { "pattern": "armazemdospneus.pt/*", $ZONA } ],
+            "workers_dev": false,
+            "preview_urls": false
+          }
+          JSON
+          cat wrangler.json
+          echo "ok: $(find _site -type f | wc -l | tr -d ' ') ficheiros"
+
+      # Precisa do segredo CLOUDFLARE_API_TOKEN e da variável
+      # CLOUDFLARE_ACCOUNT_ID. O token é PERSONALIZADO: Account › Workers
+      # Scripts: Edit; Account › Account Settings: Read; Zone
+      # armazemdospneus.pt › Workers Routes: Edit — sem KV nem R2. Sem ele a
+      # publicação FALHA, de propósito: melhor um CI vermelho do que edições
+      # que nunca chegam ao site.
       - name: Publicar na Cloudflare
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: '4.141.0'
-          command: deploy
+          workingDirectory: publicar
+          command: deploy --config wrangler.json
+
+  # ---------------------------------------------------------------
+  # Quem fica a saber. Sem checkout; só pode mexer em issues.
+  # ---------------------------------------------------------------
+  avisar:
+    needs: [construir, publicar]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: relatorio
+          path: relatorio
+
+      # Os valores do GitHub entram por env:, nunca por ${{ }} dentro do run:.
+      # O texto da issue vai por ficheiro, e as mensagens da guarda dentro de
+      # um bloco ~~~~ (sem formatação nem menções @): o repositório é público.
+      - name: Abrir, comentar ou fechar a issue «Publicação parada»
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          CONSTRUIR: ${{ needs.construir.result }}
+          PUBLICAR: ${{ needs.publicar.result }}
+          ENSAIO: ${{ inputs.ensaiar_aviso }}
+          CORRIDA: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT: ${{ github.sha }}
+          QUEM: ${{ github.actor }}
+        run: |
+          TITULO='Publicação parada'
+          REL=relatorio/relatorio.json
+          FALHOU=false
+          if [ "$CONSTRUIR" != success ] || [ "$PUBLICAR" != success ]; then FALHOU=true; fi
+          TIRADOS=0
+          if [ -f "$REL" ]; then TIRADOS=$(jq '(.neutralizados // []) | length' "$REL" 2>/dev/null || echo 0); fi
+
+          {
+            if [ "$FALHOU" = true ]; then
+              echo "A publicação do site **parou**: a loja continua como estava antes deste commit."
+            else
+              echo "A loja foi publicada, mas **$TIRADOS produto(s) ficaram fora de venda na loja** por terem dados em falta. O ficheiro não mudou: basta corrigir no painel e gravar."
+            fi
+            echo
+            echo "- Corrida: $CORRIDA"
+            echo "- Commit: $COMMIT (de $QUEM)"
+            echo "- Construir: $CONSTRUIR · Publicar: $PUBLICAR"
+            if [ -f "$REL" ]; then
+              echo
+              echo "O que a guarda encontrou (a lista inteira está no resumo da corrida):"
+              echo
+              echo '~~~~'
+              jq -r '
+                def linha: gsub("[[:cntrl:]]+"; " ") | .[0:600];
+                ((.problemas // []) | map(select(.classe == "bloqueia")) | .[] | ("- PÁRA · " + (.ecra // "") + " — " + (.mensagem // "")) | linha),
+                ((.neutralizados // []) | .[] | ("- FORA DE VENDA NA LOJA · " + (.nome // .sku // "?") + " — " + ((.motivos // []) | join(" "))) | linha)
+              ' "$REL" | sed -n '1,80p'
+              echo '~~~~'
+            fi
+          } > aviso.md
+
+          ABERTA=$(gh issue list --state open --limit 100 --json number,title \
+            | jq -r --arg t "$TITULO" '[.[] | select(.title == $t) | .number] | first // empty')
+
+          if [ "$FALHOU" = true ] || [ "$TIRADOS" -gt 0 ]; then
+            if [ -n "$ABERTA" ]; then gh issue comment "$ABERTA" --body-file aviso.md
+            else gh issue create --title "$TITULO" --body-file aviso.md; fi
+          elif [ -n "$ABERTA" ]; then
+            gh issue close "$ABERTA" --comment "Voltou a publicar sem problemas (commit $COMMIT). $CORRIDA"
+          fi
+
+          # Ensaio (workflow_dispatch com ensaiar_aviso): abre e fecha uma issue
+          # à parte, para o Renato confirmar que os DOIS emails chegam.
+          if [ "${ENSAIO:-}" = true ]; then
+            printf 'Ensaio do aviso «%s»: se este email chegou, os avisos das publicações paradas também chegam.\n\n- Corrida: %s\n' "$TITULO" "$CORRIDA" > ensaio.md
+            URL=$(gh issue create --title "$TITULO — ensaio do aviso" --body-file ensaio.md)
+            gh issue close "${URL##*/}" --comment "Ensaio terminado: esta issue fecha-se sozinha. Chegaram os dois emails (abrir e fechar)? Se não, Watch → Custom → Issues no repositório, e repetir."
+          fi

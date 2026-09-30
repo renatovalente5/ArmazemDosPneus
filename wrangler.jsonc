@@ -10,6 +10,14 @@
 // e injectadas no HTML, _redirects gerado a partir das páginas que existem);
 // um `wrangler deploy` à mão não a tem. O Worker dos pagamentos é outro, em
 // worker/ — este ficheiro não lhe toca.
+//
+// O CI JÁ NÃO LÊ ESTE FICHEIRO (desde 30 set 2026). A config com que publica
+// está escrita no próprio .github/workflows/pages.yml, no job «publicar», que
+// não corre nada do repositório: quem pode escrever aqui (as Apps do Pages CMS
+// e do painel) não chega assim ao token da Cloudflare — um build.command posto
+// neste ficheiro corria dentro do wrangler deploy, com o token no ambiente.
+// Fica como documentação e para o `wrangler dev`, e o .github/test-guardas.mjs
+// confere que diz o mesmo que o YAML (a zona vai lá pelo id, aqui pelo nome).
 {
   "name": "armazem-dos-pneus-site",
   "compatibility_date": "2026-09-01",
