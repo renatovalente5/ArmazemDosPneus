@@ -48,6 +48,15 @@ rsync -a ./ "$SITE"/ \
   --exclude '/scripts' \
   ${DENTRO[@]+"${DENTRO[@]}"}
 
+# --- contactos, horário, serviços, textos e dados da empresa --------------
+# O que o dono muda no painel (data/site.json, data/empresa.json, e os prazos,
+# a devolução e os portes do data/settings.json nos Termos) escrito no HTML
+# publicado, e no JSON-LD. ANTES das fotografias: o injetar-imagens.py troca
+# depois as fotos no HTML e no JSON-LD que este escreveu. Ver
+# .github/injetar-conteudo.py.
+echo "--- contactos, textos e dados da empresa ---"
+"$PYTHON" .github/injetar-conteudo.py "$SITE" data/site.json data/empresa.json data/settings.json
+
 # --- as fotografias do backoffice, reduzidas e escritas no HTML ----------
 # Sem isto o index.html publicava o caminho antigo e o main.js trocava-o já
 # depois de a página estar pintada (via-se a antiga e logo a nova, e as duas
