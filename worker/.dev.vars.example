@@ -23,6 +23,8 @@ RESEND_API_KEY=
 # senão o Worker lê o site em produção.
 PRODUCTS_URL=http://localhost:8096/data/products.json
 SETTINGS_URL=http://localhost:8096/data/settings.json
+SITE_DATA_URL=http://localhost:8096/data/site.json
+EMPRESA_URL=http://localhost:8096/data/empresa.json
 SUCCESS_URL=http://localhost:8096/obrigado.html
 CANCEL_URL=http://localhost:8096/checkout.html?cancelado=1
 SITE_URL=http://localhost:8096

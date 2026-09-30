@@ -25,6 +25,7 @@
 import { stripeFetch, verifyStripeSignature } from './stripe.js';
 import { priceOrder } from './pricing.js';
 import { avisoLoja, confirmacaoCliente, referenciaMultibanco } from './mail.js';
+import { termosDasFontes, lerFontesDoSite, lerJsonOpcional, moradaLinha } from './termos.js';
 
 const MAX_BODY_BYTES = 8 * 1024;
 const SESSION_TTL_SECONDS = 3600;        // 1 h para concluir o pagamento
@@ -144,11 +145,16 @@ function validateCliente(body, delivery) {
     c.localidade = cleanText(body.localidade, 100);
     if (c.morada.length < 5) throw new Error('Indique a morada de envio.');
     if (!/^[0-9]{4}-[0-9]{3}$/.test(c.cp)) throw new Error('O código postal deve ter o formato 0000-000.');
-    if (!CP_RE.test(c.cp)) throw new Error('Só entregamos em Portugal continental. Para a Madeira ou os Açores, ligue-nos: 935 218 857.');
+    // A mensagem leva o telefone da loja, que muda no painel: quem a escreve é
+    // o handleCheckout, depois de o ler (mensagemForaDoContinente).
+    if (!CP_RE.test(c.cp)) throw Object.assign(new Error('fora do continente'), { foraDoContinente: true });
     if (c.localidade.length < 2) throw new Error('Indique a localidade.');
   }
   return c;
 }
+
+const mensagemForaDoContinente = (telefone) =>
+  `Só entregamos em Portugal continental. Para a Madeira ou os Açores, ligue-nos: ${telefone}.`;
 
 function newOrderId() {
   const d = new Date();
@@ -173,13 +179,29 @@ async function handleCheckout(request, env, cors) {
 
   const delivery = body.entrega === 'ctt' ? 'ctt' : 'loja';
 
-  let cliente, calc;
+  // site.json e empresa.json lêem-se AO MESMO TEMPO que o catálogo e as
+  // definições, com a mesma cache de 60 s; nunca lançam (sem eles, vale o
+  // recurso de termos.js). Um pedido que falhe a validação do cliente não lê
+  // nada, como antes — menos o de fora do continente, que lê o site.json para
+  // dar o telefone da loja.
+  let cliente, calc, fontes;
   try {
     cliente = validateCliente(body, delivery);
-    calc = await priceOrder(env, body.items, delivery);
+    [calc, fontes] = await Promise.all([priceOrder(env, body.items, delivery), lerFontesDoSite(env)]);
   } catch (e) {
+    if (e.foraDoContinente) {
+      const site = await lerJsonOpcional(env.SITE_DATA_URL);
+      const { termos } = termosDasFontes({ site: site.dados }, env);
+      return json({ error: mensagemForaDoContinente(termos.contactos.telefone) }, 400, cors);
+    }
     return json({ error: e.message }, 400, cors);
   }
+
+  // O retrato do que se promete a ESTE cliente, agora: prazos, custo da
+  // devolução, contactos e dados da empresa. Vai para a página da Stripe e fica
+  // na encomenda para os emails (termos.js explica porquê).
+  const { termos, invalidos } = termosDasFontes({ settings: calc.settings, site: fontes.site, empresa: fontes.empresa }, env);
+  if (invalidos.length) console.error('termos: valores recusados, vale o recurso em', invalidos.join(', '));
 
   // Interruptor de emergência do backoffice. Imposto AQUI e não só no browser:
   // de outro modo bastava um pedido forjado para continuar a cobrar com a loja
@@ -209,6 +231,7 @@ async function handleCheckout(request, env, cors) {
     shipping_quote_later: calc.shipping_quote_later,
     total_cents: calc.total_cents,
     weight_kg: calc.weight_kg,
+    termos,
     cliente,
     created_at: new Date().toISOString(),
   });
@@ -242,8 +265,8 @@ async function handleCheckout(request, env, cors) {
     custom_text: {
       submit: {
         message: delivery === 'ctt'
-          ? `Ao concluir o pagamento celebra um contrato de compra e venda com obrigação de pagar. Entrega em ${env.DELIVERY_MIN_DAYS || 2} a ${env.DELIVERY_MAX_BUSINESS_DAYS || 5} dias úteis, para Portugal continental.`
-          : 'Ao concluir o pagamento celebra um contrato de compra e venda com obrigação de pagar. Levantamento em Travessa do Navega, 436 F, 3885-183 Arada, Ovar.',
+          ? `Ao concluir o pagamento celebra um contrato de compra e venda com obrigação de pagar. Entrega em ${termos.prazos.min_dias} a ${termos.prazos.max_dias_uteis} dias úteis, para Portugal continental.`
+          : `Ao concluir o pagamento celebra um contrato de compra e venda com obrigação de pagar. Levantamento em ${moradaLinha(termos)}.`,
       },
       after_submit: {
         message: 'Se escolher Referência Multibanco, a entidade e a referência aparecem no ecrã seguinte e também lhe são enviadas por email. Tem 7 dias para pagar; a encomenda só é preparada depois de recebermos o pagamento.',
@@ -722,6 +745,17 @@ export default {
         } catch (e) {
           out.catalogo = { erro: String(e.message || e) };
         }
+
+        // De onde vem o que os emails e a página da Stripe vão dizer: 'dados'
+        // (os ficheiros do site, que o dono muda no painel) ou 'recurso' (os
+        // valores de sempre, escritos neste Worker). Serve para confirmar, depois
+        // da fase A2, que o site.json e o empresa.json chegam aqui.
+        const [st, fontes] = await Promise.all([
+          lerJsonOpcional(env.SETTINGS_URL, { fresco: true }),
+          lerFontesDoSite(env, { fresco: true }),
+        ]);
+        const { origem, invalidos } = termosDasFontes({ settings: st.dados, site: fontes.site, empresa: fontes.empresa }, env);
+        out.termos = { ficheiros: { settings: st.estado, ...fontes.estado }, origem, recusados: invalidos };
       }
       return json(out);
     }
