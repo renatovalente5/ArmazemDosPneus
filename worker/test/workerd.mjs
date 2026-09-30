@@ -126,7 +126,11 @@ async function correr(raiz, cen, { site, empresa, settings = cen.settings } = {}
         await esperarEmails(rede, n);
       }
     }
-    return { checkout, stripe: rede.stripe.map((s) => s.corpo), emails: rede.resend, encomenda };
+    // O aviso ao dono e a confirmação ao cliente saem ao mesmo tempo
+    // (Promise.all): no workerd chegam à rede por qualquer ordem. Compara-se o
+    // conjunto, por destinatário e assunto.
+    const emails = [...rede.resend].sort((x, y) => (x.to[0] + x.subject).localeCompare(y.to[0] + y.subject));
+    return { checkout, stripe: rede.stripe.map((s) => s.corpo), emails, encomenda };
   } finally {
     await w.mf.dispose();
   }
