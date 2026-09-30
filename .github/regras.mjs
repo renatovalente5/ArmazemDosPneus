@@ -155,13 +155,13 @@ export function nifValido(nif) {
 /* A referência de um produto: gerada UMA vez, ao criar, a partir do nome, e
    nunca mais muda (os carrinhos guardados nos telemóveis dos clientes procuram
    por ela). «zz-» esconde o produto na loja (catalog.js) e «teste-» é o artigo
-   de teste: um nome que comece assim leva «p-» à frente. */
+   de teste: um nome que comece assim (ou que seja só isso) leva «p-» à frente. */
 export function gerarSku(nome, existentes = []) {
   const ja = existentes instanceof Set ? existentes : new Set(existentes);
   let base = String(nome == null ? '' : nome).normalize('NFD').replace(/[̀-ͯ]/g, '')
     .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+/, '').slice(0, 60).replace(/-+$/, '');
   if (!base) base = 'produto';
-  if (/^(?:zz|teste)-/.test(base)) base = 'p-' + base;
+  if (/^(?:zz|teste)(?:-|$)/.test(base)) base = 'p-' + base;
   let sku = base;
   for (let n = 2; ja.has(sku); n++) sku = `${base}-${n}`;
   return sku;

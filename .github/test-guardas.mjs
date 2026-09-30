@@ -560,7 +560,7 @@ try {
   secao('ajudantes');
   certo(R.gerarSku('Pneu Michelin Primacy 4+ 205/55 R16') === 'pneu-michelin-primacy-4-205-55-r16', 'gerarSku: minúsculas, hífens');
   certo(R.gerarSku('Óleo de Motor 5W-30 (5L)') === 'oleo-de-motor-5w-30-5l', 'gerarSku: sem acentos');
-  certo(R.gerarSku('Teste de pagamento') === 'p-teste-de-pagamento' && R.gerarSku('ZZ top') === 'p-zz-top', 'gerarSku: «teste-» e «zz-» levam «p-» (não se escondem sozinhos)');
+  certo(R.gerarSku('Teste de pagamento') === 'p-teste-de-pagamento' && R.gerarSku('ZZ top') === 'p-zz-top' && R.gerarSku('Teste') === 'p-teste' && R.gerarSku('Testemunho') === 'testemunho', 'gerarSku: «teste-» e «zz-» levam «p-» (não se escondem sozinhos)');
   certo(R.gerarSku('Jante 16', ['jante-16', 'jante-16-2']) === 'jante-16-3', 'gerarSku: -2, -3 se já existir');
   certo(R.gerarSku('x'.repeat(200)).length === 60 && R.gerarSku('!!!') === 'produto', 'gerarSku: corta a 60; sem letras, «produto»');
   certo(R.duasCasas(76.9) && R.duasCasas(0.1 + 0.2) && R.duasCasas(89.99) && !R.duasCasas(89.999) && !R.duasCasas(0.305) && !R.duasCasas('1'), 'duasCasas: 76,90 e 0.30000000000000004 sim (ruído da vírgula flutuante); 89,999 e 0,305 não');

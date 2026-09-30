@@ -25,6 +25,7 @@ assets/css|js|img|fonts|uploads
 data/               products.json, content.json, settings.json
 legal/              privacidade, cookies, termos, formulário de livre resolução
 _source/            Fotos em alta + logo vetorial (NÃO publicado — ver .gitignore)
+.github/            O CI: pages.yml, as guardas do conteúdo e o que monta a _site
 ```
 
 ## Documentação
@@ -40,6 +41,23 @@ _source/            Fotos em alta + logo vetorial (NÃO publicado — ver .gitig
 python3 _source/dev-server.py 8096   # http://localhost:8096
 cd worker && npm test                # 48 asserções (precisa do dev server acima)
 cd worker && npx wrangler dev        # Worker em :8787, com chaves de TESTE
+```
+
+## Publicação e guardas
+O CI (`.github/workflows/pages.yml`) tem três jobs:
+- **construir** — corre o código do repositório e **não tem segredos**: `.github/guardas.mjs`
+  confere os dados com as regras de `.github/regras.mjs` (as mesmas do painel) e
+  `.github/preparar-site.sh` monta a `_site`;
+- **publicar** — tem o token da Cloudflare e **não corre nada do repositório** (sem checkout;
+  a config do wrangler e as verificações de fuga estão escritas no YAML);
+- **avisar** — abre, comenta ou fecha a issue «Publicação parada».
+
+Um produto com dados partidos sai de venda **só na cópia publicada** e o resto publica; só um
+problema de estrutura (JSON ilegível, o interruptor dos pagamentos, os portes, os prazos, os
+dados legais) pára a publicação.
+
+```bash
+PYTHON=<python com Pillow> node .github/test-guardas.mjs   # a bateria das guardas e do CI
 ```
 
 ## Diagnóstico rápido
