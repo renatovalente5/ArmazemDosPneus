@@ -15,6 +15,9 @@
      · O NIF, a matrícula e as notas ficam SÓ aqui e no email ao dono. Não
        viajam para a Stripe (que avisa para não guardar dados sensíveis em
        metadata, e não precisa deles para a transação).
+     · Prazos, custo da devolução, contactos e dados da empresa não estão
+       escritos aqui: lêem-se dos JSON do site e ficam na encomenda, como
+       retrato do que se prometeu (termos.js).
 
    SEGREDOS (wrangler secret put — NUNCA no repositório)
      STRIPE_RESTRICTED_KEY   rk_live_… (chave restrita, não a sk_live)
