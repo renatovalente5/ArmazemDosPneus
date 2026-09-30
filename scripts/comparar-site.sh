@@ -119,6 +119,7 @@ FICHEIROS = [
     (r'^data/empresa\.json$', 'novo', 'os dados da empresa (painel: Dados da empresa)', True),
     (r'^assets/js/(catalog|main|checkout|obrigado)\.js$', 'mudou', 'o WhatsApp e o telefone passam a vir das metas ap:* (com o valor de hoje como recurso)', True),
     (r'^assets/js/cart\.js$', 'mudou', 'A3: o carrinho actualiza o nome e a fotografia com o catálogo, e uma fotografia que falhe mostra o logótipo', False),
+    (r'^assets/css/styles\.css$', 'mudou', 'A3: .citem__img--ph, o logótipo no lugar da fotografia que falta no carrinho', False),
 ]
 # ---------------------------------------------------------------------------
 

@@ -27,6 +27,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+sys.dont_write_bytecode = True   # nada de .github/__pycache__ ao importar o injector
 RAIZ = Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location('injetar', RAIZ / '.github' / 'injetar-conteudo.py')
 I = importlib.util.module_from_spec(spec)
@@ -431,6 +432,45 @@ with tempfile.TemporaryDirectory() as tmp:
     certo(r5.returncode == 1 and 'Não há páginas' in r5.stderr, 'uma pasta sem páginas: sai com 1', r5.stderr.strip())
     r6 = subprocess.run([py, script, '--listas'], capture_output=True, text=True)
     certo(r6.returncode == 0 and json.loads(r6.stdout)['marcadores'] == I.MARCADORES, '--listas diz as listas fechadas, em JSON')
+
+# =============================================================================
+secao('A3 — injetar-imagens.py: uma foto do telemóvel «deitada» sai direita')
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
+certo(Image is not None, f'há Pillow neste python ({sys.executable}) — no Mac, o do venv')
+if Image is not None:
+    with tempfile.TemporaryDirectory() as tmp:
+        t = Path(tmp)
+        (t / 'assets' / 'uploads').mkdir(parents=True)
+        # 300×200 guardados deitados, com o canto de cima à esquerda vermelho, e
+        # Orientation 6 («rodar 90° no sentido do relógio para ver»): de pé, é
+        # uma foto 200×300 com o vermelho no canto de cima à DIREITA.
+        im = Image.new('RGB', (300, 200), (240, 240, 240))
+        im.paste((220, 0, 0), (0, 0, 60, 40))
+        exif = Image.Exif(); exif[0x0112] = 6
+        im.save(t / 'assets' / 'uploads' / 'rodada.jpg', 'JPEG', quality=95, exif=exif.tobytes())
+        Image.new('RGB', (300, 200), (10, 120, 10)).save(t / 'assets' / 'uploads' / 'direita.jpg', 'JPEG', quality=95)
+        (t / 'index.html').write_text('<img data-img="hero" src="assets/uploads/x.jpg"><img data-img="sobre" src="assets/uploads/y.jpg">', encoding='utf-8')
+        (t / 'content.json').write_text(json.dumps({'hero': {'image': '/assets/uploads/rodada.jpg'}, 'sobre': {'image': '/assets/uploads/direita.jpg'}}), encoding='utf-8')
+        r = subprocess.run([sys.executable, str(RAIZ / '.github' / 'injetar-imagens.py'), str(t), str(t / 'content.json')], capture_output=True, text=True)
+        certo(r.returncode == 0 and 'verificado ✓' in r.stdout, 'o injetar-imagens.py corre sobre as duas fotos', r.stderr.strip()[-300:])
+        html = (t / 'index.html').read_text(encoding='utf-8')
+        caminhos = dict(re.findall(r'data-img="(\w+)" src="([^"]+)"', html))
+        if len(caminhos) == 2:
+            with Image.open(t / caminhos['hero']) as h:
+                w, hgt = h.size
+                sem_exif = h.getexif().get(0x0112) is None
+                canto_dir = h.convert('RGB').getpixel((w - 10, 10))
+                canto_esq = h.convert('RGB').getpixel((10, 10))
+            certo((w, hgt) == (200, 300), f'a foto deitada sai de pé: {w}×{hgt} (era 300×200 com Orientation 6)')
+            certo(canto_dir[0] > 150 and canto_dir[1] < 80 and canto_esq[0] > 200 and canto_esq[1] > 200, 'rodada para o lado certo: o vermelho está no canto de cima à direita', f'direita {canto_dir}, esquerda {canto_esq}')
+            certo(sem_exif, 'e o JPEG publicado não leva EXIF (nem a orientação, nem o GPS)')
+            with Image.open(t / caminhos['sobre']) as so:
+                certo(so.size == (300, 200), 'uma foto sem orientação fica como estava')
+        else:
+            certo(False, 'o index.html ficou com as duas fotos escritas', html)
 
 print(f'\n{passou} passaram, {falhou} falharam')
 sys.exit(1 if falhou else 0)
