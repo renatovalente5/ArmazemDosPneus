@@ -18,7 +18,8 @@ O PROBLEMA QUE ISTO RESOLVE
 3. O cliente carrega o que vem do telemóvel. A foto que pôs no topo era um PNG
    de 2,4 MB, contra os 289 KB da anterior. Como o HTML passa a apontar-lhe
    directamente e com prioridade alta, sem reduzir trocava-se um piscar de
-   olhos por uma página muito mais lenta.
+   olhos por uma página muito mais lenta. E uma foto do telemóvel pode vir
+   «deitada», com a orientação só no EXIF: aplica-se antes de reduzir.
 
 O original fica intacto no repositório; o que vai para o site é um JPEG
 redimensionado. O nome leva um resumo do conteúdo — sem isso, um nome fixo
@@ -37,7 +38,7 @@ import re
 import sys
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageOps
 
 SITE = 'https://armazemdospneus.pt'
 # O topo mostra a foto num contentor de 460 px (.hero__media), portanto 1400 px
@@ -63,6 +64,16 @@ def otimizar(origem, raiz, slot):
     """Cria o JPEG reduzido dentro de raiz e devolve o caminho relativo."""
     with Image.open(origem) as im:
         antes = im.size
+        # A orientação do telemóvel: uma foto tirada ao alto guarda os pixels
+        # deitados e uma etiqueta EXIF (Orientation) a dizer como a rodar. O
+        # JPEG que sai daqui não leva o EXIF, portanto a rotação tem de ser
+        # aplicada aos pixels — sem isto, uma foto posta à mão com Orientation
+        # ≠ 1 saía deitada no site. Um EXIF estragado não pára a publicação:
+        # fica a foto como está, e avisa-se.
+        try:
+            im = ImageOps.exif_transpose(im)
+        except Exception as e:  # noqa: BLE001 — qualquer EXIF ilegível
+            print(f'    AVISO: {slot}: não consegui ler a orientação da foto ({e}); fica como está')
         im = im.convert('RGB')  # descarta alfa: um JPEG não o tem
         if max(im.size) > LADO_MAX:
             im.thumbnail((LADO_MAX, LADO_MAX), Image.LANCZOS)
