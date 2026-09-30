@@ -55,5 +55,14 @@ rsync -a ./ "$SITE"/ \
 echo "--- imagens do backoffice ---"
 "$PYTHON" .github/injetar-imagens.py "$SITE" data/content.json
 
+# --- produtos partidos: fora de venda na cópia publicada -------------------
+# A cópia _site/data/products.json é a que o catálogo, o carrinho, o checkout
+# e o Worker dos pagamentos lêem. Um produto com um problema (etiqueta UE em
+# falta num pneu à venda, preço inválido, referência repetida…) sai de venda
+# AQUI, e o resto publica. O ficheiro do repositório não muda. Sem nada a
+# neutralizar, a cópia fica byte a byte igual ao ficheiro. Ver .github/guardas.mjs.
+echo "--- produtos com problemas (mudam só na cópia publicada) ---"
+node .github/guardas.mjs --neutralizar "$SITE"
+
 echo "--- ficheiros publicados ---"
 find "$SITE" -type f | sort | sed "s|^$SITE/|  |"

@@ -59,12 +59,25 @@ jobs:
           # scripts que correm a seguir.
           persist-credentials: false
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Instalar o que reduz as fotos
         # O injetar-imagens.py usa Pillow para converter as fotos do backoffice
         # em JPEG redimensionado. Sem isto o passo seguinte falha — de
         # propósito: mais vale a publicação parar do que publicar um PNG de
         # 2,4 MB no topo da página inicial.
         run: python3 -m pip install --quiet 'pillow>=10,<12'
+
+      # As regras de .github/regras.mjs, as mesmas do painel. Pára SÓ no que
+      # não se pode contornar (JSON ilegível, o interruptor dos pagamentos, os
+      # portes, os prazos, os dados legais). Um problema de um produto nunca
+      # pára: esse produto sai de venda na cópia publicada (passo seguinte) e
+      # a issue «Publicação parada» avisa. O relatório fica fora da pasta do
+      # repositório, para o rsync não o publicar.
+      - name: Conferir o conteúdo
+        run: node .github/guardas.mjs --relatorio-em "$RUNNER_TEMP/relatorio.json"
 
       - name: Preparar o que vai ser publicado
         run: .github/preparar-site.sh _site
@@ -82,6 +95,15 @@ jobs:
           name: site
           path: ${{ runner.temp }}/site.tgz
           if-no-files-found: error
+          retention-days: 7
+
+      # Também quando a guarda parou: é o que o job «avisar» põe na issue.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: relatorio
+          path: ${{ runner.temp }}/relatorio.json
+          if-no-files-found: ignore
           retention-days: 7
 
   # ---------------------------------------------------------------
@@ -204,7 +226,7 @@ jobs:
             if [ "$FALHOU" = true ]; then
               echo "A publicação do site **parou**: a loja continua como estava antes deste commit."
             else
-              echo "A loja foi publicada, mas **$TIRADOS produto(s) ficaram fora de venda na loja** por terem dados em falta. O ficheiro não mudou: basta corrigir no painel e gravar."
+              echo "A loja foi publicada, mas **$TIRADOS produto(s) mudaram na loja** (ficaram fora de venda ou sem fotografia) por terem dados com problemas. O ficheiro não mudou: basta corrigir no painel e gravar."
             fi
             echo
             echo "- Corrida: $CORRIDA"
@@ -218,7 +240,7 @@ jobs:
               jq -r '
                 def linha: gsub("[[:cntrl:]]+"; " ") | .[0:600];
                 ((.problemas // []) | map(select(.classe == "bloqueia")) | .[] | ("- PÁRA · " + (.ecra // "") + " — " + (.mensagem // "")) | linha),
-                ((.neutralizados // []) | .[] | ("- FORA DE VENDA NA LOJA · " + (.nome // .sku // "?") + " — " + ((.motivos // []) | join(" "))) | linha)
+                ((.neutralizados // []) | .[] | ("- NA LOJA · " + (.nome // .sku // "?") + ": " + (.descricao // "") + " — " + ((.motivos // []) | join(" "))) | linha)
               ' "$REL" | sed -n '1,80p'
               echo '~~~~'
             fi
