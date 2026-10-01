@@ -27,8 +27,8 @@
     // dizem /loja.html. Com o valor por omissão («auto-trailing-slash») a
     // Cloudflare mandava /loja.html para /loja com um 307, contra os
     // canonicals. Com «none» serve-se o ficheiro pedido; a página inicial,
-    // o /admin/ e as moradas sem .html (que o GitHub Pages aceitava) vêm do
-    // _redirects que o CI escreve.
+    // as moradas sem .html (que o GitHub Pages aceitava) e o /admin (que
+    // reencaminha para o painel) vêm do _redirects que o CI escreve.
     "html_handling": "none",
     // Uma morada que não existe mostra a 404.html (sem ela, a Cloudflare
     // devolvia uma página em branco).

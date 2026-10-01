@@ -492,7 +492,7 @@ certo(all(t.count('935 218 857') == (1 if rel == 'index.html' else 0) for rel, t
 certo(negocio(pub['index.html'])['telephone'] == '+351912345678', '   e o JSON-LD diz o número novo')
 pub = muda('segundo telefone vazio', 'tel:+351935218857', '932 948 572', site=c(lambda s: s['contactos'].pop('telefone2')))
 pub = muda('WhatsApp', 'https://wa.me/351912000111', 'wa.me/351935218857', site=c(lambda s: s['contactos'].update(whatsapp='351912000111')), minimo=9)
-certo('<strong>912 000 111</strong>' in pub['index.html'] and all('content="351912000111"' in t for rel, t in pub.items() if not rel.startswith('admin/')), '   o cartão «WhatsApp» mostra o número novo, e a meta ap:whatsapp de cada página também')
+certo('<strong>912 000 111</strong>' in pub['index.html'] and all('content="351912000111"' in t for t in pub.values()), '   o cartão «WhatsApp» mostra o número novo, e a meta ap:whatsapp de cada página também (todas: a do Pages CMS, sem metas, saiu)')
 pub = muda('email', 'loja@exemplo.pt', SITE['contactos']['email'], site=c(lambda s: s['contactos'].update(email='loja@exemplo.pt')), minimo=10)
 certo(em_todas(pub, 'mailto:loja@exemplo.pt') == em_todas(HOJE, 'mailto:' + SITE['contactos']['email']), '   e cada mailto:')
 muda('nota da chamada', '(Chamada para a rede fixa nacional)', 'rede móvel', site=c(lambda s: s['contactos'].update(nota_chamada='(Chamada para a rede fixa nacional)')), minimo=8)

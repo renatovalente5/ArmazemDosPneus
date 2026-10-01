@@ -832,7 +832,7 @@ try {
   certo(H('<a data-ap-href="whatsapp-orcamento" href="#">').length === 0 && H('<a data-ap-href="twitter" href="#">').length === 1, 'data-ap-href: nomes da lista fechada');
   certo(H('<iframe data-ap-attr="data-map-embed:mapa-embed">').length === 0 && H('<iframe data-ap-attr="mapa-embed">').length === 1, 'data-ap-attr: «atributo:nome»');
   certo(H('<head></head>', { exigirMetas: true }).length === 2 && H('<meta content="351935218857" name="ap:whatsapp"><meta name="ap:telefone" content="935 218 857">', { exigirMetas: true }).length === 0, 'metas: exigidas quando o site.json for obrigatório (em qualquer ordem de atributos)');
-  certo(G.problemasDoHtml('admin/index.html', '<head></head>', { exigirMetas: true }).length === 0, 'a página do Pages CMS não precisa de metas');
+  certo(G.problemasDoHtml('admin/index.html', '<head></head>', { exigirMetas: true }).length === 2, 'metas: exigidas também em admin/ (a excepção era a página do Pages CMS, que saiu na fase G)');
   certo(H('<!--ap:portes se=outra-->a<!--/ap:portes-->').some((p) => /tem de ser «se=a-combinar»/.test(p.mensagem)), 'variante com a condição errada: pára');
   certo(H('<!--ap:portes-->a<!--/ap:portes-->').some((p) => /é uma variante/.test(p.mensagem)), 'variante sem condição: pára');
   certo(H('<!--ap:telefone se=existe-->a<!--/ap:telefone-->').some((p) => /não é uma variante/.test(p.mensagem)), 'condição num marcador que não é variante: pára');
@@ -1464,6 +1464,41 @@ esac
   }
 
   /* ================================================================== */
+  /* Fase G (out 2026): o Pages CMS saiu e o /admin, que era a página dele,
+     reencaminha para o painel novo. Quem guardou o endereço antigo (ou tem
+     uma página em cache com a «Gestão» antiga) vai lá parar. */
+  secao('o /admin passa para o painel (fase G): o _redirects do .github/preparar-cloudflare.sh');
+  {
+    const PAINEL = 'https://backoffice.armazemdospneus.pt/';
+    const cloudflare = (montar) => {
+      const s = mkdtempSync(join(TMP, 'cf-'));
+      for (const f of ['index.html', '404.html', 'loja.html']) writeFileSync(join(s, f), '<!doctype html>');
+      for (const d of ['legal', 'pasta', 'assets/uploads/opt', 'assets/fonts']) mkdirSync(join(s, d), { recursive: true });
+      writeFileSync(join(s, 'legal', 'termos.html'), '<!doctype html>'); writeFileSync(join(s, 'pasta', 'index.html'), '<!doctype html>');
+      // As pastas que o _headers percorre existem sempre na _site verdadeira.
+      writeFileSync(join(s, 'assets', 'uploads', 'opt', 'hero-0123456789ab.jpg'), 'x'); writeFileSync(join(s, 'assets', 'fonts', 'f.woff2'), 'x');
+      if (montar) montar(s);
+      const r = correr('bash', [join(RAIZ, '.github', 'preparar-cloudflare.sh'), s]);
+      const ficheiro = join(s, '_redirects');
+      const regras = existsSync(ficheiro) ? readFileSync(ficheiro, 'utf8').split('\n').filter((l) => l && !l.startsWith('#')) : null;
+      rmSync(s, { recursive: true, force: true });
+      return { ...r, regras };
+    };
+    const a = cloudflare();
+    const doAdmin = (a.regras || []).filter((l) => /^\/admin(\/|\s|$)/.test(l));
+    certo(a.status === 0 && JSON.stringify(doAdmin) === JSON.stringify([`/admin ${PAINEL} 301`, `/admin/* ${PAINEL} 301`]),
+      'o /admin e o /admin/* reencaminham (301) para o painel, e não há outra regra do /admin (nada de /admin/ → admin/index.html)', a.err + JSON.stringify(a.regras));
+    certo(a.regras && a.regras.indexOf(`/admin ${PAINEL} 301`) === 2 && a.regras.indexOf(`/admin/* ${PAINEL} 301`) === 3,
+      '   logo a seguir à raiz, antes das regras geradas das páginas', JSON.stringify(a.regras));
+    certo(a.regras && a.regras.includes('/pasta/ /pasta/index.html 200') && a.regras.includes('/loja /loja.html 301') && a.regras.includes('/legal/termos /legal/termos.html 301'),
+      '   e as regras geradas a partir das páginas continuam lá', JSON.stringify(a.regras));
+    for (const [desc, montar] of [['uma pasta admin/', (s) => { mkdirSync(join(s, 'admin')); writeFileSync(join(s, 'admin', 'index.html'), '<!doctype html>'); }], ['uma admin.html', (s) => writeFileSync(join(s, 'admin.html'), '<!doctype html>')]]) {
+      const r = cloudflare(montar);
+      certo(r.status !== 0 && /nada lá seria servido/.test(r.err) && r.regras === null, `${desc} na _site: pára com a razão (nunca seria servida), antes de escrever o _redirects`, `saiu ${r.status}: ${r.err}`);
+    }
+  }
+
+  /* ================================================================== */
   secao('de ponta a ponta: os passos do YAML sobre uma cópia do repositório, com um produto partido');
   {
     const py = PY;
@@ -1496,6 +1531,9 @@ esac
         const rel = JSON.parse(readFileSync(join(rt, 'relatorio.json'), 'utf8'));
         certo(rel.neutralizados.length === 1 && rel.neutralizados[0].sku === 'jante-liga-leve-16-5x112-et45', 'o relatório (que vai para a issue) diz qual');
         certo(!existsSync(join(pub, '_site', 'relatorio.json')) && !existsSync(join(pub, '_site', '.github')), 'o relatório não foi publicado');
+        const redirects = readFileSync(join(pub, '_site', '_redirects'), 'utf8').split('\n');
+        certo(!existsSync(join(pub, '_site', 'admin')) && redirects.includes('/admin https://backoffice.armazemdospneus.pt/ 301') && redirects.includes('/admin/* https://backoffice.armazemdospneus.pt/ 301'),
+          'a _site publicada não tem a página do Pages CMS (admin/), e o /admin reencaminha para o painel');
       }
 
       /* Achado L8-03: a guarda passa e a publicação pára depois (aqui, a

@@ -71,10 +71,10 @@ export const ATRIBUTOS = [
   'facebook', 'mapa-embed', 'mapa-link', 'ral-url', 'livro-reclamacoes',
 ];
 /* As metas que o JS lê (catalog.js, main.js, checkout.js, obrigado.js). Exigem-se
-   quando o site.json é obrigatório (OBRIGATORIOS, desde o A2), e não na página
-   do Pages CMS (admin/), que sai na fase G. */
+   em TODAS as páginas quando o site.json é obrigatório (OBRIGATORIOS, desde o
+   A2). A única excepção era a página do Pages CMS (admin/), que saiu na fase G:
+   o /admin reencaminha para o painel (.github/preparar-cloudflare.sh). */
 export const METAS = ['ap:whatsapp', 'ap:telefone'];
-const SEM_METAS = /^admin\//;
 
 function atributosDaTag(tag) {
   const out = {};
@@ -128,7 +128,7 @@ export function problemasDoHtml(caminho, html, { exigirMetas = false } = {}) {
     }
   }
 
-  if (exigirMetas && !SEM_METAS.test(caminho)) {
+  if (exigirMetas) {
     const metas = [...html.matchAll(/<meta\b[^>]*>/gi)].map((m) => atributosDaTag(m[0]));
     for (const nome of METAS) {
       if (!metas.some((a) => a.name === nome && a.content)) bloqueia(`meta:${nome}`, `falta a meta «${nome}» (o JavaScript da página lê o contacto dela).`);

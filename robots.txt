@@ -9,16 +9,14 @@ Allow: /
 # acaba na pesquisa sem descrição — o pior dos dois mundos.
 #
 # Por isso NÃO há Disallow para nada que tenha noindex na própria página:
-#   /admin/                    — noindex em admin/index.html
 #   /checkout.html             — noindex
 #   /obrigado.html             — noindex
 #   /legal/privacidade.html    — noindex (fora da pesquisa por decisão do dono)
 #
-# O /admin/ tinha aqui um Disallow além do noindex. Além de se anularem, o
-# Disallow estava separado do User-agent por uma linha em branco, e os parsers
-# que seguem a norma antiga terminam o grupo aí — ou seja, era ignorado por
-# uns e contraproducente nos outros. A página é só uma porta de entrada para o
-# Pages CMS, sem nada de sensível, portanto o noindex basta e é o que funciona.
+# O /admin também não tem Disallow: deixou de ser uma página (era a porta de
+# entrada do Pages CMS, que saiu em outubro de 2026) e reencaminha com um 301
+# para o painel, em backoffice.armazemdospneus.pt, que tem o seu robots.txt e
+# o seu noindex. Um Disallow aqui só impedia o Google de ver o 301.
 #
 # A pasta worker/ também não precisa de Disallow: deixou de ser publicada
 # (ver .github/workflows/pages.yml). Um Disallow escondia do Google e não do
