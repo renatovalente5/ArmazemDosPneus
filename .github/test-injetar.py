@@ -274,6 +274,16 @@ co0 = visivel(I.injetar_html(HTML['checkout.html'], dados(), 'checkout.html'))
 certo('nunca mais de <span id="recap-max">30 dias</span>.' in co0 and '<span id="recap-devolucao">os custos de devolução são suportados pela loja.</span>' in co0,
       '   e com os valores de hoje diz o mesmo de sempre')
 
+# Achado L6-04: a justificação da RAL tinha «sediado em Ovar» escrito à mão, ao
+# lado da morada e da entidade que o dono muda sozinho.
+emp_feira = copy.deepcopy(EMPRESA)
+emp_feira['morada'].update(rua='Rua da Feira, 10', cp='4520-200', localidade='Santa Maria da Feira', concelho='Santa Maria da Feira')
+emp_feira['ral'] = {'nome': 'CICAP — Centro de Informação de Consumo e Arbitragem do Porto', 'url': 'https://www.cicap.pt'}
+termos_feira = visivel(I.injetar_html(HTML['legal/termos.html'], dados(empresa=emp_feira), 'legal/termos.html'))
+certo('Ovar' not in termos_feira and 'CICAP' in termos_feira and '4520-200 Santa Maria da Feira' in termos_feira,
+      'Termos: a sede muda para Santa Maria da Feira e a RAL para o CICAP — nenhum «Ovar» escrito à mão fica a justificar a entidade',
+      [l for l in termos_feira.split('\n') if 'Ovar' in l][:2])
+
 # =============================================================================
 secao('o geo e o mapa inválidos ficam de fora (para a guarda são só aviso)')
 JL = '<script type="application/ld+json" data-ap-jsonld>{"@graph":[{"@id":"x#business","geo":{"latitude":1},"hasMap":"y"}]}</script>'
