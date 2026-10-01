@@ -9,7 +9,11 @@
  * O que prova:
  *   · regras.mjs é ES module puro (corre no browser e num Worker);
  *   · os dados de hoje passam sem nada neutralizado, e a cópia publicada é o
- *     ficheiro byte a byte;
+ *     ficheiro byte a byte; e a garantia dos seminovos passou de 12 a 18
+ *     meses sem mais nada mudar no products.json;
+ *   · o checkout (num vm): as condições mostradas, o peso, e a caixa da
+ *     garantia dos pneus seminovos — o mesmo texto e a mesma versão do
+ *     worker/src/garantia.js, obrigatória, e no pedido só quando aparece;
  *   · re-jogar os commits de data/ desde o e37161a: nenhum teria parado a
  *     publicação (os de antes listam-se, com a razão);
  *   · o settings.json regravado pelo Pages CMS (sem as chaves vazias) passa;
@@ -38,6 +42,7 @@ import vm from 'node:vm';
 import * as R from './regras.mjs';
 import * as G from './guardas.mjs';
 import * as T from '../worker/src/termos.js';
+import * as GW from '../worker/src/garantia.js';
 
 const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PY = process.env.PYTHON || 'python3';   // no Mac, o do venv com Pillow: o python3 do sistema é o do Xcode
@@ -185,6 +190,30 @@ try {
   certo(R.serializar(HOJE.settings, R.terminacaoDe(TEXTO.settings)) === TEXTO.settings && R.serializar(HOJE.content, R.terminacaoDe(TEXTO.content)) === TEXTO.content, 'serializar() reproduz settings.json e content.json byte a byte');
   certo(hoje.filter((p) => p.lembrete && /:a-espera$/.test(p.chave)).length === 13, 'lembrete: 13 pneus com preço à vista à espera da etiqueta (11 novos, 2 seminovos)');
   certo(tem(hoje, 'avisa', 'produto:teste-pagamento:escondido-a-venda'), 'lembrete: o artigo de teste está escondido mas à venda');
+  {
+    /* Decisão do dono (1 out 2026): a garantia dos pneus seminovos passou de 12
+       a 18 meses — o mínimo que o DL 84/2021 (art. 12.º) deixa acordar num bem
+       usado. O commit que o fez mudou SÓ isso, e o ficheiro ficou serializado
+       como estava (o serializar() das regras, com a terminação de antes). */
+    const seminovos = (doc) => doc.products.filter((p) => R.ePneu(p) && p.condition === 'Seminovo');
+    const git = (...a) => execFileSync('git', ['-C', RAIZ, ...a], { encoding: 'utf8' });
+    const commit = git('log', '--reverse', '--format=%H', '-S', '"warranty_months": 18', '--', 'data/products.json').split('\n').filter(Boolean)[0];
+    if (!commit) certo(false, 'o commit que pôs os pneus seminovos com 18 meses de garantia (git log -S)');
+    else {
+      const antes = git('show', `${commit}^:data/products.json`);
+      const depois = git('show', `${commit}:data/products.json`);
+      const doc = JSON.parse(antes);
+      const eram = seminovos(doc).map((p) => p.warranty_months);
+      seminovos(doc).forEach((p) => { p.warranty_months = 18; });
+      certo(JSON.stringify(eram) === '[12,12]' && R.serializar(doc, R.terminacaoDe(antes)) === depois && !depois.endsWith('\n'),
+        `${commit.slice(0, 7)}: o products.json é, byte a byte, o de antes com a garantia dos 2 pneus seminovos de 12 para 18 meses — e mais nada (sem \\n no fim, como estava)`, JSON.stringify(eram));
+      const mutante = JSON.parse(antes);
+      seminovos(mutante).forEach((p, i) => { p.warranty_months = i ? 18 : 24; });
+      certo(R.serializar(mutante, R.terminacaoDe(antes)) !== depois && R.serializar(doc, '\n') !== depois, '   e a comparação sabe dizer «diferente» (24 meses num deles, ou um \\n no fim)');
+    }
+    const garantias = seminovos(HOJE.products).map((p) => p.warranty_months);
+    certo(garantias.length >= 2 && garantias.every((m) => Number.isInteger(m) && m >= R.GARANTIA_MINIMA_USADOS && m <= 36), `hoje: os pneus seminovos têm de 18 a 36 meses de garantia (${garantias.join(', ')})`);
+  }
   const real = correr('node', [GUARDA, '--relatorio-em', join(TMP, 'hoje.json')]);
   const relHoje = JSON.parse(readFileSync(join(TMP, 'hoje.json'), 'utf8'));
   certo(real.status === 0, 'a guarda verdadeira, sobre o repositório, sai com 0', real.err);
@@ -997,10 +1026,12 @@ try {
      seguiu para o Worker e um submeter(). */
   const checkoutNaPagina = async ({ settings = HOJE.settings, produtos = HOJE.products, carrinho, entrega = 'pickup', respostas = [], textos = {} } = {}) => {
     const els = {};
+    const foco = [];   // os ids que receberam o foco, por ordem
     const el = (id) => (els[id] ||= {
       id, textContent: '', innerHTML: '', hidden: true, disabled: false, value: '', checked: false,
       attrs: {}, handlers: {}, classList: { toggle() {} },
-      setAttribute(k, v) { this.attrs[k] = v; }, removeAttribute(k) { delete this.attrs[k]; }, focus() {}, scrollIntoView() {},
+      setAttribute(k, v) { this.attrs[k] = v; }, removeAttribute(k) { delete this.attrs[k]; }, getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; },
+      focus() { foco.push(this.id); }, scrollIntoView() {},
       addEventListener(t, f) { this.handlers[t] = f; }, querySelector: () => null,
     });
     for (const [id, t] of Object.entries(textos)) el(id).textContent = t;   // o que a publicação escreveu na página
@@ -1031,7 +1062,7 @@ try {
     vm.runInNewContext(ler('assets/js/checkout.js'), ctx);
     for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 0));
     const submeter = async () => { form.handlers.submit && form.handlers.submit({ preventDefault() {} }); for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 0)); };
-    return { els, pedidos, submeter, janela: ctx.window };
+    return { els, pedidos, submeter, janela: ctx.window, foco };
   };
   {
     /* Achado L7-11: o peso somava-se em vírgula flutuante. */
@@ -1080,6 +1111,109 @@ try {
       'checkout: o Worker diz que as condições mudaram (409): o resumo mostra as novas, diz porquê, e não segue para a Stripe', `${c.els['recap-prazo'].textContent} | ${c.els['recap-devolucao'].textContent}`);
     await c.submeter();
     certo(c.pedidos.length === 2 && JSON.stringify(c.pedidos[1].condicoes) === JSON.stringify(novas), '   e a segunda vez manda as condições novas, que o cliente já viu', JSON.stringify(c.pedidos[1] && c.pedidos[1].condicoes));
+  }
+
+  /* ================================================================== */
+  secao('o checkout: a garantia dos pneus seminovos (DL 84/2021, art. 12.º), contra o worker/src/garantia.js');
+  /* Decisão do dono (1 out 2026): 18 meses nos seminovos, POR ACORDO. Com um
+     pneu seminovo de garantia reduzida no carrinho, a caixa aparece com o
+     texto do Worker, é obrigatória, e vai no pedido; sem ele, nada muda. A
+     bateria do browser (.github/test-checkout.mjs) conduz o mesmo na página
+     verdadeira, com o Worker verdadeiro. */
+  {
+    const semi = (sku, meses, extra = {}) => ({ ...clonar(HOJE.products.products[SEMINOVO]), available: true, stock: 4, dot: '3221', tread_mm: 6, warranty_months: meses, sku, name: `Pneu Seminovo ${sku}`, ...extra });
+    const jante = clonar(HOJE.products.products[JANTE]);
+    const S18 = semi('semi-a', 18, { name: 'Pneu Seminovo Continental 205/55 R16' });
+    const S24 = semi('semi-b', 24);
+    const S36 = semi('semi-c', 36);
+    const produtos = { products: [jante, S18, S24, S36] };
+    const item = (p, qty = 1) => ({ sku: p.sku, name: p.name, qty, price_cents: Math.round(p.price_eur * 100), weight: p.weight_kg });
+    // O que o Worker pede para o mesmo carrinho (o priceOrder junta os seminovos pela ordem do carrinho).
+    const doWorker = (prods, carrinho) => GW.garantiaDoCarrinho(carrinho.map((it) => prods.products.find((p) => p.sku === it.sku))
+      .map((p, i) => (/pneu/i.test(p.category || '') && p.condition === 'Seminovo' ? { sku: p.sku, nome: p.name, meses: p.warranty_months, qty: carrinho[i].qty } : null)).filter(Boolean));
+
+    const sem = await checkoutNaPagina({ produtos, carrinho: [item(jante)] });
+    await sem.submeter();
+    certo(sem.els['co-garantia'].hidden === true && sem.pedidos.length === 1 && !('garantia_usados' in sem.pedidos[0]),
+      'sem seminovos: a caixa fica escondida e o pedido não leva garantia nenhuma', JSON.stringify(sem.pedidos[0]));
+    certo(JSON.stringify(Object.keys(sem.pedidos[0])) === JSON.stringify(['condicoes', 'items', 'entrega', 'nome', 'email', 'telefone', 'nif', 'notas', 'montagem', 'montagem_imediata', 'matricula', 'aceita_termos']),
+      '   o pedido tem os campos de sempre, nem mais um', Object.keys(sem.pedidos[0]).join(','));
+    const s36 = await checkoutNaPagina({ produtos, carrinho: [item(S36)] });
+    await s36.submeter();
+    certo(s36.els['co-garantia'].hidden === true && s36.pedidos.length === 1 && !('garantia_usados' in s36.pedidos[0]), '   e um seminovo com 36 meses (a garantia inteira) também não pede acordo');
+
+    const um = await checkoutNaPagina({ produtos, carrinho: [item(S18)] });
+    certo(um.els['co-garantia'].hidden === false && um.els['c-garantia'].checked === false
+      && um.els['c-garantia-texto'].textContent === 'Aceito que a garantia de conformidade deste pneu seminovo, por ser um bem usado, é de 18 meses em vez de 3 anos (DL n.º 84/2021, art. 12.º).',
+      'um seminovo de 18 meses: a caixa aparece, por marcar, com o texto do acordo', um.els['c-garantia-texto'].textContent);
+    certo(um.els['c-garantia-texto'].textContent === doWorker(produtos, [item(S18)]).texto, '   o texto é o do Worker, letra a letra');
+    await um.submeter();
+    certo(um.pedidos.length === 0 && um.els['co-error'].hidden === false && /confirme na caixa acima que aceita a garantia do pneu seminovo/.test(um.els['co-error'].textContent),
+      '   sem a caixa marcada, não paga: a mensagem aparece por baixo dela', um.els['co-error'].textContent);
+    certo(um.els['c-garantia'].attrs['aria-invalid'] === 'true' && um.els['c-garantia'].attrs['aria-describedby'] === 'co-error' && um.foco[um.foco.length - 1] === 'c-garantia',
+      '   com aria-invalid, aria-describedby para a mensagem, e o foco na caixa', JSON.stringify([um.els['c-garantia'].attrs, um.foco]));
+    um.els['c-garantia'].checked = true;
+    await um.submeter();
+    certo(um.pedidos.length === 1 && JSON.stringify(um.pedidos[0].garantia_usados) === JSON.stringify({ aceita: true, versao: GW.GARANTIA_VERSAO, artigos: [{ sku: S18.sku, meses: 18 }] }),
+      '   marcada: o pedido leva a aceitação (a versão do texto e os meses de cada artigo)', JSON.stringify(um.pedidos[0] && um.pedidos[0].garantia_usados));
+
+    const varios = [item(S18), item(S36), item(S24, 2)];
+    const v = await checkoutNaPagina({ produtos, carrinho: varios });
+    certo(v.els['c-garantia-texto'].textContent === doWorker(produtos, varios).texto && v.els['c-garantia-texto'].textContent.endsWith(': Pneu Seminovo Continental 205/55 R16 — 18 meses; Pneu Seminovo semi-b — 24 meses.'),
+      'três seminovos (18, 36 e 24 meses): a garantia de cada um dos reduzidos, igual ao Worker', v.els['c-garantia-texto'].textContent);
+    v.els['c-garantia'].checked = true;
+    await v.submeter();
+    certo(JSON.stringify(v.pedidos[0].garantia_usados.artigos) === JSON.stringify([{ sku: S18.sku, meses: 18 }, { sku: S24.sku, meses: 24 }]), '   e o pedido leva os dois reduzidos, e não o de 36');
+
+    // O Worker diz outros meses (o dono mudou-os com a página aberta): 400.
+    const g24 = GW.registoDaGarantia(doWorker({ products: [{ ...S18, warranty_months: 24 }] }, [item(S18)]));
+    const r = await checkoutNaPagina({ produtos, carrinho: [item(S18)], respostas: [{ status: 400, corpo: { error: 'O pneu seminovo tem uma garantia de 24 meses, e não de 3 anos…', codigo: GW.CODIGO_GARANTIA, garantia_usados: g24 } }] });
+    r.els['c-garantia'].checked = true;
+    await r.submeter();
+    certo(r.els['c-garantia-texto'].textContent === g24.texto && /de 24 meses/.test(g24.texto) && r.els['c-garantia'].checked === false && /24 meses/.test(r.els['co-error'].textContent)
+      && r.els['c-garantia'].attrs['aria-invalid'] === 'true' && r.foco[r.foco.length - 1] === 'c-garantia' && !r.janela.location.href,
+      'o Worker responde 400 (outros meses): a caixa mostra o texto dele, por marcar, com a mensagem e o foco, e não segue para a Stripe', r.els['c-garantia-texto'].textContent);
+    await r.submeter();
+    certo(r.pedidos.length === 1, '   sem a marcar outra vez, não manda nada');
+    r.els['c-garantia'].checked = true;
+    await r.submeter();
+    certo(r.pedidos.length === 2 && JSON.stringify(r.pedidos[1].garantia_usados) === JSON.stringify({ aceita: true, versao: g24.versao, artigos: [{ sku: S18.sku, meses: 24 }] }),
+      '   marcada outra vez: manda os meses e a versão do Worker', JSON.stringify(r.pedidos[1] && r.pedidos[1].garantia_usados));
+
+    // Sem o products.json (a página não sabe que é seminovo): a caixa só aparece quando o Worker a pede.
+    const cego = await checkoutNaPagina({ produtos: {}, carrinho: [item(S18)], respostas: [{ status: 400, corpo: { error: 'O pneu seminovo tem uma garantia de 18 meses…', codigo: GW.CODIGO_GARANTIA, garantia_usados: GW.registoDaGarantia(doWorker(produtos, [item(S18)])) } }] });
+    certo(cego.els['co-garantia'].hidden === true, 'sem o products.json, a página não mostra a caixa…');
+    await cego.submeter();
+    certo(cego.pedidos.length === 1 && !('garantia_usados' in cego.pedidos[0]) && cego.els['co-garantia'].hidden === false && cego.els['c-garantia-texto'].textContent === doWorker(produtos, [item(S18)]).texto,
+      '   …e o Worker recusa (400): a caixa aparece com o texto dele', cego.els['c-garantia-texto'].textContent);
+
+    // Ao acaso (semente fixa): o texto da página é sempre o do Worker.
+    let semente = 20261001;
+    const acaso = () => { semente = (semente * 1103515245 + 12345) % 2147483648; return semente / 2147483648; };
+    const MESES = [18, 19, 24, 30, 35, 36, 12, 17, 18.5, '18', undefined, 48];
+    const NOMES = ['Pneu Seminovo Goodyear 195/65 R15', 'Pneu «Aro» 16" — 205/55', `Pneu${String.fromCharCode(0x2028)}com separador`, '  muitos   espaços  ', 'a'.repeat(250), 'Pneu & Cia <b>', ''];
+    const falhas = [];
+    let comCaixa = 0;
+    for (let n = 0; n < 150; n++) {
+      const prods = Array.from({ length: 1 + Math.floor(acaso() * 4) }, (_, i) => semi(`semi-${n}-${i}`, MESES[Math.floor(acaso() * MESES.length)], { name: NOMES[Math.floor(acaso() * NOMES.length)] || `Pneu ${i}` }));
+      if (acaso() < 0.3) prods.push(jante);
+      const carrinho = prods.map((p) => item(p, 1 + Math.floor(acaso() * 3)));
+      const pg = await checkoutNaPagina({ produtos: { products: prods }, carrinho });
+      const w = doWorker({ products: prods }, carrinho);
+      if (w) comCaixa++;
+      const igual = w ? pg.els['co-garantia'].hidden === false && pg.els['c-garantia-texto'].textContent === w.texto : pg.els['co-garantia'].hidden === true;
+      if (!igual) falhas.push(`${JSON.stringify(carrinho.map((x) => x.sku))}: página «${pg.els['c-garantia-texto'].textContent}» / Worker «${w && w.texto}»`);
+    }
+    certo(falhas.length === 0 && comCaixa > 30 && comCaixa < 150, `150 carrinhos ao acaso: a página mostra a caixa quando o Worker a pede (${comCaixa}), com o mesmo texto, e esconde-a quando não`, falhas.slice(0, 2).join(' | '));
+
+    const fonteCheckout = ler('assets/js/checkout.js');
+    const versaoNaPagina = (fonteCheckout.match(/var GARANTIA_VERSAO = '([^']+)';/) || [])[1];
+    certo(versaoNaPagina === GW.GARANTIA_VERSAO && fonteCheckout.includes(`'${GW.CODIGO_GARANTIA}'`),
+      `a versão do texto (${versaoNaPagina}) e o código do 400 são os mesmos no checkout.js e no Worker`);
+    const html = ler('checkout.html');
+    certo(/<label class="co__check co__check--legal" id="co-garantia" hidden>\s*<input type="checkbox" id="c-garantia" name="garantia_usados" required \/>/.test(html)
+      && html.indexOf('id="co-garantia"') > html.indexOf('id="c-termos"') && html.indexOf('id="co-garantia"') < html.indexOf('id="co-error"') && html.indexOf('id="co-error"') < html.indexOf('id="co-submit"'),
+      'checkout.html: a caixa (escondida, com a etiqueta à volta) vem a seguir aos Termos e antes da mensagem de erro e do «Pagar agora»');
   }
 
   /* ================================================================== */

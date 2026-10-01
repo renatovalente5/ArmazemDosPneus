@@ -3,7 +3,9 @@
    Recolhe os dados, mostra o resumo e encaminha para a página segura de
    pagamento da Stripe.
 
-   O que vai para o servidor: apenas { sku, qty } + dados do cliente.
+   O que vai para o servidor: apenas { sku, qty } + dados do cliente (e, com
+   pneus seminovos, a aceitação da garantia reduzida, com os meses que a página
+   mostrou — o Worker confere-os com os dele).
    NUNCA preços, pesos ou totais — quem os calcula é o Worker, a partir de
    data/products.json. Os valores mostrados aqui são um espelho para o
    cliente ver; se divergirem do servidor, o cliente é avisado antes de pagar.
@@ -31,6 +33,24 @@
     returns: { return_cost_eur: null },
     payment: {}
   };
+
+  /* A GARANTIA DOS PNEUS SEMINOVOS (DL n.º 84/2021, art. 12.º). A garantia
+     legal é de 3 anos; num bem usado pode descer até 18 meses, mas só POR
+     ACORDO — e o acordo tem de existir antes do pagamento. Com um pneu
+     seminovo de garantia reduzida (18 a 35 meses) no carrinho, a caixa
+     #co-garantia aparece e é obrigatória; o Worker confere-a outra vez, sobre
+     o products.json publicado, e guarda-a na encomenda (worker/src/garantia.js).
+     O texto daqui é o do Worker, letra a letra (a bateria do browser confere-o):
+     mudá-lo é uma versão nova, nos dois sítios, e o Worker publica-se primeiro. */
+  var GARANTIA_VERSAO = '2026-10-01';
+  var LEI_GARANTIA = '(DL n.º 84/2021, art. 12.º)';
+  var catalogo = {};      // sku → { seminovo, meses, nome }, do products.json (resync)
+  var garantia = null;    // o acordo que a caixa mostra: { versao, texto, artigos: [{ sku, nome, meses, qty }] }
+
+  /* Os caracteres que o Worker troca por espaço num nome (termos.js), feitos a
+     partir dos números: um separador de linha escrito à letra parte o ficheiro. */
+  var INVISIVEIS = new RegExp('[' + [[0x00, 0x1f], [0x7f, 0x9f], [0xad, 0xad], [0x200b, 0x200f], [0x2028, 0x202e], [0x2060, 0x2064], [0x2066, 0x2069], [0xfeff, 0xfeff]]
+    .map(function (f) { return '\\u' + ('000' + f[0].toString(16)).slice(-4) + '-\\u' + ('000' + f[1].toString(16)).slice(-4); }).join('') + ']', 'g');
 
   function load() {
     try {
@@ -123,15 +143,75 @@
     if (l) l.textContent = on ? 'A preparar o pagamento…' : 'Pagar agora';
   }
 
+  /* O erro aparece na caixa #co-error (role="alert"), logo acima do botão, e o
+     campo aponta para ela (aria-describedby): quem lá chega pelo foco ouve a
+     mensagem. */
   function invalid(el, msg) {
     el.setAttribute('aria-invalid', 'true');
+    el.setAttribute('aria-describedby', 'co-error');
     el.focus();
     showError(msg);
     return false;
   }
 
+  /* ---------- a garantia dos pneus seminovos ---------- */
+
+  function mesesReduzidos(m) { return typeof m === 'number' && isFinite(m) && m % 1 === 0 && m >= 18 && m < 36; }
+  function nomeDoArtigo(nome, sku) {
+    if (typeof nome !== 'string' || nome.length > 800) return sku;
+    var t = nome.replace(INVISIVEIS, ' ').replace(/\s+/g, ' ').trim();
+    return t.length >= 1 && t.length <= 200 ? t : sku;
+  }
+  /* O texto que o cliente aceita — o textoDaGarantia do Worker. Com os mesmos
+     meses em todos e sem outros seminovos (de 3 anos) no carrinho, uma frase;
+     senão, a garantia de cada artigo. */
+  function textoDaGarantia(artigos, outros) {
+    var unidades = 0, meses = [];
+    artigos.forEach(function (a) { unidades += a.qty; if (meses.indexOf(a.meses) < 0) meses.push(a.meses); });
+    var sujeito = unidades > 1 ? 'destes pneus seminovos, por serem bens usados,' : 'deste pneu seminovo, por ser um bem usado,';
+    if (meses.length === 1 && !outros) return 'Aceito que a garantia de conformidade ' + sujeito + ' é de ' + meses[0] + ' meses em vez de 3 anos ' + LEI_GARANTIA + '.';
+    return 'Aceito que a garantia de conformidade ' + sujeito + ' é a indicada a seguir, em vez de 3 anos ' + LEI_GARANTIA + ': ' +
+      artigos.map(function (a) { return a.nome + ' — ' + a.meses + ' meses'; }).join('; ') + '.';
+  }
+  /* O acordo que este carrinho pede (do products.json que a página leu), ou null. */
+  function garantiaDoCarrinho() {
+    var artigos = [], outros = false;
+    items.forEach(function (it) {
+      var c = catalogo[it.sku];
+      if (!c || !c.seminovo) return;
+      if (mesesReduzidos(c.meses)) artigos.push({ sku: it.sku, nome: nomeDoArtigo(c.nome, it.sku), meses: c.meses, qty: it.qty });
+      else outros = true;
+    });
+    return artigos.length ? { versao: GARANTIA_VERSAO, texto: textoDaGarantia(artigos, outros), artigos: artigos } : null;
+  }
+  /* O acordo que o Worker mandou no 400 (o texto e a versão dele), ou null. */
+  function garantiaDoServidor(g) {
+    if (!g || typeof g.versao !== 'string' || typeof g.texto !== 'string' || !Array.isArray(g.artigos) || !g.artigos.length) return null;
+    return { versao: g.versao, texto: g.texto, artigos: g.artigos.map(function (a) { return { sku: a.sku, nome: a.nome, meses: a.meses, qty: 1 }; }) };
+  }
+  /* Mostra (ou esconde) a caixa, sempre por marcar: um acordo novo pede uma
+     aceitação nova. */
+  function mostrarGarantia(g) {
+    garantia = g;
+    var caixa = doc.getElementById('co-garantia'), cb = doc.getElementById('c-garantia'), txt = doc.getElementById('c-garantia-texto');
+    if (!caixa || !cb || !txt) return;
+    if (g) txt.textContent = g.texto;
+    cb.checked = false;
+    caixa.hidden = !g;
+  }
+  function mensagemGarantiaPorMarcar() {
+    var unidades = 0;
+    garantia.artigos.forEach(function (a) { unidades += a.qty; });
+    return unidades > 1
+      ? 'Para continuar, confirme na caixa acima que aceita a garantia dos pneus seminovos: por serem bens usados, é mais curta do que 3 anos e só vale com o seu acordo.'
+      : 'Para continuar, confirme na caixa acima que aceita a garantia do pneu seminovo: por ser um bem usado, é mais curta do que 3 anos e só vale com o seu acordo.';
+  }
+
   function validate(f) {
-    doc.querySelectorAll('[aria-invalid]').forEach(function (el) { el.removeAttribute('aria-invalid'); });
+    doc.querySelectorAll('[aria-invalid]').forEach(function (el) {
+      el.removeAttribute('aria-invalid');
+      if (el.getAttribute('aria-describedby') === 'co-error') el.removeAttribute('aria-describedby');
+    });
     clearError();
     if ((f.nome.value || '').trim().length < 3) return invalid(f.nome, 'Indique o seu nome completo.');
     if ((f.tel.value || '').replace(/\D/g, '').length < 9) return invalid(f.tel, 'Indique um telemóvel válido.');
@@ -149,6 +229,8 @@
       if ((f.localidade.value || '').trim().length < 2) return invalid(f.localidade, 'Indique a localidade.');
     }
     if (!f.termos.checked) return invalid(f.termos, 'Tem de aceitar os Termos e Condições e a Política de Privacidade.');
+    var cg = doc.getElementById('c-garantia');
+    if (garantia && cg && !cg.checked) return invalid(cg, mensagemGarantiaPorMarcar());
     return true;
   }
 
@@ -187,6 +269,17 @@
       body.cp = f.cp.value.trim();
       body.localidade = f.localidade.value.trim();
     }
+    // O acordo da garantia dos pneus seminovos, só quando a caixa se mostrou: a
+    // versão do texto e os meses de cada artigo, como a página os mostrou. O
+    // Worker confere-os com o products.json publicado e guarda-os na encomenda.
+    if (garantia) {
+      var cg = doc.getElementById('c-garantia');
+      body.garantia_usados = {
+        aceita: !!(cg && cg.checked),
+        versao: garantia.versao,
+        artigos: garantia.artigos.map(function (a) { return { sku: a.sku, meses: a.meses }; })
+      };
+    }
     return body;
   }
 
@@ -222,6 +315,18 @@
           applySettings();
           busy(false);
           return showError(res.d.error);
+        }
+        // A garantia dos pneus seminovos: o Worker não recebeu a aceitação do
+        // acordo que ESTE carrinho pede (a caixa não estava na página, os
+        // meses mudaram entretanto, ou outra versão do texto). A caixa passa a
+        // mostrar o texto e os artigos do Worker, por marcar, e o cliente
+        // confirma outra vez.
+        if (res.status === 400 && res.d && res.d.codigo === 'garantia_usados_por_aceitar') {
+          var g = garantiaDoServidor(res.d.garantia_usados);
+          if (g) mostrarGarantia(g);
+          busy(false);
+          var cg = doc.getElementById('c-garantia');
+          return g && cg ? invalid(cg, res.d.error) : showError(res.d.error);
         }
         if (!res.ok) throw new Error(res.d && res.d.error ? res.d.error : 'Não foi possível iniciar o pagamento.');
 
@@ -335,6 +440,7 @@
 
     if (elForm) elForm.hidden = false;
     renderItems(); renderTotals();
+    mostrarGarantia(garantiaDoCarrinho());
     if (settingsLido) applySettings();
 
     doc.querySelectorAll('input[name="entrega"]').forEach(function (r) {
@@ -366,6 +472,9 @@
       var price = p ? Math.round(Number(p.price_eur) * 100) : 0;
       var stock = p ? parseInt(p.stock, 10) || 0 : 0;
       if (!p || p.available === false || price <= 0 || stock <= 0) { removidos.push(it.name); return false; }
+      // Para a caixa da garantia: o estado e a garantia do artigo (a regra do
+      // ePneu do .github/regras.mjs e do catalog.js).
+      catalogo[it.sku] = { seminovo: /pneu/i.test(p.category || '') && p.condition === 'Seminovo', meses: p.warranty_months, nome: p.name };
       it.price_cents = price;
       it.name = p.name;
       it.weight = Number(p.weight_kg) || 0;
