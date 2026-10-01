@@ -323,6 +323,10 @@ try {
     ['prazo máximo de 31 dias', (d) => { d.settings.delivery.max_days = 31; }, 'bloqueia', 'settings:delivery.max_days'],
     ['estimativa ao contrário', (d) => { d.settings.delivery.estimate_min_days = 6; }, 'bloqueia', 'settings:delivery.estimativa'],
     ['estimativa acima do prazo máximo', (d) => { d.settings.delivery.max_days = 4; }, 'bloqueia', 'settings:delivery.limite'],
+    /* Achados L6-03 e L7-13: dias úteis contra dias de calendário. */
+    ['10 a 30 dias úteis, nunca mais de 30 dias (30 úteis são ~42 de calendário)', (d) => { Object.assign(d.settings.delivery, { estimate_min_days: 10, estimate_max_days: 30, max_days: 30 }); }, 'bloqueia', 'settings:delivery.limite'],
+    ['2 a 20 dias úteis, nunca mais de 20 dias', (d) => { Object.assign(d.settings.delivery, { estimate_min_days: 2, estimate_max_days: 20, max_days: 20 }); }, 'bloqueia', 'settings:delivery.limite'],
+    ['2 a 5 dias úteis, nunca mais de 6 dias (uma semana com fim de semana são 7)', (d) => { Object.assign(d.settings.delivery, { estimate_min_days: 2, estimate_max_days: 5, max_days: 6 }); }, 'bloqueia', 'settings:delivery.limite'],
     ['prazo com casas decimais', (d) => { d.settings.delivery.estimate_min_days = 2.5; }, 'bloqueia', 'settings:delivery.estimate_min_days'],
     ['custo de devolução negativo', (d) => { d.settings.returns.return_cost_eur = -1; }, 'bloqueia', 'settings:returns.return_cost_eur'],
     ['custo de devolução como texto', (d) => { d.settings.returns.return_cost_eur = '5'; }, 'bloqueia', 'settings:returns.return_cost_eur'],
@@ -339,6 +343,8 @@ try {
     ['EPREL escrito como número', prod(MICHELIN, (p) => { Object.assign(p, { available: true, label_noise_class: 'B', eprel_id: 123456 }); })],
     ['fotografia que existe', prod(JANTE, (p) => { p.image = '/assets/uploads/prod-jante-17.jpg'; })],
     ['custo de devolução de 6,50 €', (d) => { d.settings.returns.return_cost_eur = 6.5; }],
+    ['2 a 5 dias úteis, nunca mais de 7 dias', (d) => { Object.assign(d.settings.delivery, { estimate_min_days: 2, estimate_max_days: 5, max_days: 7 }); }],
+    ['até 20 dias úteis, nunca mais de 28 dias', (d) => { Object.assign(d.settings.delivery, { estimate_min_days: 10, estimate_max_days: 20, max_days: 28 }); }],
     ['portes cobrados com a tabela de hoje', (d) => { d.settings.shipping.quote_later = false; }],
     ['preço 76,90 (76.9*100 não é inteiro em vírgula flutuante)', prod(JANTE, (p) => { p.price_eur = 76.9; })],
   ];

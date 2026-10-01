@@ -628,7 +628,18 @@ function problemasDasDefinicoes(lido, lista) {
     if (!inteiroEntre(max, 1, 30)) bloqueia('delivery.estimate_max_days', E_PRAZOS, 'delivery.estimate_max_days', 'A estimativa de entrega (máximo, em dias úteis) tem de ser um número inteiro de 1 a 30.');
     if (!inteiroEntre(lim, 1, 30)) bloqueia('delivery.max_days', E_PRAZOS, 'delivery.max_days', 'O prazo máximo de entrega tem de ser um número inteiro de 1 a 30 dias (a lei não deixa passar dos 30 sem acordo com o cliente).');
     if (inteiroEntre(min, 1, 30) && inteiroEntre(max, 1, 30) && min > max) bloqueia('delivery.estimativa', E_PRAZOS, 'delivery.estimate_min_days', 'Na estimativa de entrega, o mínimo não pode ser maior do que o máximo.');
-    if (inteiroEntre(max, 1, 30) && inteiroEntre(lim, 1, 30) && max > lim) bloqueia('delivery.limite', E_PRAZOS, 'delivery.max_days', 'O prazo máximo de entrega não pode ser mais curto do que a estimativa.');
+    /* A estimativa conta-se em dias ÚTEIS e o prazo máximo em dias de
+       CALENDÁRIO (o da lei, art. 19.º do DL 24/2014). «10 a 30 dias úteis,
+       nunca mais de 30 dias» passava — e 30 dias úteis são cerca de 42 de
+       calendário: a mesma página prometia duas coisas que não cabem uma na
+       outra. N dias úteis podem ser N + 2 por cada semana começada (os fins de
+       semana), sem contar feriados. */
+    if (inteiroEntre(max, 1, 30) && inteiroEntre(lim, 1, 30)) {
+      const corridos = max + 2 * Math.ceil(max / 5);
+      if (corridos > lim) {
+        bloqueia('delivery.limite', E_PRAZOS, 'delivery.max_days', `A estimativa vai até ${max} ${max === 1 ? 'dia útil' : 'dias úteis'}, que com os fins de semana podem ser ${corridos} dias de calendário — mais do que o prazo máximo de ${lim} ${lim === 1 ? 'dia' : 'dias'}. Baixe a estimativa ou aumente o prazo máximo.`);
+      }
+    }
   }
   /* Custo de devolução: vazio = a loja paga (DL 24/2014, art. 10.º n.º 2
      al. b)). Um número vai para o checkout e para os Termos. */
