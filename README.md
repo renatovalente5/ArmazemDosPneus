@@ -77,6 +77,7 @@ do Worker (`worker/src/termos.js`) — o que o painel deixa gravar chega aos ema
 ```bash
 PYTHON=<python com Pillow> node .github/test-guardas.mjs   # a bateria das guardas e do CI
 <python com Pillow> .github/test-injetar.py                # a bateria do injector do conteúdo
+PYTHON=<python com Pillow> PLAYWRIGHT=<pasta do playwright> node .github/test-checkout.mjs   # a loja e o checkout no Chromium, com o Worker verdadeiro
 PYTHON=<python com Pillow> .github/provar-publicacao.sh <base> [commit]   # uma mudança ao CI não muda o site (diff -r)
 PYTHON=<python com Pillow> scripts/comparar-site.sh <base> [depois]       # a injecção não muda o site nem o SEO sem querer
 ```

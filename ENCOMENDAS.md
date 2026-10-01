@@ -121,7 +121,10 @@ Para cada **pneu novo**, no backoffice:
 Para cada **pneu seminovo**:
 - **Código DOT** (a semana e o ano de fabrico, ex. `3221`)
 - **Sulco medido em mm**
-- **Garantia em meses** (mínimo 12)
+- **Garantia em meses** — de 18 a 36. A lei dá 3 anos (36 meses); num pneu usado
+  pode descer até 18, mas só com o acordo do cliente: com menos de 36, o checkout
+  mostra-lhe a garantia de cada pneu e só deixa pagar depois de ele a aceitar, e a
+  confirmação da encomenda (e o email que lhe chega a si) dizem-na.
 
 Depois de preencher, marcar **Disponível** e o pneu passa a vender-se. Não é preciso mexer
 em código nem chamar ninguém.
