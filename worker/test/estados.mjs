@@ -268,6 +268,15 @@ export async function correr({ ok }) {
     ok('   e outra reentrega já não manda nada (duplicado)', r4.status === 200 && m.emails().length === 2, [r4, m.emails()]);
   }
 
+  /* ---------------------------------------------------------- L5-11 */
+  console.log('\nEstados — «3 dias úteis», e não «3 a 3» (L5-11)');
+  for (const [a, b, texto] of [[3, 3, 'Entrega em 3 dias úteis'], [1, 1, 'Entrega em 1 dia útil'], [2, 5, 'Entrega em 2 a 5 dias úteis']]) {
+    const settings = { ...SETTINGS_HOJE, delivery: { ...SETTINGS_HOJE.delivery, estimate_min_days: a, estimate_max_days: b } };
+    const m = await montar({ settings, pedido: PEDIDOS.ctt });
+    const msg = new URLSearchParams(m.rede.stripe[0].corpo).get('custom_text[submit][message]');
+    ok(`prazos ${a}–${b}: a página da Stripe diz «${texto}»`, msg.includes(`${texto}, para Portugal continental.`), msg);
+  }
+
   /* ---------------------------------------------------------- L7-11 */
   console.log('\nEstados — o peso soma-se em inteiros (L7-11)');
   {

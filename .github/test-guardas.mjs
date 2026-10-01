@@ -1034,6 +1034,17 @@ try {
       'checkout: 3 × 1,6 kg + 1 × 0,2 kg são 5 kg e 4,99 € de portes (o escalão certo, como o Worker)', `${p.els['co-ship-label'].textContent} ${p.els['co-ship'].textContent}`);
   }
 
+  {
+    /* Achado L5-11: com «de 3 até 3», o checkout dizia «3 a 3 dias úteis». */
+    const carrinho = [{ sku: 'jante-liga-leve-16-5x112-et45', name: 'Jante', qty: 1, price_cents: 8990, weight: 9 }];
+    const textos = [];
+    for (const [a, b] of [[3, 3], [1, 1], [2, 5]]) {
+      const settings = clonar(HOJE.settings); Object.assign(settings.delivery, { estimate_min_days: a, estimate_max_days: b });
+      textos.push((await checkoutNaPagina({ settings, carrinho })).els['recap-prazo'].textContent);
+    }
+    certo(JSON.stringify(textos) === JSON.stringify(['3 dias úteis', '1 dia útil', '2 a 5 dias úteis']), 'checkout: «3 dias úteis» e «1 dia útil» com o mínimo igual ao máximo (como os Termos e a Stripe)', textos.join(' | '));
+  }
+
   /* ================================================================== */
   secao('o pages.yml: quem tem o quê');
   const construir = jobDoYaml('construir'); const publicar = jobDoYaml('publicar'); const avisar = jobDoYaml('avisar');

@@ -28,7 +28,7 @@
 import { stripeFetch, verifyStripeSignature } from './stripe.js';
 import { priceOrder } from './pricing.js';
 import { avisoLoja, confirmacaoCliente, referenciaMultibanco, avisoPagamentoTardio, avisoDisputaSemEncomenda } from './mail.js';
-import { termosDasFontes, lerFontesDoSite, lerJsonOpcional, moradaLinha } from './termos.js';
+import { termosDasFontes, lerFontesDoSite, lerJsonOpcional, moradaLinha, prazoEntregaTexto } from './termos.js';
 
 const MAX_BODY_BYTES = 8 * 1024;
 const SESSION_TTL_SECONDS = 3600;        // 1 h para concluir o pagamento
@@ -289,7 +289,7 @@ async function handleCheckout(request, env, cors) {
     custom_text: {
       submit: {
         message: delivery === 'ctt'
-          ? `Ao concluir o pagamento celebra um contrato de compra e venda com obrigação de pagar. Entrega em ${termos.prazos.min_dias} a ${termos.prazos.max_dias_uteis} dias úteis, para Portugal continental.`
+          ? `Ao concluir o pagamento celebra um contrato de compra e venda com obrigação de pagar. Entrega em ${prazoEntregaTexto(termos.prazos)}, para Portugal continental.`
           : `Ao concluir o pagamento celebra um contrato de compra e venda com obrigação de pagar. Levantamento em ${moradaLinha(termos)}.`,
       },
       after_submit: {

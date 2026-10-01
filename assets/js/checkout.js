@@ -221,7 +221,12 @@
   function applySettings() {
     var d = settings.delivery || {}, r = settings.returns || {};
     var prazo = doc.getElementById('recap-prazo');
-    if (prazo && d.estimate_min_days && d.estimate_max_days) prazo.textContent = d.estimate_min_days + ' a ' + d.estimate_max_days + ' dias úteis';
+    // Com o mínimo igual ao máximo, «3 dias úteis» (e não «3 a 3») — a regra dos Termos e da página da Stripe.
+    if (prazo && d.estimate_min_days && d.estimate_max_days) {
+      prazo.textContent = d.estimate_min_days === d.estimate_max_days
+        ? (d.estimate_min_days === 1 ? '1 dia útil' : d.estimate_min_days + ' dias úteis')
+        : d.estimate_min_days + ' a ' + d.estimate_max_days + ' dias úteis';
+    }
     var max = doc.getElementById('recap-max');
     if (max && d.max_days) max.textContent = d.max_days;
 

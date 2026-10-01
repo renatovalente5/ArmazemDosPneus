@@ -341,6 +341,17 @@ export function moradaLinha(t) {
   return `${m.rua}, ${m.cp} ${m.localidade}${concelho}`;
 }
 
+/**
+ * «2 a 5 dias úteis»; com o mínimo igual ao máximo, «3 dias úteis» (ou «1 dia
+ * útil») — a mesma regra do injector dos Termos (.github/injetar-conteudo.py)
+ * e do checkout.js. «3 a 3 dias úteis» saía na página da Stripe (achado L5-11).
+ */
+export function prazoEntregaTexto(prazos) {
+  const a = prazos.min_dias, b = prazos.max_dias_uteis;
+  if (a === b) return a === 1 ? '1 dia útil' : `${a} dias úteis`;
+  return `${a} a ${b} dias úteis`;
+}
+
 /** «935 218 857 · loja@…» */
 export function contactoLinha(t) {
   return [t.contactos.telefone, t.contactos.email].filter(Boolean).join(' · ');
