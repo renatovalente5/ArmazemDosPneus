@@ -2,8 +2,8 @@
 
 O site e as encomendas gerem-se no **painel**: **https://backoffice.armazemdospneus.pt/**
 
-O endereço antigo (`armazemdospneus.pt/admin`) e a ligação **«Gestão»**, no fundo das páginas
-do site, vão lá ter. O editor antigo (o Pages CMS) já não se usa.
+O endereço antigo (`armazemdospneus.pt/admin`) e a ligação **«Gestão»**, no fundo da página
+inicial e da loja, vão lá ter. O editor antigo (o Pages CMS) já não se usa.
 
 ## Entrar
 
@@ -27,9 +27,10 @@ do site, vão lá ter. O editor antigo (o Pages CMS) já não se usa.
 - **Início** — o que pede atenção: os pagamentos desligados, uma publicação que falhou, as
   encomendas por tratar, os produtos tirados de venda e os pneus à espera da etiqueta.
 - **Encomendas** — «Por tratar», «Pagas», «Todas» e «Tentativas». Na ficha de cada uma: o
-  cliente, os artigos e o pagamento; marcar **Preparada**, **Enviada** (com o n.º de seguimento
-  dos CTT) ou **Levantada**, **Faturada** (com o n.º da fatura) e a **nota de crédito**; uma
-  nota interna; **«Baixar o stock»**; e **«Abrir na Stripe»**, para reembolsos e contestações.
+  cliente, os artigos e o pagamento; marcar **Preparada**, **Enviada** ou **Levantada**,
+  **Faturada** e a **nota de crédito** (com o n.º de seguimento dos CTT, da fatura ou da nota,
+  se quiser); uma nota interna; **«Baixar o stock»**; e **«Abrir na Stripe»**, para reembolsos
+  e contestações.
 - **Produtos** — pesquisar, filtrar, **«Novo produto»** e **«Ordenar»**. Na ficha: nome,
   categoria, marca e medida; preço e stock; a fotografia; a **etiqueta UE** (pneus novos) ou o
   DOT, o sulco e a garantia (pneus seminovos); **«À venda online»**, **«Destaque na página
