@@ -893,6 +893,11 @@ try {
   /* ================================================================== */
   secao('o pages.yml: quem tem o quê');
   const construir = jobDoYaml('construir'); const publicar = jobDoYaml('publicar'); const avisar = jobDoYaml('avisar');
+  /* Achado L8-01: o comentário dizia «nenhuma App tem a permissão Workflows»,
+     e a do Pages CMS tem-na (e Administration, e Actions). A promessa errada
+     levava a manter a App instalada até à fase G, com a barreira aberta. */
+  certo(!/nenhuma App a tem/.test(YAML) && /Pages CMS[^]{0,200}workflows: write/.test(YAML) && /desinstalada/.test(YAML),
+    'o pages.yml não promete que nenhuma App tem «workflows», e diz que a do Pages CMS tem e tem de sair antes do merge');
   certo(!/secrets\./.test(construir) && /persist-credentials: false/.test(construir), 'construir: sem segredos, e o checkout não deixa credenciais');
   certo(!/actions\/checkout/.test(publicar) && !/\.github\//.test(publicar.replace(/^\s*#.*$/gm, '')), 'publicar: sem checkout, e não corre nenhum script do repositório');
   certo((YAML.match(/secrets\.CLOUDFLARE_API_TOKEN/g) || []).length === 1 && /secrets\.CLOUDFLARE_API_TOKEN/.test(publicar), 'o token só aparece no publicar');

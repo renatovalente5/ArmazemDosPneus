@@ -6,21 +6,27 @@
 # porque os termos do GitHub Pages proíbem lojas.
 #
 # TRÊS JOBS, E O TOKEN DA CLOUDFLARE LONGE DO CÓDIGO DO REPOSITÓRIO.
-# Quem pode escrever no repositório — a App do Pages CMS hoje, a do painel
-# amanhã, as duas com «contents: write» — muda TUDO menos esta pasta
-# .github/workflows/: o wrangler.jsonc (um build.command corre DENTRO do
-# wrangler deploy, com o token no ambiente) e os scripts que o CI corre. E o
-# token da Cloudflare publica qualquer Worker da conta, incluindo o dos
-# pagamentos. Por isso:
+# A App do painel tem «contents: write» e NÃO tem «workflows»: muda TUDO menos
+# esta pasta .github/workflows/ — o wrangler.jsonc (um build.command corre
+# DENTRO do wrangler deploy, com o token no ambiente) e os scripts que o CI
+# corre. E o token da Cloudflare publica qualquer Worker da conta, incluindo o
+# dos pagamentos. Por isso:
 #   · construir — corre o código do repositório (fotografias, _redirects…) e
 #                 NÃO tem segredo nenhum;
 #   · publicar  — tem o token e NÃO corre nada do repositório: não faz
 #                 checkout, e a config do wrangler e as verificações de fuga
 #                 estão escritas AQUI (só muda isto quem tem a permissão
-#                 Workflows, e nenhuma App a tem);
+#                 Workflows);
 #   · avisar    — abre, comenta ou fecha a issue «Publicação parada». O GitHub
 #                 só avisa quem disparou a corrida, e as corridas dos bots do
 #                 Pages CMS e do painel não avisam ninguém.
+#
+# A BARREIRA SÓ EXISTE SEM A APP DO PAGES CMS. A App pública do Pages CMS
+# (alojada por terceiros, que guardam a chave dela) declara «workflows: write»,
+# «administration: write» e «actions: write». Enquanto estiver instalada neste
+# repositório, quem tiver a chave dela muda este ficheiro e leva o token. Tem de
+# ser desinstalada (github.com/settings/installations) ANTES do merge desta
+# separação, ou no mesmo momento — o Renato já autorizou tirá-la.
 #
 # Aqui escolhe-se O QUE é publicado: nunca o repositório inteiro (ver
 # .github/preparar-site.sh e o passo «Abrir e conferir…»).
