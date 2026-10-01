@@ -1171,11 +1171,12 @@ t.close()`, join(d, 'site.tgz'), s, ...membros]);
 
   /* ================================================================== */
   secao('o pages.yml: o job «avisar», com um gh de faz-de-conta');
-  const avisarEm = ({ construir: c = 'success', publicar: p = 'success', ensaio = '', abertas = [], relatorio = null, preparar = null }) => {
+  const avisarEm = ({ construir: c = 'success', publicar: p = 'success', ensaio = '', abertas = [], relatorio = null, preparar = null, falha = '' }) => {
     const d = mkdtempSync(join(TMP, 'avisar-'));
     mkdirSync(join(d, 'bin'));
     writeFileSync(join(d, 'bin', 'gh'), `#!/usr/bin/env bash
 printf '%s\\n' "$*" >> "${d}/gh.log"
+if [ -n "$FALSO_FALHA" ] && [ "$1 $2" = "$FALSO_FALHA" ]; then echo "HTTP 502: Bad Gateway" >&2; exit 1; fi
 case "$1 $2" in
   "issue list") printf '%s' "$FALSO_ABERTAS" ;;
   "issue create") echo "https://github.com/renatovalente5/ArmazemDosPneus/issues/42" ;;
@@ -1186,28 +1187,30 @@ esac
     const r = correrPasso('Abrir, comentar ou fechar a issue «Publicação parada»', d, {
       PATH: `${join(d, 'bin')}:${process.env.PATH}`, GH_TOKEN: 'x', GH_REPO: 'renatovalente5/ArmazemDosPneus',
       CONSTRUIR: c, PUBLICAR: p, ENSAIO: ensaio, CORRIDA: 'https://github.com/renatovalente5/ArmazemDosPneus/actions/runs/1',
-      COMMIT: 'abc123', QUEM: 'pages-cms[bot]', FALSO_ABERTAS: JSON.stringify(abertas),
+      COMMIT: 'abc123', QUEM: 'pages-cms[bot]', FALSO_ABERTAS: JSON.stringify(abertas), FALSO_FALHA: falha,
     });
     const log = existsSync(join(d, 'gh.log')) ? readFileSync(join(d, 'gh.log'), 'utf8').trim().split('\n') : [];
     const aviso = existsSync(join(d, 'aviso.md')) ? readFileSync(join(d, 'aviso.md'), 'utf8') : '';
     rmSync(d, { recursive: true, force: true });
     return { ...r, log, aviso, accoes: log.filter((l) => !l.startsWith('issue list')) };
   };
-  const OUTRA = { number: 3, title: 'Publicação parada — ensaio do aviso' };
+  const BOT = { login: 'app/github-actions', is_bot: true };
+  const OUTRA = { number: 3, title: 'Publicação parada — ensaio do aviso', author: BOT };
   {
     const a = avisarEm({});
     certo(a.status === 0 && a.accoes.length === 0, 'tudo verde e nenhuma issue aberta: não faz nada', a.err + a.log.join('|'));
     const b = avisarEm({ construir: 'failure', publicar: 'skipped' });
-    certo(b.status === 0 && b.accoes.length === 1 && /^issue create --title Publicação parada --body-file aviso\.md$/.test(b.accoes[0]) && /parou/.test(b.aviso) && /actions\/runs\/1/.test(b.aviso), 'a construção falhou: abre a issue, com a ligação para a corrida', b.err + b.accoes.join('|'));
-    const c = avisarEm({ publicar: 'failure', abertas: [OUTRA, { number: 7, title: 'Publicação parada' }] });
+    certo(b.status === 0 && b.accoes.length === 2 && /^issue create --title Publicação parada --body-file aviso\.md$/.test(b.accoes[0]) && /parou/.test(b.aviso) && /actions\/runs\/1/.test(b.aviso), 'a construção falhou: abre a issue, com a ligação para a corrida', b.err + b.accoes.join('|'));
+    certo(b.accoes[1] === 'issue lock 42', '   e tranca-a: só quem tem acesso ao repositório comenta (achado L8-05)', b.accoes.join('|'));
+    const c = avisarEm({ publicar: 'failure', abertas: [OUTRA, { number: 7, title: 'Publicação parada', author: BOT }] });
     certo(c.accoes.length === 1 && c.accoes[0] === 'issue comment 7 --body-file aviso.md', 'já há uma aberta (com o título exacto): comenta-a, e não confunde com a do ensaio', c.accoes.join('|'));
-    const e = avisarEm({ abertas: [{ number: 7, title: 'Publicação parada' }] });
+    const e = avisarEm({ abertas: [{ number: 7, title: 'Publicação parada', author: BOT }] });
     certo(e.accoes.length === 1 && /^issue close 7 --comment Voltou a publicar sem problemas \(commit abc123\)/.test(e.accoes[0]), 'voltou a publicar limpo: fecha-a', e.accoes.join('|'));
     const hostil = { versao: 1, problemas: [], neutralizados: [{ indice: 0, sku: 'x', nome: 'Jante ~~~~\n@renatovalente5 [clique](https://mal.example)', descricao: 'fora de venda', efeitos: ['fora_de_venda'], motivos: ['O peso está em falta.'] }] };
     const f = avisarEm({ relatorio: hostil });
     const linhas = f.aviso.split('\n');
     const dentro = linhas.slice(linhas.indexOf('~~~~') + 1, linhas.lastIndexOf('~~~~'));
-    certo(f.accoes.length === 1 && /^issue create/.test(f.accoes[0]) && /1 produto\(s\) mudaram na loja/.test(f.aviso), 'publicou mas tirou um produto de venda: abre a issue', f.accoes.join('|'));
+    certo(f.accoes.length === 2 && /^issue create/.test(f.accoes[0]) && /1 produto\(s\) mudaram na loja/.test(f.aviso), 'publicou mas tirou um produto de venda: abre a issue', f.accoes.join('|'));
     certo(linhas.filter((l) => l.startsWith('~~~')).length === 2 && dentro.length === 1 && dentro[0].startsWith('- NA LOJA · Jante ~~~~ @renatovalente5'), 'um nome hostil fica dentro do bloco ~~~~, numa linha só (não fecha o bloco nem vira menção)', JSON.stringify(dentro));
     const g = avisarEm({ construir: 'failure', publicar: 'skipped', relatorio: { problemas: [{ classe: 'bloqueia', ecra: 'Loja online › Pagamentos', mensagem: 'O interruptor dos pagamentos online não está gravado.' }, { classe: 'avisa', ecra: 'X', mensagem: 'só aviso' }], neutralizados: [] } });
     certo(/- PÁRA · Loja online › Pagamentos — O interruptor/.test(g.aviso) && !/só aviso/.test(g.aviso), 'a guarda parou: a issue diz o quê e onde se corrige');
@@ -1222,6 +1225,20 @@ esac
     'a guarda passou e o injector parou: a issue diz o ERRO (e o ecrã), sem o bloco vazio da guarda', i.aviso);
     const j = avisarEm({ relatorio: so, preparar: prep });
     certo(j.accoes.length === 0, '   numa corrida verde, a saída do «Preparar…» não abre issue nenhuma', j.accoes.join('|'));
+    /* Achado L8-05: uma issue de um estranho com o mesmo título, num
+       repositório público, era a que o bot comentava ou fechava. */
+    const estranho = { number: 9, title: 'Publicação parada', author: { login: 'alguem-de-fora', is_bot: false } };
+    const k = avisarEm({ abertas: [estranho] });
+    certo(k.accoes.length === 0, 'uma issue «Publicação parada» aberta por outra pessoa: numa corrida verde, não a fecha', k.accoes.join('|'));
+    const l = avisarEm({ construir: 'failure', publicar: 'skipped', abertas: [estranho] });
+    certo(l.accoes.length === 2 && /^issue create/.test(l.accoes[0]) && !l.accoes.some((x) => /^issue comment 9/.test(x)), '   e numa falhada não a comenta: abre a do bot', l.accoes.join('|'));
+    /* Achado L8-04: um 502 do gh marcava como falhada uma corrida que tinha
+       publicado — e o painel dizia «a última publicação falhou». */
+    const m = avisarEm({ abertas: [{ number: 7, title: 'Publicação parada', author: BOT }], falha: 'issue close' });
+    certo(m.status === 0 && /^::warning title=Aviso da publicação::Não consegui fechar a issue/m.test(m.out), 'o gh falha ao fechar a issue (502): o passo sai com 0 e deixa um aviso na corrida', `${m.status} ${m.out.slice(-200)}`);
+    const n2 = avisarEm({ construir: 'failure', publicar: 'skipped', falha: 'issue create' });
+    certo(n2.status === 0 && /Não consegui abrir a issue/.test(n2.out), '   e ao abrir: idem', `${n2.status} ${n2.out.slice(-200)}`);
+    certo(/name: Abrir, comentar ou fechar a issue «Publicação parada»\n\s+continue-on-error: true/.test(YAML), '   e o passo tem continue-on-error (um erro que escape não marca a corrida como falhada)');
     const h = avisarEm({ ensaio: 'true' });
     certo(h.accoes.length === 2 && /^issue create --title Publicação parada — ensaio do aviso --body-file ensaio\.md$/.test(h.accoes[0]) && /^issue close 42 --comment Ensaio terminado/.test(h.accoes[1]), 'ensaiar_aviso: abre e fecha uma issue de ensaio, à parte', h.accoes.join('|'));
   }

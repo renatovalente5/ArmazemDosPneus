@@ -235,7 +235,11 @@ jobs:
       # Os valores do GitHub entram por env:, nunca por ${{ }} dentro do run:.
       # O texto da issue vai por ficheiro, e as mensagens da guarda dentro de
       # um bloco ~~~~ (sem formatação nem menções @): o repositório é público.
+      # continue-on-error: um aviso que não sai não é uma publicação falhada —
+      # o painel lê a conclusão da corrida, e dizia «a última publicação
+      # falhou» com o site já publicado.
       - name: Abrir, comentar ou fechar a issue «Publicação parada»
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -296,20 +300,32 @@ jobs:
             fi
           } > aviso.md
 
-          ABERTA=$(gh issue list --state open --limit 100 --json number,title \
-            | jq -r --arg t "$TITULO" '[.[] | select(.title == $t) | .number] | first // empty')
+          # A issue do bot encontra-se pelo título E pelo autor: o repositório é
+          # público, e qualquer pessoa pode abrir uma com o mesmo título — o bot
+          # comentava-a (o autor recebia o aviso) ou fechava-a, e dava-lhe ar de
+          # oficial. A que o bot abre fica trancada (só quem tem acesso ao
+          # repositório comenta).
+          ABERTA=$(gh issue list --state open --limit 100 --json number,title,author \
+            | jq -r --arg t "$TITULO" '[.[] | select(.title == $t and ((.author.login // "") as $l | $l == "app/github-actions" or $l == "github-actions" or $l == "github-actions[bot]")) | .number] | first // empty')
+
+          # Um erro do gh (um 502, o limite da API) não pára este passo: fica
+          # um aviso na corrida, e a publicação continua a contar como feita.
+          sem_gh() { echo "::warning title=Aviso da publicação::Não consegui $1 a issue «$TITULO» (o site não muda com isto)."; }
 
           if [ "$FALHOU" = true ] || [ "$TIRADOS" -gt 0 ]; then
-            if [ -n "$ABERTA" ]; then gh issue comment "$ABERTA" --body-file aviso.md
-            else gh issue create --title "$TITULO" --body-file aviso.md; fi
+            if [ -n "$ABERTA" ]; then gh issue comment "$ABERTA" --body-file aviso.md || sem_gh comentar
+            elif URL=$(gh issue create --title "$TITULO" --body-file aviso.md); then
+              gh issue lock "${URL##*/}" || sem_gh trancar
+            else sem_gh abrir; fi
           elif [ -n "$ABERTA" ]; then
-            gh issue close "$ABERTA" --comment "Voltou a publicar sem problemas (commit $COMMIT). $CORRIDA"
+            gh issue close "$ABERTA" --comment "Voltou a publicar sem problemas (commit $COMMIT). $CORRIDA" || sem_gh fechar
           fi
 
           # Ensaio (workflow_dispatch com ensaiar_aviso): abre e fecha uma issue
           # à parte, para o Renato confirmar que os DOIS emails chegam.
           if [ "${ENSAIO:-}" = true ]; then
             printf 'Ensaio do aviso «%s»: se este email chegou, os avisos das publicações paradas também chegam.\n\n- Corrida: %s\n' "$TITULO" "$CORRIDA" > ensaio.md
-            URL=$(gh issue create --title "$TITULO — ensaio do aviso" --body-file ensaio.md)
-            gh issue close "${URL##*/}" --comment "Ensaio terminado: esta issue fecha-se sozinha. Chegaram os dois emails (abrir e fechar)? Se não, Watch → Custom → Issues no repositório, e repetir."
+            if URL=$(gh issue create --title "$TITULO — ensaio do aviso" --body-file ensaio.md); then
+              gh issue close "${URL##*/}" --comment "Ensaio terminado: esta issue fecha-se sozinha. Chegaram os dois emails (abrir e fechar)? Se não, Watch → Custom → Issues no repositório, e repetir." || sem_gh fechar
+            else sem_gh abrir; fi
           fi
