@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="ap:whatsapp" content="351935218857" data-ap-meta />
+  <meta name="ap:telefone" content="935 218 857" data-ap-meta />
   <title>Finalizar encomenda · Armazém dos Pneus</title>
   <link rel="canonical" href="https://armazemdospneus.pt/checkout.html" />
   <meta name="robots" content="noindex" />
@@ -62,7 +64,7 @@
 
         <section class="co__card">
           <h2>2 · Entrega</h2>
-          <label class="co__radio"><input type="radio" name="entrega" value="pickup" checked /><span><strong id="pickup-label">Levantar e montar na loja</strong><small>Grátis · Travessa do Navega, 436 F, Arada, Ovar</small></span></label>
+          <label class="co__radio"><input type="radio" name="entrega" value="pickup" checked /><span><strong id="pickup-label">Levantar e montar na loja</strong><small>Grátis · <!--ap:morada-rua-->Travessa do Navega, 436 F<!--/ap:morada-rua-->, <!--ap:morada-localidade-->Arada, Ovar<!--/ap:morada-localidade--></small></span></label>
           <label class="co__radio"><input type="radio" name="entrega" value="envio" /><span><strong>Envio para casa (CTT)</strong><small id="envio-note">Portes calculados pelo peso total da encomenda</small></span></label>
           <!-- Art. 4.º n.º 1 al. f) do DL 24/2014: quando os portes não podem ser
                calculados de antemão, tem de ficar dito ANTES da compra que podem
@@ -131,6 +133,17 @@
             <span>Li e aceito os <a href="legal/termos.html" target="_blank" rel="noopener">Termos e Condições</a> — que incluem prazos, garantia legal e reembolsos — e a <a href="legal/privacidade.html" target="_blank" rel="noopener">Política de Privacidade</a>. *</span>
           </label>
 
+          <!-- Art. 12.º do DL n.º 84/2021: a garantia de um bem usado só desce
+               dos 3 anos (até 18 meses) POR ACORDO, e o acordo tem de existir
+               antes do pagamento — não basta estar nos Termos. Com um pneu
+               seminovo de garantia reduzida no carrinho, o checkout.js mostra
+               esta caixa, com os meses de cada artigo, e sem ela não se paga;
+               o Worker confere-a outra vez e guarda-a na encomenda. -->
+          <label class="co__check co__check--legal" id="co-garantia" hidden>
+            <input type="checkbox" id="c-garantia" name="garantia_usados" required />
+            <span><span id="c-garantia-texto">Aceito que a garantia de conformidade deste pneu seminovo, por ser um bem usado, é de 18 meses em vez de 3 anos (DL n.º 84/2021, art. 12.º).</span> *</span>
+          </label>
+
           <p class="co__error" id="co-error" hidden role="alert"></p>
 
           <!-- Art. 5.º n.º 4 do DL 24/2014: o botão é identificado APENAS com a
@@ -152,8 +165,8 @@
                de livre resolução, o prazo passa de 14 dias a 12 meses
                (art. 10.º n.º 2 do DL 24/2014). Ficam aqui, compactas. -->
           <p class="co__fineprint">
-            Entrega em <span id="recap-prazo">2 a 5 dias úteis</span>, nunca mais de <span id="recap-max">30</span> dias.
-            <strong>14 dias para devolver</strong> sem indicar motivo — <span id="recap-devolucao">os custos de devolução são suportados pela loja.</span>
+            Entrega em <span id="recap-prazo"><!--ap:prazo-entrega-->2 a 5 dias úteis<!--/ap:prazo-entrega--></span>, nunca mais de <span id="recap-max"><!--ap:prazo-maximo-->30 dias<!--/ap:prazo-maximo--></span>.
+            <strong>14 dias para devolver</strong> sem indicar motivo — <span id="recap-devolucao"><!--ap:devolucao se=loja-paga-->os custos de devolução são suportados pela loja.<!--ap:devolucao senao-->em caso de devolução, os custos de envio de retorno são suportados por si, no valor de <!--ap:custo-devolucao-->6,50 €<!--/ap:custo-devolucao-->.<!--/ap:devolucao--></span>
             <a href="legal/livre-resolucao.html" target="_blank" rel="noopener">Como devolver</a>
           </p>
         </div>

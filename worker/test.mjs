@@ -1,16 +1,27 @@
 /* =============================================================
-   Testes das partes puras do Worker — sem Stripe, sem Cloudflare, sem rede
-   para fora. Cobrem o que, se estiver errado, cobra o valor errado a um
-   cliente: a codificação que a Stripe exige, a verificação de assinatura dos
-   webhooks, os escalões de portes e a recusa de carrinhos manipulados.
+   Testes do Worker — sem Stripe, sem Cloudflare, sem rede para fora. Cobrem o
+   que, se estiver errado, cobra o valor errado a um cliente: a codificação que
+   a Stripe exige, a verificação de assinatura dos webhooks, os escalões de
+   portes e a recusa de carrinhos manipulados. E, desde a fase W-dados, o que se
+   promete ao cliente (prazos, devolução, contactos, empresa): o Worker inteiro
+   é conduzido — /checkout, webhook, emails — contra o Worker de ANTES, tirado
+   do git, para provar que nada muda enquanto o site.json e o empresa.json não
+   existirem, e que cada campo segue o painel quando existirem.
 
    Correr:  cd worker && npm test
-   Precisa do dev server do site a servir os data/*.json:
-            python3 _source/dev-server.py 8096
+   Os data/*.json do site são servidos pelo próprio teste, numa porta livre
+   (ou, com DADOS_URL=http://…, por outro servidor). Precisa do git com o
+   histórico (o Worker de antes lê-se do commit 7683ab4).
    ============================================================= */
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { formEncode, verifyStripeSignature } from './src/stripe.js';
 import { priceOrder, shippingTierCents } from './src/pricing.js';
 import { resolveOrderStatus, twinGuardKey, podeRegredir } from './src/index.js';
+import { servirPasta } from './test/palco.mjs';
+
+const AQUI = path.dirname(fileURLToPath(import.meta.url));
+const RAIZ_DO_SITE = path.resolve(AQUI, '..');
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { cond ? (pass++, console.log('  ✓', name)) : (fail++, console.log('  ✗', name, extra ?? '')); };
@@ -125,10 +136,12 @@ eq('voucher expirado não é promovido por engano',
 eq('falhou continua falhou',
   resolveOrderStatus({ status: 'falhou' }, NAO_PAGA), { status: 'falhou', paid: false });
 
-console.log('\npriceOrder — o servidor decide o valor (catálogo de :8096)');
+console.log('\npriceOrder — o servidor decide o valor (catálogo do site, servido pelo teste)');
+const servidor = process.env.DADOS_URL ? null : await servirPasta(RAIZ_DO_SITE);
+const baseDados = (process.env.DADOS_URL || servidor.base).replace(/\/+$/, '');
 const env = {
-  PRODUCTS_URL: 'http://localhost:8096/data/products.json',
-  SETTINGS_URL: 'http://localhost:8096/data/settings.json',
+  PRODUCTS_URL: `${baseDados}/data/products.json`,
+  SETTINGS_URL: `${baseDados}/data/settings.json`,
 };
 const rejectsWith = async (name, items, delivery, frag) => {
   try { await priceOrder(env, items, delivery); ok(name, false, '(devia ter rejeitado)'); }
@@ -236,6 +249,12 @@ await rejectsWith('sku repetido', [{ sku: MULTI, qty: 1 }, { sku: MULTI, qty: 1 
 await rejectsWith('carrinho vazio', [], 'loja', 'vazio');
 await rejectsWith('demasiadas linhas', Array.from({ length: 21 }, (_, i) => ({ sku: 's' + i, qty: 1 })), 'loja', 'Demasiados');
 await rejectsWith('sku ausente', [{ qty: 1 }], 'loja', 'sem identificação');
+
+if (servidor) await servidor.fechar();
+
+await import('./test/w-dados.mjs').then((m) => m.correr({ ok }));
+await import('./test/estados.mjs').then((m) => m.correr({ ok }));
+await import('./test/garantia.mjs').then((m) => m.correr({ ok }));
 
 console.log(`\n${pass} passaram, ${fail} falharam\n`);
 process.exit(fail ? 1 : 0);

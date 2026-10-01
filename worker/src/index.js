@@ -15,6 +15,12 @@
      · O NIF, a matrícula e as notas ficam SÓ aqui e no email ao dono. Não
        viajam para a Stripe (que avisa para não guardar dados sensíveis em
        metadata, e não precisa deles para a transação).
+     · Prazos, custo da devolução, contactos e dados da empresa não estão
+       escritos aqui: lêem-se dos JSON do site e ficam na encomenda, como
+       retrato do que se prometeu (termos.js).
+     · Um pneu seminovo com a garantia reduzida (menos de 3 anos) só se vende
+       com o acordo do cliente, conferido aqui e guardado no retrato
+       (garantia.js).
 
    SEGREDOS (wrangler secret put — NUNCA no repositório)
      STRIPE_RESTRICTED_KEY   rk_live_… (chave restrita, não a sk_live)
@@ -24,7 +30,9 @@
 
 import { stripeFetch, verifyStripeSignature } from './stripe.js';
 import { priceOrder } from './pricing.js';
-import { avisoLoja, confirmacaoCliente, referenciaMultibanco } from './mail.js';
+import { avisoLoja, confirmacaoCliente, referenciaMultibanco, avisoPagamentoTardio, avisoDisputaSemEncomenda } from './mail.js';
+import { termosDasFontes, lerFontesDoSite, lerJsonOpcional, moradaLinha, prazoEntregaTexto, condicoesMostradas, condicoesDoRetrato, condicoesPiores, custoDevolucaoCentimos } from './termos.js';
+import { garantiaDoCarrinho, registoDaGarantia, aceitacaoConfere, mensagemDaGarantia, fraseDaGarantiaNaStripe, CODIGO_GARANTIA } from './garantia.js';
 
 const MAX_BODY_BYTES = 8 * 1024;
 const SESSION_TTL_SECONDS = 3600;        // 1 h para concluir o pagamento
@@ -77,8 +85,14 @@ function corsHeaders(request, env) {
 /* ---------- rate limit best-effort, por isolate ----------
    Deliberadamente em memória e não em KV: o plano gratuito só dá 1.000
    escritas KV/dia e um atacante esgotaria essa quota (que é a mesma das
-   encomendas) só a bater na rota. A Cloudflare já filtra volumetria à
-   frente disto; aqui só travamos abuso trivial. */
+   encomendas) só a bater na rota. Mas um Map em memória só trava o isolate
+   onde está — um script com checkouts VÁLIDOS passava 10 por minuto e cada
+   um gravava 3 vezes no KV: 1 000 escritas em meia hora, de um só IP, e o
+   checkout e os webhooks desta loja (e dos outros projectos da conta) ficavam
+   em 500 até à meia-noite UTC (achados L4-07 e L7-04). Por isso, no
+   /checkout, vale primeiro o travão da Cloudflare (binding TRAVAO_CHECKOUT,
+   [[ratelimits]] no wrangler.toml), que conta em todos os isolates; e cada
+   checkout passou a gravar 2 vezes, e os eventos sem email nenhum 1 vez. */
 const hits = new Map();
 const RATE_MAX = 10, RATE_WINDOW_MS = 60_000;
 function rateLimited(ip) {
@@ -88,6 +102,19 @@ function rateLimited(ip) {
   rec.n += 1;
   if (hits.size > 5000) hits.clear();   // trava de memória
   return rec.n > RATE_MAX;
+}
+
+/** O /checkout: o travão da Cloudflare (se o binding existir) E o de memória. */
+async function checkoutTravado(env, ip) {
+  if (env.TRAVAO_CHECKOUT && typeof env.TRAVAO_CHECKOUT.limit === 'function') {
+    try {
+      const { success } = await env.TRAVAO_CHECKOUT.limit({ key: `checkout:${ip}` });
+      if (!success) return true;
+    } catch (e) {
+      console.error('travão da Cloudflare falhou (vale o de memória):', e.message);
+    }
+  }
+  return rateLimited(ip);
 }
 
 /* ---------- KV ---------- */
@@ -144,11 +171,16 @@ function validateCliente(body, delivery) {
     c.localidade = cleanText(body.localidade, 100);
     if (c.morada.length < 5) throw new Error('Indique a morada de envio.');
     if (!/^[0-9]{4}-[0-9]{3}$/.test(c.cp)) throw new Error('O código postal deve ter o formato 0000-000.');
-    if (!CP_RE.test(c.cp)) throw new Error('Só entregamos em Portugal continental. Para a Madeira ou os Açores, ligue-nos: 935 218 857.');
+    // A mensagem leva o telefone da loja, que muda no painel: quem a escreve é
+    // o handleCheckout, depois de o ler (mensagemForaDoContinente).
+    if (!CP_RE.test(c.cp)) throw Object.assign(new Error('fora do continente'), { foraDoContinente: true });
     if (c.localidade.length < 2) throw new Error('Indique a localidade.');
   }
   return c;
 }
+
+const mensagemForaDoContinente = (telefone) =>
+  `Só entregamos em Portugal continental. Para a Madeira ou os Açores, ligue-nos: ${telefone}.`;
 
 function newOrderId() {
   const d = new Date();
@@ -161,7 +193,7 @@ function newOrderId() {
    ============================================================= */
 async function handleCheckout(request, env, cors) {
   const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
-  if (rateLimited(ip)) return json({ error: 'Demasiadas tentativas. Aguarde um minuto.' }, 429, cors);
+  if (await checkoutTravado(env, ip)) return json({ error: 'Demasiadas tentativas. Aguarde um minuto.' }, 429, cors);
 
   const len = parseInt(request.headers.get('Content-Length') || '0', 10);
   if (len > MAX_BODY_BYTES) return json({ error: 'Pedido demasiado grande.' }, 413, cors);
@@ -173,13 +205,50 @@ async function handleCheckout(request, env, cors) {
 
   const delivery = body.entrega === 'ctt' ? 'ctt' : 'loja';
 
-  let cliente, calc;
+  // site.json e empresa.json lêem-se AO MESMO TEMPO que o catálogo e as
+  // definições, com a mesma cache de 60 s; nunca lançam (sem eles, vale o
+  // recurso de termos.js). Um pedido que falhe a validação do cliente não lê
+  // nada, como antes — menos o de fora do continente, que lê o site.json para
+  // dar o telefone da loja.
+  let cliente, calc, fontes;
   try {
     cliente = validateCliente(body, delivery);
-    calc = await priceOrder(env, body.items, delivery);
+    [calc, fontes] = await Promise.all([priceOrder(env, body.items, delivery), lerFontesDoSite(env)]);
   } catch (e) {
+    if (e.foraDoContinente) {
+      const site = await lerJsonOpcional(env.SITE_DATA_URL);
+      const { termos } = termosDasFontes({ site: site.dados }, env);
+      return json({ error: mensagemForaDoContinente(termos.contactos.telefone) }, 400, cors);
+    }
     return json({ error: e.message }, 400, cors);
   }
+
+  // O site.json e o empresa.json que EXISTEM e não se leram (5xx, rede, JSON
+  // partido, grande de mais): o retrato caía em silêncio para o recurso — a
+  // empresa, a morada e os contactos escritos no código, que o dono já mudou no
+  // painel —, e era isso que ia para a página da Stripe e para os emails
+  // (achados L6-05 e L7-07). Agora pára aqui, como quando o settings.json não
+  // se lê. O recurso só vale enquanto um ficheiro não existe (404). E fica
+  // sempre registado.
+  for (const [f, estado] of Object.entries(fontes.estado)) {
+    if (estado !== 'ok') console.error(`termos: ${f}.json não se leu (${estado})${estado === 'HTTP 404' || estado === 'sem URL' ? ' — vale o recurso' : ''}`);
+  }
+  if (Object.values(fontes.estado).some((e) => e !== 'ok' && e !== 'HTTP 404' && e !== 'sem URL')) {
+    return json({ error: 'Não foi possível confirmar os dados da loja para este pagamento. Tente daqui a um minuto.' }, 503, cors);
+  }
+
+  // Os pneus seminovos com a garantia reduzida (DL 84/2021, art. 12.º): o
+  // acordo que ESTE carrinho pede, do products.json publicado — null sem eles
+  // (garantia.js).
+  const garantia = garantiaDoCarrinho(calc.seminovos);
+
+  // O retrato do que se promete a ESTE cliente, agora: prazos, custo da
+  // devolução, contactos e dados da empresa — e o acordo da garantia dos
+  // seminovos, se os houver. Vai para a página da Stripe e fica na encomenda
+  // para os emails (termos.js explica porquê).
+  const { termos, invalidos } = termosDasFontes({ settings: calc.settings, site: fontes.site, empresa: fontes.empresa, montagem: cliente.montagem,
+    garantia_usados: garantia ? registoDaGarantia(garantia) : undefined }, env);
+  if (invalidos.length) console.error('termos: valores recusados, vale o recurso em', invalidos.join(', '));
 
   // Interruptor de emergência do backoffice. Imposto AQUI e não só no browser:
   // de outro modo bastava um pedido forjado para continuar a cobrar com a loja
@@ -191,12 +260,40 @@ async function handleCheckout(request, env, cors) {
     return json({ error: 'O pagamento online está temporariamente indisponível. Ligue-nos para concluir a encomenda.' }, 503, cors);
   }
 
+  // A garantia reduzida de um bem usado só vale POR ACORDO: sem a caixa do
+  // checkout marcada para ESTES artigos e ESTES meses, não há pagamento. Vale
+  // também para um pedido forjado e para uma página antiga em cache (que não
+  // tem a caixa: a mensagem manda recarregar). O 400 traz o texto e a versão
+  // deste Worker, e o checkout.js mostra-os na caixa antes de o cliente
+  // confirmar outra vez.
+  if (garantia && !aceitacaoConfere(body.garantia_usados, garantia)) {
+    return json({ error: mensagemDaGarantia(garantia), codigo: CODIGO_GARANTIA, garantia_usados: registoDaGarantia(garantia) }, 400, cors);
+  }
+
+  // O que a página mostrou antes do «Pagar agora» tem de ser o que fica no
+  // retrato: como com o preço, se as condições mudaram para pior, a página
+  // mostra as novas e o cliente confirma outra vez (o checkout.js trata o 409).
+  // Sem elas no pedido (uma página antiga em cache), segue como antes.
+  const mostradas = condicoesMostradas(body.condicoes);
+  if (mostradas && condicoesPiores(mostradas, termos)) {
+    const c = condicoesDoRetrato(termos);
+    const devolucao = custoDevolucaoCentimos(termos)
+      ? `os custos de envio de retorno são suportados por si, no valor de ${(c.custo_devolucao_cents / 100).toFixed(2).replace('.', ',')} €`
+      : 'os custos de devolução são suportados pela loja';
+    return json({
+      error: `As condições mudaram entretanto: entrega em ${prazoEntregaTexto(termos.prazos)}, nunca mais de ${c.prazo_maximo} dias; ${devolucao}. Reveja-as e carregue outra vez para continuar.`,
+      condicoes: c,
+    }, 409, cors);
+  }
+
   const order_id = newOrderId();
 
-  // Grava ANTES de falar com a Stripe: se a criação da sessão falhar a meio,
-  // fica rasto da tentativa; se gravássemos depois, um pagamento podia existir
-  // na Stripe sem nada do nosso lado.
-  const order = await putOrder(env, {
+  // Grava UMA vez, DEPOIS de a Stripe criar a sessão. Antes gravava-se também
+  // a tentativa («criada») e a falha da Stripe («erro_stripe»): duas escritas
+  // por pedido que não pagam nada, e é por /checkouts forjados que se esgota a
+  // quota do KV. Não há pagamento possível sem registo: o cliente só recebe o
+  // endereço da página de pagamento depois de a encomenda estar gravada.
+  const order = {
     order_id,
     status: 'criada',
     entrega: delivery,
@@ -209,9 +306,10 @@ async function handleCheckout(request, env, cors) {
     shipping_quote_later: calc.shipping_quote_later,
     total_cents: calc.total_cents,
     weight_kg: calc.weight_kg,
+    termos,
     cliente,
     created_at: new Date().toISOString(),
-  });
+  };
 
   const params = {
     ui_mode: 'hosted_page',
@@ -241,9 +339,12 @@ async function handleCheckout(request, env, cors) {
     },
     custom_text: {
       submit: {
-        message: delivery === 'ctt'
-          ? `Ao concluir o pagamento celebra um contrato de compra e venda com obrigação de pagar. Entrega em ${env.DELIVERY_MIN_DAYS || 2} a ${env.DELIVERY_MAX_BUSINESS_DAYS || 5} dias úteis, para Portugal continental.`
-          : 'Ao concluir o pagamento celebra um contrato de compra e venda com obrigação de pagar. Levantamento em Travessa do Navega, 436 F, 3885-183 Arada, Ovar.',
+        // Com pneus seminovos de garantia reduzida, mais uma frase curta (só
+        // texto fixo e números: a Stripe desenha isto em Markdown).
+        message: (delivery === 'ctt'
+          ? `Ao concluir o pagamento celebra um contrato de compra e venda com obrigação de pagar. Entrega em ${prazoEntregaTexto(termos.prazos)}, para Portugal continental.`
+          : `Ao concluir o pagamento celebra um contrato de compra e venda com obrigação de pagar. Levantamento em ${moradaLinha(termos)}.`)
+          + (garantia ? ` ${fraseDaGarantiaNaStripe(garantia)}` : ''),
       },
       after_submit: {
         message: 'Se escolher Referência Multibanco, a entidade e a referência aparecem no ecrã seguinte e também lhe são enviadas por email. Tem 7 dias para pagar; a encomenda só é preparada depois de recebermos o pagamento.',
@@ -288,17 +389,23 @@ async function handleCheckout(request, env, cors) {
   try {
     session = await stripeFetch(env, '/checkout/sessions', { body: params, idempotencyKey: `chk_${order_id}` });
   } catch (e) {
-    console.error('falha ao criar sessão', order_id, e.message, e.stripeCode);
-    order.status = 'erro_stripe';
-    order.error = e.message;
-    await putOrder(env, order);
+    // Sem escrita no KV: o rasto fica no registo do Worker.
+    console.error('falha ao criar sessão', order_id, e.message, e.stripeCode, JSON.stringify({ total_cents: calc.total_cents, entrega: delivery }));
     return json({ error: 'Não foi possível iniciar o pagamento. Tente novamente ou fale connosco.' }, 502, cors);
   }
 
   order.status = 'aguarda_pagamento';
   order.session_id = session.id;
-  await putOrder(env, order);
-  await env.ORDERS.put(`session:${session.id}`, order_id, { expirationTtl: ORDER_TTL_SECONDS });
+  try {
+    await putOrder(env, order);
+    await env.ORDERS.put(`session:${session.id}`, order_id, { expirationTtl: ORDER_TTL_SECONDS });
+  } catch (e) {
+    // A quota do KV esgotada, ou o KV em baixo. A sessão da Stripe existe mas o
+    // cliente não recebe o endereço: não paga uma encomenda que não está
+    // registada, e a sessão expira sozinha.
+    console.error('ENCOMENDA NÃO GRAVADA (KV)', order_id, session.id, e.message);
+    return json({ error: 'Não foi possível registar a encomenda agora. Tente daqui a pouco ou fale connosco.' }, 503, cors);
+  }
 
   return json({
     url: session.url,
@@ -372,14 +479,44 @@ async function handleWebhook(request, env, ctx) {
     result = null;
   }
 
-  await Promise.all([
-    env.ORDERS.put(evtKey, '1', { expirationTtl: EVENT_TTL_SECONDS }),
-    twinKey ? env.ORDERS.put(twinKey, '1', { expirationTtl: EVENT_TTL_SECONDS }) : Promise.resolve(),
-  ]);
+  if (result && result.disputaSemEncomenda) {
+    let r = null;
+    try { r = await avisoDisputaSemEncomenda(env, result.disputaSemEncomenda); } catch (e) { console.error('aviso da contestação lançou', e.message); }
+    if (!(r && (r.ok || r.skipped))) return new Response('aviso por enviar', { status: 500 });
+    await Promise.all([
+      env.ORDERS.put(evtKey, '1', { expirationTtl: EVENT_TTL_SECONDS }),
+      twinKey ? env.ORDERS.put(twinKey, '1', { expirationTtl: EVENT_TTL_SECONDS }) : Promise.resolve(),
+    ]);
+    return new Response('ok');
+  }
 
+  // Os emails saem ANTES de responder, e não em waitUntil. Se o Resend falhar
+  // (429, 5xx), a Stripe tem de reentregar: era o único «próximo evento» que
+  // voltava a tentar, e com o 200 já dado ele não vinha — a confirmação ao
+  // cliente (art. 6.º do DL 24/2014) e o aviso para faturar nunca saíam, e
+  // ninguém sabia (achado L7-06). Reaplicar o evento é seguro: o markPaid e o
+  // requires_action são idempotentes, e o envio vê a marca notified_*.
   if (result && result.notify && result.notify.length) {
-    ctx.waitUntil(enviarEMarcar(env, result.order.order_id, result.notify)
-      .catch((e) => console.error('envio de emails falhou', e.message)));
+    let porEnviar;
+    try {
+      porEnviar = await enviarEMarcar(env, result.order, result.notify, result.mudanca);
+    } catch (e) {
+      console.error('envio de emails falhou', e.message);
+      porEnviar = result.notify.map((n) => n.flag);
+    }
+    if (porEnviar.length) {
+      console.error('EMAILS NÃO ENVIADOS —', porEnviar.join(', '), result.order.order_id, '— 500 para a Stripe reentregar');
+      return new Response('emails por enviar', { status: 500 });
+    }
+    // As marcas só servem a quem tem efeitos que não se podem repetir: os
+    // emails. Um evento sem emails (sessão expirada, reembolso, falha…)
+    // aplicado duas vezes dá o mesmo — e cada marca é uma escrita na quota do
+    // KV. Gravam-se DEPOIS dos emails: com elas antes, a reentrega encontrava
+    // a marca e respondia «duplicado» sem enviar nada.
+    await Promise.all([
+      env.ORDERS.put(evtKey, '1', { expirationTtl: EVENT_TTL_SECONDS }),
+      twinKey ? env.ORDERS.put(twinKey, '1', { expirationTtl: EVENT_TTL_SECONDS }) : Promise.resolve(),
+    ]);
   }
   return new Response('ok');
 }
@@ -393,15 +530,22 @@ async function handleWebhook(request, env, ctx) {
  * ou D1. Assumida com olhos abertos, porque as duas falhas não são simétricas:
  * um email repetido traz o mesmo número de encomenda e é evidente a quem o
  * recebe, enquanto um email que nunca sai é invisível.
+ *
+ * Devolve as marcas que ficaram por enviar (o webhook responde 500 e a Stripe
+ * reentrega).
  */
-async function enviarEMarcar(env, orderId, notify) {
+async function enviarEMarcar(env, order, notify, mudanca) {
+  const orderId = order.order_id;
+  const porEnviar = [];
   for (const n of notify) {
     const antes = await getOrder(env, orderId);
     if (antes && antes[n.flag]) continue;    // um evento gémeo já tratou disto
 
     let ok = false;
     try {
-      const r = await n.envia();
+      // O texto decide-se pelo estado de AGORA (relido), e não pelo do evento:
+      // entretanto pode ter chegado um reembolso ou uma contestação.
+      const r = await n.envia(antes || order);
       const rs = Array.isArray(r) ? r : [r];
       // `skipped` conta como resolvido: falta a chave do Resend, ou o cliente
       // não deixou email. Insistir não muda nada.
@@ -411,12 +555,33 @@ async function enviarEMarcar(env, orderId, notify) {
     }
 
     if (!ok) {
-      console.error('EMAIL NÃO ENVIADO —', n.flag, orderId, '— fica sem marca, o próximo evento volta a tentar');
+      console.error('EMAIL NÃO ENVIADO —', n.flag, orderId, '— fica sem marca; a Stripe reentrega o evento');
+      porEnviar.push(n.flag);
       continue;
     }
+    // A marca grava-se sobre a encomenda relida AGORA, com o que este evento
+    // mudou outra vez por cima (juntarEncomenda): se outro evento, ao mesmo
+    // tempo, gravou por cima do nosso (o pagamento, o payment_intent), esta
+    // escrita, que vem depois dos emails, repõe-no — em vez de gravar a marca
+    // na cópia de quem nos apagou (achado L7-08).
     const atual = await getOrder(env, orderId);
-    if (atual && !atual[n.flag]) { atual[n.flag] = true; await putOrder(env, atual); }
+    if (atual && !atual[n.flag]) {
+      const final = mudanca ? juntarEncomenda(mudanca.lida, mudanca.minha, atual) : atual;
+      final[n.flag] = true;
+      await putOrder(env, final);
+    }
   }
+  return porEnviar;
+}
+
+/* O índice pi:<PaymentIntent> → encomenda. É por ele que uma contestação
+   (o objecto Dispute não traz a nossa metadata) e um reembolso sem metadata
+   chegam à encomenda. Só se escreve quando falta: cada escrita conta para a
+   quota do KV. */
+async function indexarPagamento(env, pi, id) {
+  if (!pi || !id) return;
+  if ((await env.ORDERS.get(`pi:${pi}`)) === id) return;
+  await env.ORDERS.put(`pi:${pi}`, id, { expirationTtl: ORDER_TTL_SECONDS });
 }
 
 /** Resolve a encomenda a partir do objeto do evento. */
@@ -436,8 +601,19 @@ async function resolveOrder(env, obj) {
 const ESTADOS_FIRMES = ['paga', 'reembolsada', 'parcialmente_reembolsada', 'contestada'];
 export function podeRegredir(order) { return !ESTADOS_FIRMES.includes(order.status); }
 
+/* O dinheiro entrou e depois saiu, ou está contestado. Um evento de pagamento
+   que chegue DEPOIS (a Stripe reentrega por qualquer ordem, e uma avaria do
+   Worker ou da quota do KV junta-os) não pode pôr a encomenda outra vez
+   «paga» nem mandar faturar e despachar. */
+const DEPOIS_DE_PAGA = ['reembolsada', 'parcialmente_reembolsada', 'contestada'];
+
 /**
  * Marca como paga e devolve os emails a enviar.
+ *
+ * Só promove a «paga» o que ainda pode mudar (podeRegredir): num estado firme
+ * grava apenas o paid_at. E se, no momento de avisar, a encomenda já estiver
+ * reembolsada ou contestada, não sai o «confirmada» ao cliente nem o «A FAZER
+ * HOJE» ao dono — sai um aviso ao dono com o estado real.
  *
  * NÃO marca `notified_paid` aqui: quem o faz é enviarEMarcar(), e só depois de
  * o envio ser aceite. Marcar antes significava que uma falha do Resend (429,
@@ -447,12 +623,15 @@ export function podeRegredir(order) { return !ESTADOS_FIRMES.includes(order.stat
  */
 function markPaid(order, env) {
   const notify = [];
-  if (order.status !== 'paga') {
-    order.status = 'paga';
-    order.paid_at = order.paid_at || new Date().toISOString();
-  }
+  if (podeRegredir(order)) order.status = 'paga';
+  order.paid_at = order.paid_at || new Date().toISOString();
   if (!order.notified_paid) {
-    notify.push({ flag: 'notified_paid', envia: () => Promise.all([avisoLoja(env, order), confirmacaoCliente(env, order)]) });
+    notify.push({
+      flag: 'notified_paid',
+      envia: (o) => (DEPOIS_DE_PAGA.includes(o.status)
+        ? avisoPagamentoTardio(env, o)
+        : Promise.all([avisoLoja(env, o), confirmacaoCliente(env, o)])),
+    });
   }
   return notify;
 }
@@ -468,11 +647,20 @@ async function applyEvent(event, env) {
       return { retry: true, id };
     }
     // Sem qualquer referência nossa: pagamento criado fora do site (ex.: link
-    // manual no dashboard). Aceitar e ignorar.
+    // manual no dashboard). Aceitar e ignorar — menos uma contestação: tem
+    // prazo de resposta e custa o valor e a comissão, e o painel nunca a
+    // mostraria. Vai por email ao dono.
+    if (event.type === 'charge.dispute.created') {
+      console.error('CONTESTAÇÃO SEM ENCOMENDA ASSOCIADA', obj.id, obj.payment_intent);
+      return { disputaSemEncomenda: obj };
+    }
     console.log('evento sem encomenda associada', event.type, obj.id);
     return null;
   }
   const notify = [];
+  // Para não regravar uma encomenda que este evento não mudou (uma reentrega,
+  // um evento gémeo): cada escrita conta para a quota do KV.
+  const lida = JSON.stringify(order);
 
   switch (event.type) {
     case 'checkout.session.completed': {
@@ -482,7 +670,7 @@ async function applyEvent(event, env) {
       if (obj.shipping_details) order.shipping_details = obj.shipping_details;
       if (obj.payment_intent) {
         order.payment_intent = obj.payment_intent;
-        await env.ORDERS.put(`pi:${obj.payment_intent}`, id, { expirationTtl: ORDER_TTL_SECONDS });
+        await indexarPagamento(env, obj.payment_intent, id);
       }
       if (typeof obj.amount_total === 'number' && obj.amount_total !== order.total_cents) {
         // Não bloqueia o fulfilment (o dinheiro é real), mas tem de ser visto.
@@ -491,7 +679,11 @@ async function applyEvent(event, env) {
       }
       order.amount_total_cents = obj.amount_total;
       if (obj.payment_status && obj.payment_status !== 'unpaid') notify.push(...markPaid(order, env));
-      else if (podeRegredir(order)) order.status = 'aguarda_pagamento';
+      // Não paga (Multibanco): só sai de «criada». O requires_action da
+      // referência nasce quase ao mesmo tempo e pode chegar ANTES: voltar de
+      // «aguarda_multibanco» a «aguarda_pagamento» tirava a encomenda do «Por
+      // tratar» do painel, e a referência do «até dd/mm» (achado L7-09).
+      else if (order.status === 'criada') order.status = 'aguarda_pagamento';
       break;
     }
 
@@ -510,19 +702,27 @@ async function applyEvent(event, env) {
         if (podeRegredir(order)) {
           order.status = 'aguarda_multibanco';
           if (!order.notified_mb) {
-            notify.push({ flag: 'notified_mb', envia: () => referenciaMultibanco(env, order) });
+            notify.push({ flag: 'notified_mb', envia: (o) => referenciaMultibanco(env, o) });
           }
         }
       }
-      if (obj.id) await env.ORDERS.put(`pi:${obj.id}`, id, { expirationTtl: ORDER_TTL_SECONDS });
+      await indexarPagamento(env, obj.id, id);
       break;
     }
 
     case 'checkout.session.async_payment_succeeded':
-    case 'payment_intent.succeeded':
+    case 'payment_intent.succeeded': {
       order.payment_method = describeMethod(obj) || order.payment_method;
+      // O índice do pagamento também aqui, e não só no session.completed: se
+      // esse se perdeu (1 h de 409 até ao «desisto», 3 dias de 500), uma
+      // contestação semanas depois não encontrava a encomenda e era engolida
+      // com um 200 (achado L7-10).
+      const pi = event.type === 'payment_intent.succeeded' ? obj.id : obj.payment_intent;
+      if (pi && !order.payment_intent) order.payment_intent = pi;
+      await indexarPagamento(env, pi, id);
       notify.push(...markPaid(order, env));
       break;
+    }
 
     case 'payment_intent.processing':
       // Multibanco: o voucher EXPIROU e corre o buffer. NÃO é "pago".
@@ -540,10 +740,20 @@ async function applyEvent(event, env) {
       if (podeRegredir(order)) order.status = 'expirou';
       break;
 
-    case 'charge.refunded':
-      order.status = obj.amount_refunded === obj.amount ? 'reembolsada' : 'parcialmente_reembolsada';
-      order.refunded_cents = obj.amount_refunded;
+    case 'charge.refunded': {
+      // O total reembolsado só cresce: um evento de um reembolso parcial
+      // ANTERIOR, entregue tarde, não o faz baixar (o dono via «Reembolsado
+      // 10,00 € de 249,80 €» e a nota de crédito saía errada). E não tira a
+      // encomenda de «contestada»: o painel deixava de pedir a resposta à
+      // disputa, que tem prazo (achado L7-05).
+      const ja = Number.isFinite(order.refunded_cents) ? order.refunded_cents : 0;
+      const agora = Number.isFinite(obj.amount_refunded) ? obj.amount_refunded : 0;
+      order.refunded_cents = Math.max(ja, agora);
+      if (order.status !== 'contestada') {
+        order.status = order.refunded_cents >= obj.amount ? 'reembolsada' : 'parcialmente_reembolsada';
+      }
       break;
+    }
 
     case 'charge.dispute.created':
       order.status = 'contestada';
@@ -554,8 +764,53 @@ async function applyEvent(event, env) {
       break;
   }
 
-  await putOrder(env, order);
-  return { order, notify };
+  const mudanca = { lida: JSON.parse(lida), minha: order };
+  if (JSON.stringify(order) === lida) return { order, notify, mudanca };
+  // Os dois eventos de um pagamento por cartão saem da Stripe no mesmo
+  // segundo, e cada um lê, muda e regrava a encomenda inteira (o KV não tem
+  // escrita condicional). Gravar a cópia lida no início apagava o que o outro
+  // gravou entretanto (payment_intent, amount_total_cents), e um
+  // payment_failed atrasado deixava em «falhou» uma encomenda paga (achado
+  // L7-08). Relê-se mesmo antes de gravar e junta-se só o que ESTE evento
+  // mudou; o estado nunca recua. A janela fica de milissegundos — fechá-la
+  // de vez é um Durable Object ou o D1.
+  const final = juntarEncomenda(mudanca.lida, order, await getOrder(env, id));
+  await putOrder(env, final);
+  return { order: final, notify, mudanca };
+}
+
+/* A firmeza dos estados: o dinheiro entrou, saiu, ou está contestado — um
+   facto posterior ganha a um anterior. */
+const FIRMEZA = { paga: 1, parcialmente_reembolsada: 2, reembolsada: 3, contestada: 4 };
+/* As esperas antes do pagamento: a referência Multibanco vem depois da sessão. */
+const ESPERA = { criada: 0, aguarda_pagamento: 1, aguarda_multibanco: 2 };
+
+/**
+ * A encomenda que se grava: a que está no KV AGORA (`noKv`), com o que este
+ * evento mudou (de `lida` para `minha`) por cima. O estado não recua (um firme
+ * nunca dá lugar a um não firme, nem a um menos firme; a referência Multibanco
+ * não volta a «aguarda_pagamento»), o reembolsado só cresce, e o que o outro
+ * evento gravou (payment_intent, paid_at, amount_*, marcas notified_*) fica.
+ */
+export function juntarEncomenda(lida, minha, noKv) {
+  if (!noKv) return minha;
+  const out = { ...noKv };
+  for (const k of new Set([...Object.keys(lida || {}), ...Object.keys(minha)])) {
+    if (JSON.stringify((lida || {})[k]) === JSON.stringify(minha[k])) continue;
+    if (minha[k] === undefined) delete out[k]; else out[k] = minha[k];
+  }
+  const fK = FIRMEZA[noKv.status] || 0;
+  const fM = FIRMEZA[out.status] || 0;
+  if (fK > fM) out.status = noKv.status;
+  else if (!fK && !fM && noKv.status in ESPERA && out.status in ESPERA && ESPERA[noKv.status] > ESPERA[out.status]) out.status = noKv.status;
+  if (Number.isFinite(noKv.refunded_cents)) {
+    out.refunded_cents = Math.max(noKv.refunded_cents, Number.isFinite(out.refunded_cents) ? out.refunded_cents : 0);
+  }
+  for (const k of ['paid_at', 'payment_intent', 'amount_total_cents', 'amount_mismatch', 'dispute_id', 'multibanco', 'session_id', 'payment_method']) {
+    if ((out[k] === undefined || out[k] === null) && noKv[k] !== undefined && noKv[k] !== null) out[k] = noKv[k];
+  }
+  for (const k of Object.keys(noKv)) if (k.startsWith('notified_') && noKv[k] === true) out[k] = true;
+  return out;
 }
 
 function describeMethod(pi) {
@@ -722,6 +977,17 @@ export default {
         } catch (e) {
           out.catalogo = { erro: String(e.message || e) };
         }
+
+        // De onde vem o que os emails e a página da Stripe vão dizer: 'dados'
+        // (os ficheiros do site, que o dono muda no painel) ou 'recurso' (os
+        // valores de sempre, escritos neste Worker). Serve para confirmar, depois
+        // da fase A2, que o site.json e o empresa.json chegam aqui.
+        const [st, fontes] = await Promise.all([
+          lerJsonOpcional(env.SETTINGS_URL, { fresco: true }),
+          lerFontesDoSite(env, { fresco: true }),
+        ]);
+        const { origem, invalidos } = termosDasFontes({ settings: st.dados, site: fontes.site, empresa: fontes.empresa }, env);
+        out.termos = { ficheiros: { settings: st.estado, ...fontes.estado }, origem, recusados: invalidos };
       }
       return json(out);
     }

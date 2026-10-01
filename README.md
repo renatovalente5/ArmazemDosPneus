@@ -22,9 +22,12 @@ admin/              Acesso ao backoffice (Pages CMS)
 .pages.yml          Configuração do backoffice
 worker/             Cloudflare Worker de pagamentos — ver worker/README.md
 assets/css|js|img|fonts|uploads
-data/               products.json, content.json, settings.json
+data/               products.json, content.json, settings.json; site.json (contactos, horário,
+                    serviços, textos, marcas) e empresa.json (dados legais) — escritos nas
+                    páginas na publicação, ver «Conteúdo nas páginas»
 legal/              privacidade, cookies, termos, formulário de livre resolução
 _source/            Fotos em alta + logo vetorial (NÃO publicado — ver .gitignore)
+.github/            O CI: pages.yml, as guardas do conteúdo e o que monta a _site
 ```
 
 ## Documentação
@@ -38,9 +41,57 @@ _source/            Fotos em alta + logo vetorial (NÃO publicado — ver .gitig
 ## Ver localmente
 ```bash
 python3 _source/dev-server.py 8096   # http://localhost:8096
-cd worker && npm test                # 48 asserções (precisa do dev server acima)
+cd worker && npm test                # a bateria do Worker (serve os data/*.json sozinha)
 cd worker && npx wrangler dev        # Worker em :8787, com chaves de TESTE
 ```
+
+## Publicação e guardas
+O CI (`.github/workflows/pages.yml`) tem três jobs:
+- **construir** — corre o código do repositório e **não tem segredos**: `.github/guardas.mjs`
+  confere os dados com as regras de `.github/regras.mjs` (as mesmas do painel) e
+  `.github/preparar-site.sh` monta a `_site`;
+- **publicar** — tem o token da Cloudflare e **não corre nada do repositório** (sem checkout;
+  a config do wrangler e as verificações de fuga estão escritas no YAML);
+- **avisar** — abre (trancada), comenta ou fecha a issue «Publicação parada» — só a aberta
+  pelo bot; um erro do `gh` fica como aviso e não marca a corrida como falhada.
+
+A barreira dos três jobs só existe **sem a App do Pages CMS** instalada: ela tem a permissão
+Workflows (e Administration, e Actions). Desinstalá-la antes do merge, ou no mesmo momento.
+
+Se a publicação parar depois da guarda (no injector, ou numa fotografia que não se abre), a
+mensagem sai como `::error` (o painel mostra-a) e vai para a issue.
+
+Um produto com dados partidos sai de venda **só na cópia publicada** e o resto publica; só um
+problema de estrutura (JSON ilegível, o interruptor dos pagamentos, os portes, os prazos, os
+dados legais) pára a publicação. As regras recusam tudo o que o injector recusaria (o
+`test-guardas.mjs` prova-o com o diferencial, campo a campo, contra o injector verdadeiro): o
+que o painel grava, publica.
+
+Os prazos, o custo de devolução, o telefone, o email e os dados da empresa chegam também à
+página de pagamento e aos emails das encomendas: o Worker dos pagamentos lê-os dos mesmos JSON
+(ver [worker/README.md](worker/README.md)), por isso o dono muda-os no painel e não há cópias a
+acertar. Nesses campos as regras de `.github/regras.mjs` são iguais ou mais apertadas do que as
+do Worker (`worker/src/termos.js`) — o que o painel deixa gravar chega aos emails —, e o
+`test-guardas.mjs` prova-o contra o código dele, campo a campo.
+
+```bash
+PYTHON=<python com Pillow> node .github/test-guardas.mjs   # a bateria das guardas e do CI
+<python com Pillow> .github/test-injetar.py                # a bateria do injector do conteúdo
+PYTHON=<python com Pillow> PLAYWRIGHT=<pasta do playwright> node .github/test-checkout.mjs   # a loja e o checkout no Chromium, com o Worker verdadeiro
+PYTHON=<python com Pillow> .github/provar-publicacao.sh <base> [commit]   # uma mudança ao CI não muda o site (diff -r)
+PYTHON=<python com Pillow> scripts/comparar-site.sh <base> [depois]       # a injecção não muda o site nem o SEO sem querer
+```
+
+## Conteúdo nas páginas
+Os contactos, o horário, os serviços, os textos da página inicial, as marcas e os dados da
+empresa **não se escrevem no HTML**: vivem em `data/site.json` e `data/empresa.json` (o dono
+muda-os no painel) e `.github/injetar-conteudo.py` escreve-os nas páginas publicadas e no JSON-LD.
+Nos Termos, também os portes, os prazos e o custo de devolução de `data/settings.json`. No HTML
+ficam **marcadores** com o valor de hoje lá dentro (a página em bruto continua a abrir):
+`<!--ap:telefone-->935 218 857<!--/ap:telefone-->`, `data-ap-href="tel"`, as metas `ap:*` que o
+JavaScript lê, e variantes como `<!--ap:portes se=a-combinar-->…<!--ap:portes senao-->…<!--/ap:portes-->`.
+A lista fechada dos nomes está no injector e no `.github/guardas.mjs` (a bateria confere que
+são iguais); um nome desconhecido ou um marcador aberto pára a publicação.
 
 ## Diagnóstico rápido
 ```

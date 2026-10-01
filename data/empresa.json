@@ -1,0 +1,24 @@
+{
+  "nome": "Armazém dos Pneus",
+  "denominacao": "Motivar & Lucrar, Unipessoal, Lda.",
+  "nif": "516324950",
+  "morada": {
+    "rua": "Travessa do Navega, 436 F",
+    "cp": "3885-183",
+    "localidade": "Arada",
+    "concelho": "Ovar",
+    "distrito": "Aveiro"
+  },
+  "capital_social": null,
+  "conservatoria": null,
+  "geo": {
+    "lat": 40.8992781,
+    "lng": -8.6205027
+  },
+  "mapa": "https://maps.app.goo.gl/7zmkjQksjeACTZBy6",
+  "ral": {
+    "nome": "CNIACC — Centro Nacional de Informação e Arbitragem de Conflitos de Consumo",
+    "url": "https://www.cniacc.pt"
+  },
+  "livro_reclamacoes": "https://www.livroreclamacoes.pt/inicio"
+}

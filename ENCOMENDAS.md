@@ -121,18 +121,24 @@ Para cada **pneu novo**, no backoffice:
 Para cada **pneu seminovo**:
 - **Código DOT** (a semana e o ano de fabrico, ex. `3221`)
 - **Sulco medido em mm**
-- **Garantia em meses** (mínimo 12)
+- **Garantia em meses** — de 18 a 36. A lei dá 3 anos (36 meses); num pneu usado
+  pode descer até 18, mas só com o acordo do cliente: com menos de 36, o checkout
+  mostra-lhe a garantia de cada pneu e só deixa pagar depois de ele a aceitar, e a
+  confirmação da encomenda (e o email que lhe chega a si) dizem-na.
 
 Depois de preencher, marcar **Disponível** e o pneu passa a vender-se. Não é preciso mexer
 em código nem chamar ninguém.
 
 ---
 
-## Ainda em falta (falar com o Renato)
+## Ainda por preencher (no backoffice, sem precisar de ninguém)
 
-- **Preço da montagem** — tem de estar publicado no site
-- **Custo real de devolução de um pneu ou jante** — enquanto não existir, a loja suporta
-  esses custos por lei; para os cobrar ao cliente é preciso indicar o valor
+- **Preço da montagem** — nas definições da loja, em *Montagem*. O checkout mostra-o a quem
+  pede montagem.
+- **Custo real de devolução de um pneu ou jante** — nas definições da loja, em *Devoluções*.
+  Enquanto estiver vazio, a loja suporta esses custos por lei. Preenchido com o custo real
+  da transportadora, o checkout, os Termos e condições e os emails das encomendas passam a
+  dizer que o cliente paga esse valor.
 
 ---
 

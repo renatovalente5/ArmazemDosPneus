@@ -18,16 +18,34 @@ function eurToCents(v) {
   return Math.round(n * 100);
 }
 
+// cacheTtl curto: o cliente muda preços no backoffice e o deploy do
+// GitHub Pages é quase imediato; 60 s evita martelar o Pages a cada compra.
+// Exportado: o site.json e o empresa.json (termos.js) lêem-se com a MESMA cache.
+export const CACHE_DADOS = Object.freeze({ cf: Object.freeze({ cacheTtl: 60, cacheEverything: true }) });
+
 async function loadJson(url) {
-  // cacheTtl curto: o cliente muda preços no backoffice e o deploy do
-  // GitHub Pages é quase imediato; 60 s evita martelar o Pages a cada compra.
-  const res = await fetch(url, { cf: { cacheTtl: 60, cacheEverything: true } });
+  const res = await fetch(url, CACHE_DADOS);
   if (!res.ok) throw new Error(`não foi possível ler ${url} (HTTP ${res.status})`);
   return res.json();
 }
 
+/* O peso também em inteiros: CENTÉSIMOS DE KG. Somado em vírgula flutuante,
+   3 × 1,6 kg + 0,2 kg dá 5,000000000000001, e uma encomenda de exactamente
+   5 kg era cobrada pelo escalão seguinte (8,99 € em vez de 4,99 €), com a
+   Stripe a dizer «Envio CTT (5 kg)» (achado L7-11). O checkout.js faz o mesmo. */
+const centesimosDeKg = (kg) => Math.round((Number(kg) || 0) * 100);
+
+/* Um pneu seminovo (um bem usado): a regra do ePneu do .github/regras.mjs e do
+   assets/js/catalog.js. A garantia dele — e o acordo que ela pede — é do
+   garantia.js. */
+const ePneuSeminovo = (p) => /pneu/i.test(p.category || '') && p.condition === 'Seminovo';
+
 /** Escalão de portes por peso total, a partir de data/settings.json. */
 export function shippingTierCents(weightKg, settings) {
+  return escalaoDePortes(centesimosDeKg(weightKg), settings);
+}
+
+function escalaoDePortes(pesoCg, settings) {
   // Um escalão mal preenchido no backoffice não pode virar portes grátis: um
   // preço em branco dava 0 cêntimos e a loja pagava o envio sem ninguém notar.
   // E um max_kg em branco valia 0 kg, ficava em primeiro na ordenação e
@@ -37,12 +55,13 @@ export function shippingTierCents(weightKg, settings) {
   const tiers = brutos
     .map((t) => ({ max_kg: Number(t.max_kg), cents: eurToCents(t.price) }))
     .filter((t) => Number.isFinite(t.max_kg) && t.max_kg > 0 && t.cents > 0)
-    .sort((a, b) => a.max_kg - b.max_kg);
+    .map((t) => ({ ...t, max_cg: centesimosDeKg(t.max_kg) }))
+    .sort((a, b) => a.max_cg - b.max_cg);
   if (tiers.length !== brutos.length) {
     console.error('escalões de portes inválidos ignorados:', brutos.length - tiers.length, 'de', brutos.length);
   }
   if (!tiers.length) throw new Error('tabela de portes não configurada');
-  for (const t of tiers) if (weightKg <= t.max_kg) return t.cents;
+  for (const t of tiers) if (pesoCg <= t.max_cg) return t.cents;
   return tiers[tiers.length - 1].cents;   // acima do último escalão: o mais caro
 }
 
@@ -65,8 +84,12 @@ export async function priceOrder(env, rawItems, delivery) {
   }
 
   const lines = [];
+  // Os pneus seminovos do carrinho, com a garantia que o products.json
+  // PUBLICADO lhes dá (e não a que o browser diz). Não entram nas linhas: a
+  // encomenda sem seminovos fica byte a byte como era.
+  const seminovos = [];
   let subtotalCents = 0;
-  let weightKg = 0;
+  let pesoCg = 0;
   const seen = new Set();
 
   for (const raw of rawItems) {
@@ -96,13 +119,14 @@ export async function priceOrder(env, rawItems, delivery) {
     if (qty > stock) throw new Error(`Só temos ${stock} unidade(s) de "${p.name}" disponíveis online.`);
 
     subtotalCents += unitCents * qty;
-    weightKg += (Number(p.weight_kg) || 0) * qty;
+    pesoCg += centesimosDeKg(p.weight_kg) * qty;
 
     lines.push({
       sku, name: p.name, qty, unit_cents: unitCents,
       weight_kg: Number(p.weight_kg) || 0,
       condition: p.condition || 'Novo',
     });
+    if (ePneuSeminovo(p)) seminovos.push({ sku, nome: p.name, meses: p.warranty_months, qty });
   }
 
   // Portes a combinar: enquanto a loja não souber quanto custa cada envio, não
@@ -114,7 +138,7 @@ export async function priceOrder(env, rawItems, delivery) {
   // dito ao consumidor antes, ele "fica desobrigado" de pagar. Daí a informação
   // aparecer no checkout, no botão e nos dois emails.
   const combinar = !!(settings && settings.shipping && settings.shipping.quote_later);
-  const shippingCents = (delivery === 'ctt' && !combinar) ? shippingTierCents(weightKg, settings) : 0;
+  const shippingCents = (delivery === 'ctt' && !combinar) ? escalaoDePortes(pesoCg, settings) : 0;
 
   return {
     lines,
@@ -122,7 +146,8 @@ export async function priceOrder(env, rawItems, delivery) {
     shipping_cents: shippingCents,
     shipping_quote_later: combinar && delivery === 'ctt',
     total_cents: subtotalCents + shippingCents,
-    weight_kg: Math.round(weightKg * 100) / 100,
+    weight_kg: pesoCg / 100,
     settings,
+    seminovos,
   };
 }

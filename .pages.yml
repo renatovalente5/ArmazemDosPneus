@@ -241,9 +241,9 @@ content:
             label: "Seminovo · Garantia (meses)"
             type: number
             options:
-              min: 12
+              min: 18
               max: 36
-            description: "Em bens usados a garantia não pode ser inferior a 12 meses (DL 84/2021)."
+            description: "Em bens usados a garantia só pode ser reduzida até 18 meses, e por acordo com o cliente (DL 84/2021, art. 12.º)."
 
           # ---- plumbing: último, porque quase nunca se toca ----
           - name: sku
@@ -290,6 +290,10 @@ content:
     path: data/settings.json
     icon: settings
     fields:
+      # Os contactos passaram para o painel novo (data/site.json): é de lá que a
+      # publicação os escreve em todas as páginas, e o site já não lê estes.
+      # Ficam declarados, escondidos, só para o Pages CMS não os apagar do
+      # ficheiro ao gravar (ele apaga as chaves que não conhece). Saem na fase G.
       - name: store
         label: Contactos
         type: object
@@ -297,20 +301,13 @@ content:
           - name: phone
             label: Telefone
             type: string
-            description: >-
-              Usado no aviso que aparece quando os pagamentos online estão
-              desligados. Os números mostrados no resto do site estão escritos
-              nas páginas — se mudarem, avise quem trata do site.
+            hidden: true
+            description: "Passou para o painel novo (data/site.json)."
           - name: whatsapp
             label: WhatsApp
             type: string
-            pattern:
-              regex: "^[0-9]{9,15}$"
-              message: "Só dígitos, com indicativo e sem espaços nem +. Ex.: 351935218857"
-            description: "Com indicativo do país e sem espaços. Ex.: 351935218857"
-          # Nada no site nem no servidor lê os três campos seguintes: o nome, o
-          # email e a morada estão escritos nas páginas e nos dados
-          # estruturados. Ficam aqui só para não se perderem do ficheiro.
+            hidden: true
+            description: "Passou para o painel novo (data/site.json)."
           - { name: name, label: Nome, type: string, hidden: true }
           - { name: email, label: Email, type: string, hidden: true }
           - { name: address, label: Morada, type: string, hidden: true }

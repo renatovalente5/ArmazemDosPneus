@@ -1,0 +1,155 @@
+{
+  "contactos": {
+    "telefone": "935 218 857",
+    "telefone2": "932 948 572",
+    "whatsapp": "351935218857",
+    "email": "armazemdospneus2019@gmail.com",
+    "facebook": "https://www.facebook.com/armazem.dospeneus/",
+    "nota_chamada": "(Chamada para a rede móvel nacional)"
+  },
+  "horario": {
+    "dias": {
+      "seg": [
+        {
+          "abre": "09:00",
+          "fecha": "19:00"
+        }
+      ],
+      "ter": [
+        {
+          "abre": "09:00",
+          "fecha": "19:00"
+        }
+      ],
+      "qua": [
+        {
+          "abre": "09:00",
+          "fecha": "19:00"
+        }
+      ],
+      "qui": [
+        {
+          "abre": "09:00",
+          "fecha": "19:00"
+        }
+      ],
+      "sex": [
+        {
+          "abre": "09:00",
+          "fecha": "19:00"
+        }
+      ],
+      "sab": [
+        {
+          "abre": "09:00",
+          "fecha": "13:00"
+        }
+      ],
+      "dom": []
+    },
+    "nota": ""
+  },
+  "servicos": [
+    {
+      "id": "montagem",
+      "titulo": "Montagem & Equilibragem",
+      "texto": "Montagem, desmontagem e equilibragem com equipamento moderno que protege jante e pneu.",
+      "icone": "montagem"
+    },
+    {
+      "id": "alinhamento",
+      "titulo": "Alinhamento de Direção",
+      "texto": "Geometria de precisão: mais estabilidade, menos desgaste dos pneus e poupança de combustível.",
+      "icone": "alinhamento"
+    },
+    {
+      "id": "furos",
+      "titulo": "Furos & Vulcanização",
+      "texto": "Reparação de furos segundo as normas de segurança, para voltar à estrada rapidamente.",
+      "icone": "furos"
+    },
+    {
+      "id": "travoes",
+      "titulo": "Travões",
+      "texto": "Discos e calços de travão para uma travagem eficaz e a máxima segurança.",
+      "icone": "travoes"
+    },
+    {
+      "id": "amortecedores",
+      "titulo": "Amortecedores",
+      "texto": "Verificação e substituição de amortecedores para mais conforto, aderência e controlo.",
+      "icone": "amortecedores"
+    },
+    {
+      "id": "oleo",
+      "titulo": "Revisões & Óleo",
+      "texto": "Mudança de óleo e revisões periódicas com produtos de qualidade, mantendo a garantia em dia.",
+      "icone": "oleo"
+    },
+    {
+      "id": "embraiagem",
+      "titulo": "Embraiagem",
+      "texto": "Diagnóstico e substituição de embraiagem com peças de confiança.",
+      "icone": "embraiagem"
+    },
+    {
+      "id": "distribuicao",
+      "titulo": "Kit de Distribuição",
+      "texto": "Substituição no momento certo, evitando avarias graves e dispendiosas no motor.",
+      "icone": "distribuicao"
+    },
+    {
+      "id": "ac",
+      "titulo": "Ar Condicionado",
+      "texto": "Carregamento e manutenção do A/C para um habitáculo sempre fresco e eficiente.",
+      "icone": "ac"
+    }
+  ],
+  "textos": {
+    "topo": {
+      "sobretitulo": "Novos · Seminovos · Preços de revenda",
+      "titulo1": "Pneus e oficina",
+      "titulo2": "ao melhor preço",
+      "titulo3": "em Ovar",
+      "frase": "Venda e montagem de pneus novos e seminovos de todas as marcas, alinhamento, travões, amortecedores, revisões e A/C.",
+      "frase_destaque": "Os nossos clientes são a nossa prioridade!",
+      "destaques": [
+        "Montagem & equilibragem",
+        "Alinhamento de direção",
+        "Todas as marcas"
+      ]
+    },
+    "servicos": {
+      "frase": "Uma oficina completa para o seu carro, com serviço rápido e preços justos. Peça já o seu orçamento sem compromisso."
+    },
+    "sobre": {
+      "titulo": "O seu armazém de pneus em Ovar",
+      "paragrafos": [
+        "No **Armazém dos Pneus** encontra uma enorme variedade de pneus **novos e seminovos** de todas as marcas, a **preços de revenda**, com montagem profissional no mesmo dia.",
+        "Somos também uma **oficina completa**: alinhamento, travões, amortecedores, revisões, embraiagem, distribuição e ar condicionado. Trabalhamos para que o seu carro ande sempre em segurança — porque *os nossos clientes são a nossa prioridade!*"
+      ],
+      "pontos": [
+        "Pneus de todas as marcas e medidas",
+        "Montagem, equilibragem e alinhamento",
+        "Oficina multimarca com serviço rápido",
+        "Orçamentos sem compromisso"
+      ]
+    },
+    "contactos": {
+      "frase": "Estamos em Arada, Ovar. Respondemos rápido — normalmente no próprio dia."
+    },
+    "rodape": {
+      "frase": "Venda e montagem de pneus novos e seminovos, jantes, baterias e oficina completa. *Os nossos clientes são a nossa prioridade!*"
+    }
+  },
+  "marcas": [
+    "Michelin",
+    "Continental",
+    "Bridgestone",
+    "Goodyear",
+    "Hankook",
+    "Dunlop",
+    "Pirelli",
+    "Lassa"
+  ]
+}

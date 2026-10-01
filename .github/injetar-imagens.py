@@ -18,7 +18,8 @@ O PROBLEMA QUE ISTO RESOLVE
 3. O cliente carrega o que vem do telemóvel. A foto que pôs no topo era um PNG
    de 2,4 MB, contra os 289 KB da anterior. Como o HTML passa a apontar-lhe
    directamente e com prioridade alta, sem reduzir trocava-se um piscar de
-   olhos por uma página muito mais lenta.
+   olhos por uma página muito mais lenta. E uma foto do telemóvel pode vir
+   «deitada», com a orientação só no EXIF: aplica-se antes de reduzir.
 
 O original fica intacto no repositório; o que vai para o site é um JPEG
 redimensionado. O nome leva um resumo do conteúdo — sem isso, um nome fixo
@@ -37,7 +38,7 @@ import re
 import sys
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageOps
 
 SITE = 'https://armazemdospneus.pt'
 # O topo mostra a foto num contentor de 460 px (.hero__media), portanto 1400 px
@@ -53,6 +54,20 @@ MAPA = {
 }
 
 
+E_FOTOS = 'Fotografias do site'
+
+
+def parar(mensagem, ecra='Publicação'):
+    """Pára a publicação. A mensagem vai para o registo (ERRO:) e também como
+    anotação ::error (escapada como no guardas.mjs): é o que o painel e a issue
+    «Publicação parada» mostram (achado L8-03)."""
+    def esc(t):
+        return str(t).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+    titulo = esc(ecra).replace(':', '%3A').replace(',', '%2C')
+    print(f'::error title={titulo}::{esc(mensagem)}', flush=True)
+    sys.exit(f'ERRO: {mensagem}')
+
+
 def relativo(p):
     """Mesma normalização do main.js: o Pages CMS grava com barra à frente
     (media.output = /assets/uploads) e o HTML usa caminhos relativos."""
@@ -63,6 +78,16 @@ def otimizar(origem, raiz, slot):
     """Cria o JPEG reduzido dentro de raiz e devolve o caminho relativo."""
     with Image.open(origem) as im:
         antes = im.size
+        # A orientação do telemóvel: uma foto tirada ao alto guarda os pixels
+        # deitados e uma etiqueta EXIF (Orientation) a dizer como a rodar. O
+        # JPEG que sai daqui não leva o EXIF, portanto a rotação tem de ser
+        # aplicada aos pixels — sem isto, uma foto posta à mão com Orientation
+        # ≠ 1 saía deitada no site. Um EXIF estragado não pára a publicação:
+        # fica a foto como está, e avisa-se.
+        try:
+            im = ImageOps.exif_transpose(im)
+        except Exception as e:  # noqa: BLE001 — qualquer EXIF ilegível
+            print(f'    AVISO: {slot}: não consegui ler a orientação da foto ({e}); fica como está')
         im = im.convert('RGB')  # descarta alfa: um JPEG não o tem
         if max(im.size) > LADO_MAX:
             im.thumbnail((LADO_MAX, LADO_MAX), Image.LANCZOS)
@@ -89,7 +114,7 @@ def main():
     conteudo = json.loads(dados.read_text(encoding='utf-8'))
     pagina = raiz / 'index.html'
     if not pagina.exists():
-        sys.exit(f'ERRO: {pagina} não existe')
+        parar(f'{pagina} não existe. Só o Renato o pode corrigir.')
 
     html = pagina.read_text(encoding='utf-8')
     finais = {}   # slot -> caminho que tem de ficar no HTML
@@ -98,23 +123,28 @@ def main():
     for slot, (sec, campo) in MAPA.items():
         origem_rel = relativo((conteudo.get(sec) or {}).get(campo))
         if not origem_rel:
-            sys.exit(f'ERRO: content.json não tem {sec}.{campo}')
+            parar(f'Falta a fotografia {"do topo" if sec == "hero" else "da secção Sobre"} (content.json, {sec}.{campo}). '
+                  f'Corrige-se no painel, em «{E_FOTOS}».', E_FOTOS)
         origem = raiz / origem_rel
         if not origem.exists():
-            sys.exit(f'ERRO: {sec}.{campo} aponta para "{origem_rel}", '
-                     f'que não existe em {raiz}/')
+            parar(f'A fotografia {"do topo" if sec == "hero" else "da secção Sobre"} ({origem_rel}) não existe. '
+                  f'Corrige-se no painel, em «{E_FOTOS}».', E_FOTOS)
 
-        novo = otimizar(origem, raiz, slot)
+        try:
+            novo = otimizar(origem, raiz, slot)
+        except (OSError, ValueError, Image.DecompressionBombError) as e:
+            parar(f'A fotografia {"do topo" if sec == "hero" else "da secção Sobre"} ({origem_rel}) não se consegue abrir '
+                  f'({type(e).__name__}). Escolha outra no painel, em «{E_FOTOS}».', E_FOTOS)
         finais[slot] = novo
 
         # a tag inteira, sem depender da ordem dos atributos
         m = re.search(r'<img\b[^>]*\bdata-img="' + re.escape(slot) + r'"[^>]*>', html)
         if not m:
-            sys.exit(f'ERRO: não encontrei <img data-img="{slot}"> em {pagina}')
+            parar(f'não encontrei <img data-img="{slot}"> em {pagina}. Só o Renato o pode corrigir.')
         tag = m.group(0)
         ms = re.search(r'\bsrc="([^"]*)"', tag)
         if not ms:
-            sys.exit(f'ERRO: a <img data-img="{slot}"> não tem src')
+            parar(f'a <img data-img="{slot}"> não tem src. Só o Renato o pode corrigir.')
         antigo = relativo(ms.group(1))
         if antigo == novo:
             continue
@@ -136,12 +166,12 @@ def main():
         tag = re.search(r'<img\b[^>]*\bdata-img="' + re.escape(slot) + r'"[^>]*>', final).group(0)
         obtido = relativo(re.search(r'\bsrc="([^"]*)"', tag).group(1))
         if obtido != esperado:
-            sys.exit(f'ERRO na verificação: {slot} ficou "{obtido}", esperado "{esperado}"')
+            parar(f'na verificação, {slot} ficou "{obtido}", esperado "{esperado}". Só o Renato o pode corrigir.')
         if not (raiz / esperado).exists():
-            sys.exit(f'ERRO na verificação: {esperado} não existe em {raiz}/')
+            parar(f'na verificação, {esperado} não existe em {raiz}/. Só o Renato o pode corrigir.')
     for slot, antigo, _novo, _n in trocas:
         if f'{SITE}/{antigo}' in final:
-            sys.exit(f'ERRO na verificação: ainda há referências a {SITE}/{antigo}')
+            parar(f'na verificação, ainda há referências a {SITE}/{antigo}. Só o Renato o pode corrigir.')
     print('    verificado ✓')
 
 

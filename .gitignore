@@ -11,6 +11,9 @@ _source/
 .DS_Store
 Thumbs.db
 
+# Python (as baterias do .github)
+__pycache__/
+
 # Node (Cloudflare Worker / tooling)
 node_modules/
 worker/node_modules/
