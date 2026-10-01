@@ -311,14 +311,14 @@ try {
     ['settings.json ilegível', (d) => { d.settings = '{'; }, 'bloqueia', 'settings:ilegivel'],
     ['interruptor dos pagamentos em falta', (d) => { delete d.settings.payment.mode; }, 'bloqueia', 'settings:payment.mode'],
     ['interruptor dos pagamentos «offline»', (d) => { d.settings.payment.mode = 'offline'; }, 'bloqueia', 'settings:payment.mode'],
-    ['«portes combinados» em falta', (d) => { delete d.settings.shipping.quote_later; }, 'avisa', 'settings:shipping.quote_later'],
+    ['«portes combinados» em falta', (d) => { delete d.settings.shipping.quote_later; }, 'avisa', 'settings:shipping.quote_later:em-falta'],
     ['«portes combinados» como texto', (d) => { d.settings.shipping.quote_later = 'sim'; }, 'bloqueia', 'settings:shipping.quote_later'],
     ['portes cobrados e tabela vazia', (d) => { d.settings.shipping.quote_later = false; d.settings.shipping.tiers = []; }, 'bloqueia', 'settings:shipping.tiers'],
     ['portes cobrados e pesos a descer', (d) => { d.settings.shipping.quote_later = false; d.settings.shipping.tiers[1].max_kg = 3; }, 'bloqueia', 'settings:shipping.tiers'],
     ['portes cobrados e preço zero', (d) => { d.settings.shipping.quote_later = false; d.settings.shipping.tiers[0].price = 0; }, 'bloqueia', 'settings:shipping.tiers'],
     ['portes cobrados e preço com 3 casas', (d) => { d.settings.shipping.quote_later = false; d.settings.shipping.tiers[0].price = 4.999; }, 'bloqueia', 'settings:shipping.tiers'],
     ['portes cobrados e 11 escalões', (d) => { d.settings.shipping.quote_later = false; d.settings.shipping.tiers = Array.from({ length: 11 }, (_, i) => ({ max_kg: i + 1, price: 5 })); }, 'bloqueia', 'settings:shipping.tiers'],
-    ['portes combinados e tabela partida', (d) => { d.settings.shipping.tiers[0].price = 0; }, 'avisa', 'settings:shipping.tiers'],
+    ['portes combinados e tabela partida', (d) => { d.settings.shipping.tiers[0].price = 0; }, 'avisa', 'settings:shipping.tiers:a-combinar'],
     ['prazos em falta', (d) => { delete d.settings.delivery; }, 'bloqueia', 'settings:delivery'],
     ['prazo máximo de 31 dias', (d) => { d.settings.delivery.max_days = 31; }, 'bloqueia', 'settings:delivery.max_days'],
     ['estimativa ao contrário', (d) => { d.settings.delivery.estimate_min_days = 6; }, 'bloqueia', 'settings:delivery.estimativa'],
@@ -449,7 +449,7 @@ try {
     ['metade de um emoji na rua', null, (e) => { e.morada.rua = 'Rua \udc00, 3'; }, 'bloqueia', 'empresa:texto-partido'],
     ['coordenadas partidas', null, (e) => { e.geo = { lat: 'norte' }; }, 'avisa', 'empresa:geo'],
     ['mapa sem https', null, (e) => { e.mapa = 'maps.app.goo.gl/x'; }, 'avisa', 'empresa:mapa'],
-    ['sem concelho', null, (e) => { delete e.morada.concelho; }, 'avisa', 'empresa:morada.concelho'],
+    ['sem concelho', null, (e) => { delete e.morada.concelho; }, 'avisa', 'empresa:morada.concelho:vazio'],
   ];
   for (const [desc, mSite, mEmpresa, classe, chave] of CASOS_A2) {
     let s = clonar(SITE_OK); let e = clonar(EMPRESA_OK);
@@ -482,6 +482,56 @@ try {
   }
   certo(R.nifValido('516324950') && R.nifValido(516324950) && !R.nifValido('516324951') && !R.nifValido('abc') && !R.nifValido('000000000') && T.nifValido('516324950') && !T.nifValido('000000000'),
     'nifValido(): o NIF da loja passa, um algarismo trocado não, e o 000000000 também não (como no Worker dos pagamentos: os emails ficavam com o NIF anterior)');
+
+  /* ================================================================== */
+  secao('uma chave, uma classe (o Worker do painel e o problemasAgora comparam só a chave)');
+  /* Achado L2-05: com os portes a combinar, a tabela partida era «avisa» com a
+     chave settings:shipping.tiers; desligado o interruptor, a MESMA chave
+     passava a «bloqueia». Já existia no HEAD, não contava como nova: o painel
+     gravava, o Worker aceitava, e o CI parava a publicação. Varrimento: cada
+     campo de cada ficheiro apagado ou trocado por valores de cada tipo, com os
+     portes a combinar, cobrados e por gravar, e cada produto à venda e não. */
+  {
+    const VALS = ['', ' ', 'x', 'a****b', '\u200b', null, undefined, 5, -1, 0, 2.5, true, [], {}, 'x'.repeat(400), 'https://x.pt', 'Arada', '3885-183'];
+    const caminhos = (o, pre = []) => Object.entries(o).flatMap(([k, v]) => (v !== null && typeof v === 'object' ? [[...pre, k], ...caminhos(v, [...pre, k])] : [[...pre, k]]));
+    const classes = new Map();
+    const registar = (d) => { for (const p of R.problemas(d, { imagemExiste: existeHoje })) { if (!classes.has(p.chave)) classes.set(p.chave, new Set()); classes.get(p.chave).add(p.classe); } };
+    let n = 0;
+    for (const qual of ['settings', 'site', 'empresa', 'content']) {
+      for (const cam of caminhos(HOJE[qual])) {
+        for (const v of VALS) {
+          for (const combinar of [true, false, undefined]) {
+            const d = dadosDeHoje();
+            if (combinar === undefined) delete d.settings.shipping.quote_later; else d.settings.shipping.quote_later = combinar;
+            let o = d[qual]; for (const k of cam.slice(0, -1)) o = o[k];
+            if (v === undefined) delete o[cam.at(-1)]; else o[cam.at(-1)] = clonar(v);
+            registar(d); n++;
+          }
+        }
+      }
+    }
+    HOJE.products.products.forEach((p, i) => {
+      for (const k of Object.keys(p)) {
+        for (const v of VALS) {
+          for (const avenda of [false, true]) {
+            const d = dadosDeHoje(); const q = d.products.products[i];
+            if (v === undefined) delete q[k]; else q[k] = clonar(v);
+            if (avenda) q.available = true;
+            registar(d); n++;
+          }
+        }
+      }
+    });
+    const duplas = [...classes].filter(([, c]) => c.size > 1).map(([k, c]) => `${k} (${[...c].join(' e ')})`);
+    certo(classes.size > 150 && duplas.length === 0, `${n} variações, ${classes.size} chaves: nenhuma aparece com duas classes`, duplas.join(' · '));
+    // E o caso do achado, de ponta a ponta: o aviso antigo que passa a parar é NOVO.
+    const head = dadosDeHoje(); head.settings.shipping.tiers[1].max_kg = 1;   // a tabela partida, com os portes a combinar
+    const depois = clonar(head); depois.settings.shipping.quote_later = false;  // o dono desliga «Portes combinados depois»
+    const jaHavia = new Set(R.problemas(head).map((p) => p.chave));
+    const novos = R.problemas(depois).filter((p) => !jaHavia.has(p.chave));
+    certo(novos.some((p) => p.classe === 'bloqueia' && p.chave === 'settings:shipping.tiers'),
+      '   desligar «Portes combinados depois» com a tabela partida dá um «bloqueia» NOVO (o painel e o Worker recusam a gravação)', novos.map((p) => `${p.classe} ${p.chave}`).join(', '));
+  }
 
   /* ================================================================== */
   secao('a cópia publicada, neutralizada');

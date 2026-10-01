@@ -40,6 +40,12 @@
  *   classe:   'bloqueia' | 'neutraliza' | 'avisa',
  *   chave:    estável, ex. 'produto:michelin-primacy-4:etiqueta'. O Worker
  *             compara as chaves do HEAD com as da gravação e recusa só as novas;
+ *             por isso UMA CHAVE TEM SEMPRE A MESMA CLASSE: se o mesmo campo
+ *             pode avisar ou parar (a tabela de portes partida avisa com os
+ *             portes a combinar e pára sem eles), as duas têm chaves
+ *             diferentes — senão um aviso antigo que passa a parar não contava
+ *             como novo, o painel gravava e o CI parava (o
+ *             .github/test-guardas.mjs confere-o num varrimento);
  *   ficheiro: 'data/products.json', …
  *   ecra:     o ecrã do painel onde se corrige («Produtos › Michelin Primacy 4+»);
  *   mensagem: para o dono, em português simples, sem caminhos de JSON;
@@ -573,7 +579,7 @@ function problemasDasDefinicoes(lido, lista) {
     if (ausente(sh.quote_later)) {
       /* Antes de 7 ago o interruptor não existia; ausente vale «desligado» no
          checkout e no Worker (!!undefined), e aí a tabela tem de estar certa. */
-      avisa('shipping.quote_later', E_PORTES, 'shipping.quote_later', '«Portes combinados depois da encomenda» não está gravado: vale como desligado (os portes são cobrados pela tabela).');
+      avisa('shipping.quote_later:em-falta', E_PORTES, 'shipping.quote_later', '«Portes combinados depois da encomenda» não está gravado: vale como desligado (os portes são cobrados pela tabela).');
     } else if (typeof sh.quote_later !== 'boolean') {
       bloqueia('shipping.quote_later', E_PORTES, 'shipping.quote_later', '«Portes combinados depois da encomenda» tem de ser sim ou não.');
     } else combinar = sh.quote_later;
@@ -592,7 +598,7 @@ function problemasDasDefinicoes(lido, lista) {
       return null;
     })();
     if (erroTabela) {
-      if (combinar) avisa('shipping.tiers', E_PORTES, 'shipping.tiers', `Na tabela de portes, ${erroTabela}. Não conta enquanto os portes forem combinados depois, mas corrija antes de o desligar.`);
+      if (combinar) avisa('shipping.tiers:a-combinar', E_PORTES, 'shipping.tiers', `Na tabela de portes, ${erroTabela}. Não conta enquanto os portes forem combinados depois, mas corrija antes de o desligar.`);
       else bloqueia('shipping.tiers', E_PORTES, 'shipping.tiers', `Na tabela de portes, ${erroTabela} (é por ela que os portes são cobrados).`);
     }
     for (const [campo, max, nome] of [['pickup_label', TAMANHOS.textoLevantamento, 'O texto do levantamento'], ['note', TAMANHOS.notaPortes, 'A nota dos portes']]) {
@@ -863,7 +869,7 @@ function problemasDaEmpresa(lido, lista) {
     /* O concelho pode faltar; se estiver, vai para a morada dos emails, e um
        concelho que o Worker recuse deita fora a morada INTEIRA (fica a
        anterior). O distrito ele não lê. */
-    if (vazio(m.concelho)) avisa('morada.concelho', 'morada.concelho', 'O concelho está vazio.');
+    if (vazio(m.concelho)) avisa('morada.concelho:vazio', 'morada.concelho', 'O concelho está vazio.');
     else if (typeof m.concelho !== 'string') bloqueia('morada.concelho', 'morada.concelho', 'O concelho tem de ser texto.');
     else if (!tamanhoParaOsEmails(m.concelho, 2, TAMANHOS.concelho)) bloqueia('morada.concelho', 'morada.concelho', `O concelho tem de ter entre 2 e ${TAMANHOS.concelho} caracteres, ou ficar vazio.`);
     else sinaisDaMorada(m.concelho, 'morada.concelho', 'morada.concelho', 'O concelho');
