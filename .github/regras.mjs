@@ -903,13 +903,21 @@ function problemasDaEmpresa(lido, lista) {
   const ral = e.ral;
   if (!eObjecto(ral)) bloqueia('ral', 'ral', 'Falta a entidade de resolução alternativa de litígios (a lei obriga a indicá-la).');
   else {
-    obrigatorio(ral.nome, 'ral.nome', 'ral.nome', 'O nome da entidade de resolução de litígios');
+    if (obrigatorio(ral.nome, 'ral.nome', 'ral.nome', 'O nome da entidade de resolução de litígios') && limpo(ral.nome).length < 5) {
+      bloqueia('ral.nome:curto', 'ral.nome', 'O nome da entidade de resolução de litígios está curto de mais (ex.: «CNIACC — Centro Nacional de Informação e Arbitragem de Conflitos de Consumo»).');
+    }
     if (vazio(ral.url)) bloqueia('ral.url', 'ral.url', 'Falta o endereço da entidade de resolução de litígios.');
     else if (!urlHttps(ral.url)) bloqueia('ral.url', 'ral.url', 'O endereço da entidade de resolução de litígios tem de começar por https:// (e não pode ter espaços nem caracteres invisíveis).');
   }
   if (vazio(e.livro_reclamacoes)) bloqueia('livro_reclamacoes', 'livro_reclamacoes', 'Falta o endereço do Livro de Reclamações (a lei obriga a mostrá-lo).');
   else if (!urlHttps(e.livro_reclamacoes)) bloqueia('livro_reclamacoes', 'livro_reclamacoes', 'O endereço do Livro de Reclamações tem de começar por https:// (e não pode ter espaços nem caracteres invisíveis).');
   else if (!urlParaOsEmails(e.livro_reclamacoes)) bloqueia('livro_reclamacoes', 'livro_reclamacoes', `O endereço do Livro de Reclamações tem de ter até ${TAMANHOS.enderecoLivro} caracteres e não pode levar nome de utilizador (vai também para os emails das encomendas).`);
+  /* Só há um Livro de Reclamações Electrónico, e os Termos escrevem
+     «www.livroreclamacoes.pt» como texto da ligação: outro endereço punha esse
+     texto a apontar para outro sítio (aqui e nos emails). */
+  else if (!/^(?:www\.)?livroreclamacoes\.pt$/.test(new URL(limpo(e.livro_reclamacoes)).hostname)) {
+    bloqueia('livro_reclamacoes', 'livro_reclamacoes', 'O endereço do Livro de Reclamações tem de ser do site oficial, livroreclamacoes.pt (ex.: https://www.livroreclamacoes.pt/inicio).');
+  }
 
   /* Capital social e conservatória (CSC art. 171.º): opcionais até o
      contabilista confirmar; se estiverem lá, vão para as páginas legais e têm
