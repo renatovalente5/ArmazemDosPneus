@@ -27,11 +27,14 @@ cd "$SITE"
 # casa também o /admin/ e o /admin/index.html, mas não o /admin: cada um tem a
 # sua regra (ensaiado no wrangler dev). Uma pasta admin/ ou uma admin.html na
 # _site nunca seriam servidas (a regra vem antes dos ficheiros), por isso param
-# aqui, com a razão, em vez de ficarem mortas em silêncio.
+# aqui, com a razão (::error para o painel), em vez de ficarem mortas em
+# silêncio.
 PAINEL='https://backoffice.armazemdospneus.pt/'
 for x in admin admin.html; do
   if [ -e "$x" ]; then
-    echo "ERRO: a _site tem «$x», mas o /admin reencaminha para o painel ($PAINEL) e nada lá seria servido. Tire-o do repositório." >&2
+    MSG="A _site tem «$x», mas o /admin reencaminha para o painel ($PAINEL) e nada lá seria servido: tem de sair do repositório. Só o Renato o pode corrigir."
+    echo "::error title=Publicação::$MSG"
+    echo "ERRO: $MSG" >&2
     exit 1
   fi
 done

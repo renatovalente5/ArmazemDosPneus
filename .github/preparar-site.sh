@@ -20,9 +20,12 @@ RAIZ="$(cd "$(dirname "$0")/.." && pwd)"
 # (backoffice.armazemdospneus.pt), e é o único editor. Um .pages.yml que volte
 # ao repositório trazia de volta um segundo editor sobre os mesmos ficheiros —
 # o Pages CMS reescreve o JSON inteiro e apaga as chaves que não conhece —, e
-# os dois atropelavam-se. Pára antes de fazer seja o que for.
+# os dois atropelavam-se. Pára antes de fazer seja o que for, como o injector:
+# ::error para o painel, «ERRO:» para a issue.
 if [ -e "$RAIZ/.pages.yml" ]; then
-  echo "ERRO: o .pages.yml voltou ao repositório, mas o Pages CMS saiu e o painel é o único editor: tire o ficheiro do repositório. É uma avaria técnica, e não um problema do conteúdo." >&2
+  MSG='O .pages.yml voltou ao repositório, mas o Pages CMS saiu e o painel é o único editor: o ficheiro tem de sair outra vez. É uma avaria técnica, e não do conteúdo — só o Renato a pode corrigir.'
+  echo "::error title=Publicação::$MSG"
+  echo "ERRO: $MSG" >&2
   exit 1
 fi
 

@@ -1500,7 +1500,8 @@ esac
       '   e as regras geradas a partir das páginas continuam lá', JSON.stringify(a.regras));
     for (const [desc, montar] of [['uma pasta admin/', (s) => { mkdirSync(join(s, 'admin')); writeFileSync(join(s, 'admin', 'index.html'), '<!doctype html>'); }], ['uma admin.html', (s) => writeFileSync(join(s, 'admin.html'), '<!doctype html>')]]) {
       const r = cloudflare(montar);
-      certo(r.status !== 0 && /nada lá seria servido/.test(r.err) && r.regras === null, `${desc} na _site: pára com a razão (nunca seria servida), antes de escrever o _redirects`, `saiu ${r.status}: ${r.err}`);
+      certo(r.status !== 0 && /^::error title=Publicação::A _site tem «admin(\.html)?», .*nada lá seria servido/m.test(r.out) && /^ERRO: A _site tem/m.test(r.err) && r.regras === null,
+        `${desc} na _site: pára com a razão (::error para o painel), antes de escrever o _redirects`, `saiu ${r.status}: ${r.out}${r.err}`);
     }
   }
 
@@ -1515,8 +1516,8 @@ esac
     copyFileSync(join(RAIZ, '.github', 'preparar-site.sh'), join(t, '.github', 'preparar-site.sh'));
     writeFileSync(join(t, '.pages.yml'), 'content: []\n');
     const r = correr('bash', [join(t, '.github', 'preparar-site.sh'), join(t, '_site')]);
-    certo(r.status !== 0 && /^ERRO: o \.pages\.yml voltou ao repositório/m.test(r.err) && !existsSync(join(t, '_site')),
-      'um .pages.yml que volte: o preparar-site.sh pára logo, com a razão numa linha «ERRO:» (vai para a issue), sem criar a _site', `saiu ${r.status}: ${r.err}`);
+    certo(r.status !== 0 && /^::error title=Publicação::O \.pages\.yml voltou ao repositório/m.test(r.out) && /^ERRO: O \.pages\.yml voltou ao repositório/m.test(r.err) && !existsSync(join(t, '_site')),
+      'um .pages.yml que volte: o preparar-site.sh pára logo, sem criar a _site, com a razão em ::error (para o painel) e numa linha «ERRO:» (para a issue)', `saiu ${r.status}: ${r.out}${r.err}`);
     rmSync(t, { recursive: true, force: true });
   }
 
