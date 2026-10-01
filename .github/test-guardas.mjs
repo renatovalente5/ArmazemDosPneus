@@ -665,6 +665,74 @@ try {
   }
 
   /* ================================================================== */
+  secao('o que as regras deixam passar, a publicação publica (diferencial contra o injector verdadeiro)');
+  /* Achados L3-01 e L8-02: as regras (painel, Worker do painel, guarda) e o
+     injector foram escritos à parte, em duas línguas. O painel gravava, a guarda
+     passava, e o injector parava a publicação inteira — com ela, o interruptor
+     dos pagamentos. Aqui cada campo do site.json e do empresa.json (e os do
+     settings.json que vão para os Termos) recebe valores hostis; os que as
+     regras deixam passar (nenhum «bloqueia») têm de publicar no injector
+     verdadeiro (injetar-conteudo.py --casos: Dados + injetar_pagina, o mesmo
+     código da publicação) sobre as páginas verdadeiras. E as marcas de
+     negrito e itálico: todos os textos de até 5 caracteres feitos de «a»,
+     «*», espaço e mudança de linha. */
+  {
+    const PAGINAS = G.paginasHtml(RAIZ);
+    const folhas = (o, pre = []) => Object.entries(o).flatMap(([k, v]) => (v !== null && typeof v === 'object' ? folhas(v, [...pre, k]) : [[...pre, k]]));
+    const HOSTIS = ['', ' ', '****', 'a****b', '***', '** **', '*a**b*', '**a*', '\u0085', 'x\u0085', '\u001f', 'x\u001fy', '\u001c', '\ufeff',
+      '\ufeffx', '\u200b', '\u2028', 'a\u2028b', '\u00a0', '\u3000x\u3000', 'x\ny', 'x\r\ny', '\ud83d', 'x\udc00', 'Montagem 🚗',
+      'https://www.facebook.com/a\u001fb', 'https://www.facebook.com/a\u0085b', 'https://www.Facebook.com/X', 'https://fb.me/x', 'https://ex\u2100mple.pt',
+      'https://[::1]/', 'https://x.pt/"onmouseover="alert(1)', 'https://x.pt/</script>', 'javascript:alert(1)', 'a<!--b', 'a-->b', '<!--ap:telefone-->',
+      'a&amp;b', 'Tom & Jerry', 'a"b\'c', '</script><script>alert(1)</script>', '912345678', '351912345678', '+351 935 218 857', '00351935218857',
+      'loja@exemplo.pt', '3885-183', '516324950', 'a'.repeat(300)];
+    const NAO_TEXTO = [null, 5, 2.5, true, [], {}];
+    const definirEm = (o, cam, v) => { let x = o; for (const k of cam.slice(0, -1)) x = x[k]; x[cam.at(-1)] = v; };
+    const casos = [];
+    const juntar = (rotulo, mudar) => { const d = dadosDeHoje(); mudar(d); casos.push({ rotulo, d }); };
+    for (const qual of ['site', 'empresa']) {
+      for (const cam of folhas(HOJE[qual])) {
+        for (const v of [...HOSTIS, ...NAO_TEXTO]) juntar(`${qual}.${cam.join('.')} = ${JSON.stringify(v)}`, (d) => definirEm(d[qual], cam, clonar(v)));
+      }
+    }
+    for (const [cam, valores] of [
+      [['delivery', 'estimate_min_days'], [0, 1, 2, 5, 6, 30, 31, 2.5, '2', null]],
+      [['delivery', 'estimate_max_days'], [1, 2, 5, 21, 30, 31, 4.5, null]],
+      [['delivery', 'max_days'], [1, 4, 5, 20, 30, 31, '30', null]],
+      [['returns', 'return_cost_eur'], [null, 0, 6.5, 6.555, -1, '5', 1000, 1000.01, true]],
+      [['returns'], [null, [], 'x', {}]],
+      [['shipping', 'quote_later'], [true, false, null, 'sim', 1]],
+    ]) for (const v of valores) juntar(`settings.${cam.join('.')} = ${JSON.stringify(v)}`, (d) => definirEm(d.settings, cam, clonar(v)));
+    const textos = (alfabeto, max) => { const out = []; let nivel = ['']; for (let n = 1; n <= max; n++) { nivel = nivel.flatMap((t) => alfabeto.map((c) => t + c)); out.push(...nivel); } return out; };
+    for (const t of textos(['a', '*', ' ', '\n'], 5)) juntar(`rodape.frase = ${JSON.stringify(t)}`, (d) => { d.site.textos.rodape.frase = t; });
+
+    const diferencial = (regras) => {
+      const aceites = casos.filter((c) => !regras.problemas(c.d, { imagemExiste: existeHoje }).some((p) => p.classe === 'bloqueia'));
+      const f = join(TMP, `casos-${Math.random().toString(36).slice(2)}.json`);
+      writeFileSync(f, JSON.stringify({ paginas: PAGINAS, casos: aceites.map((c) => ({ site: c.d.site, empresa: c.d.empresa, settings: c.d.settings })) }));
+      const r = spawnSync(PY, [join(RAIZ, '.github', 'injetar-conteudo.py'), '--casos', RAIZ, f], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+      let saida = null; try { saida = JSON.parse(r.stdout); } catch { /* fica null */ }
+      if (!Array.isArray(saida) || saida.length !== aceites.length) return { erro: `o injector não respondeu (${r.status}): ${r.stderr.slice(-300)}`, aceites: aceites.length, furos: [] };
+      return { aceites: aceites.length, furos: aceites.map((c, i) => [c.rotulo, saida[i]]).filter(([, e]) => e !== null) };
+    };
+    const t0 = Date.now();
+    const agora = diferencial(R);
+    certo(!agora.erro && agora.aceites > 1000, `${casos.length} casos; as regras deixam passar ${agora.aceites}, e o injector corre-os todos (${((Date.now() - t0) / 1000).toFixed(1)} s)`, agora.erro || '');
+    certo(!agora.erro && agora.furos.length === 0, '   e publica-os todos: nada que o painel grave pára a publicação',
+      agora.furos.slice(0, 6).map(([rot, e]) => `${rot.slice(0, 70)} → ${String(e).slice(0, 90)}`).join(' | '));
+    /* A guarda da guarda: com as regras de antes deste acerto (80ba5c4) o mesmo
+       diferencial encontra os casos do achado. */
+    try {
+      const antes = execFileSync('git', ['-C', RAIZ, 'show', '80ba5c4:.github/regras.mjs'], { encoding: 'utf8' });
+      const RA = await import(`data:text/javascript;base64,${Buffer.from(antes).toString('base64')}`);
+      const velho = diferencial(RA);
+      const temEstrelas = velho.furos.some(([rot]) => /\*\*\*\*/.test(rot));
+      certo(!velho.erro && velho.furos.length >= 20 && temEstrelas, `   guarda da guarda: com as regras de antes (80ba5c4), o diferencial encontra ${velho.furos.length} valores que o painel gravava e a publicação recusava («****» incluído)`, velho.erro || '');
+    } catch (e) {
+      certo(false, '   guarda da guarda: ler as regras de 80ba5c4 do git', String(e.message || e));
+    }
+  }
+
+  /* ================================================================== */
   secao('o Worker dos pagamentos lê o que o dono grava (fase W-dados)');
   /* Desde a W-dados, o Worker lê os prazos, a devolução, o telefone, o email e
      a empresa dos mesmos JSON. Os avisos de antes («os emails ainda dizem…

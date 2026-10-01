@@ -44,6 +44,7 @@ não escapa as barras).
 
 Uso: injetar-conteudo.py <_site> [data/site.json] [data/empresa.json] [data/settings.json]
      injetar-conteudo.py --listas     (as listas fechadas, em JSON)
+     injetar-conteudo.py --casos <raiz> <casos.json>   (só para a bateria)
 Só a biblioteca-padrão do Python 3.
 """
 import html
@@ -815,6 +816,45 @@ def injetar_html(texto, d, ficheiro, conta=None):
     return texto
 
 
+def injetar_pagina(antes, d, rel, conta=None):
+    """Uma página como a publicação a escreve, com as provas: injectar outra
+    vez não muda nada, os marcadores continuam todos certos, e o texto
+    escreve-se em UTF-8. É ESTA função que o .github/test-guardas.mjs corre no
+    diferencial (regras.mjs contra o injector), pelo --casos."""
+    depois = injetar_html(antes, d, rel, conta)
+    if injetar_html(depois, d, rel) != depois:
+        raise Falha(f'{rel}: injectar duas vezes não dá o mesmo (defeito do injector).')
+    arvore(depois, rel)
+    try:
+        depois.encode('utf-8')
+    except UnicodeEncodeError:
+        raise Falha(f'{rel}: um texto tem um carácter partido (metade de um emoji ou de um símbolo), '
+                    'que não se consegue escrever. Procure no painel o texto colado há pouco e escreva-o outra vez.')
+    return depois
+
+
+def conferir_casos(raiz, ficheiro):
+    """Só para a bateria: {paginas: [rel], casos: [{site, empresa, settings}]}
+    → para cada caso, null se publicava, ou a mensagem com que parava. O
+    mesmo código que publica (Dados e injetar_pagina), sobre as páginas de
+    <raiz>."""
+    pedido = json.loads(Path(ficheiro).read_text(encoding='utf-8'))
+    paginas = [(rel, (Path(raiz) / rel).read_text(encoding='utf-8')) for rel in pedido['paginas']]
+    out = []
+    for c in pedido['casos']:
+        try:
+            d = Dados(c.get('site'), c.get('empresa'), c.get('settings'))
+            for rel, texto in paginas:
+                injetar_pagina(texto, d, rel)
+            out.append(None)
+        except Falha as e:
+            out.append(str(e))
+        except Exception as e:   # um rebentamento sem Falha: também pára a publicação
+            out.append(f'REBENTOU ({type(e).__name__}: {e})')
+    print(json.dumps(out))
+    return 0
+
+
 def ler_json(caminho, ecra):
     p = Path(caminho)
     if not p.is_file():
@@ -830,6 +870,8 @@ def main(args):
         print(json.dumps({'marcadores': MARCADORES, 'atributos': ATRIBUTOS, 'metas': METAS,
                           'variantes': VARIANTES, 'icones': list(ICONES)}, ensure_ascii=False))
         return 0
+    if args[:1] == ['--casos'] and len(args) == 3:
+        return conferir_casos(args[1], args[2])
     if not args:
         print(__doc__.strip().split('\n\n')[-2], file=sys.stderr)
         return 2
@@ -845,12 +887,7 @@ def main(args):
             rel = p.relative_to(raiz).as_posix()
             antes = p.read_text(encoding='utf-8')
             conta = {}
-            depois = injetar_html(antes, d, rel, conta)
-            # A prova: injectar outra vez não muda nada, e o que ficou escrito
-            # continua a ter os marcadores todos certos.
-            if injetar_html(depois, d, rel) != depois:
-                raise Falha(f'{rel}: injectar duas vezes não dá o mesmo (defeito do injector).')
-            arvore(depois, rel)
+            depois = injetar_pagina(antes, d, rel, conta)
             if depois != antes:
                 p.write_text(depois, encoding='utf-8')
             if conta:
