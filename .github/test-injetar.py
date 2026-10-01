@@ -337,6 +337,8 @@ FALHAS_DADOS = [
     ('sem telefone', dict(site=S(lambda s: s['contactos'].pop('telefone'))), 'Contactos e horário'),
     ('telefone com letras', dict(site=S(lambda s: s['contactos'].update(telefone='93x 218 857'))), 'Contactos e horário'),
     ('WhatsApp com +', dict(site=S(lambda s: s['contactos'].update(whatsapp='+351935218857'))), 'Contactos e horário'),
+    ('WhatsApp sem o 351 (o wa.me lia +91, a Índia)', dict(site=S(lambda s: s['contactos'].update(whatsapp='912345678'))), 'Contactos e horário'),
+    ('WhatsApp com 00351', dict(site=S(lambda s: s['contactos'].update(whatsapp='00351912345678'))), 'Contactos e horário'),
     ('email sem @', dict(site=S(lambda s: s['contactos'].update(email='loja'))), 'Contactos e horário'),
     ('Facebook sem https', dict(site=S(lambda s: s['contactos'].update(facebook='http://facebook.com/x'))), 'Contactos e horário'),
     ('sem a nota da chamada', dict(site=S(lambda s: s['contactos'].update(nota_chamada=''))), 'Contactos e horário'),

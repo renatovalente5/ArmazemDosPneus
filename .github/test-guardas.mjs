@@ -389,6 +389,10 @@ try {
     ['sem WhatsApp (os botões «Pedir orçamento» vão para ele)', (s) => { s.contactos.whatsapp = ''; }, null, 'bloqueia', 'site:contactos.whatsapp'],
     ['telefone com 8 algarismos', (s) => { s.contactos.telefone = '93 521 885'; }, null, 'bloqueia', 'site:contactos.telefone'],
     ['WhatsApp com +', (s) => { s.contactos.whatsapp = '+351935218857'; }, null, 'bloqueia', 'site:contactos.whatsapp'],
+    /* Achado L3-02: «912345678» passava em tudo e publicava wa.me/912345678,
+       que o WhatsApp lê como +91 (Índia). */
+    ['WhatsApp com 9 algarismos, sem o 351', (s) => { s.contactos.whatsapp = '912345678'; }, null, 'bloqueia', 'site:contactos.whatsapp'],
+    ['WhatsApp com 00351 à frente', (s) => { s.contactos.whatsapp = '00351912345678'; }, null, 'bloqueia', 'site:contactos.whatsapp'],
     ['Facebook sem https', (s) => { s.contactos.facebook = 'http://facebook.com/x'; }, null, 'bloqueia', 'site:contactos.facebook'],
     ['telefone sem a nota do preço da chamada', (s) => { delete s.contactos.nota_chamada; }, null, 'bloqueia', 'site:contactos.nota_chamada'],
     ['um dia em falta no horário', (s) => { delete s.horario.dias.qua; }, null, 'bloqueia', 'site:horario.dias.qua'],
@@ -460,6 +464,8 @@ try {
   }
   const SEM_PROBLEMA_A2 = [
     ['sem o segundo telefone nem o Facebook', (s) => { delete s.contactos.telefone2; delete s.contactos.facebook; }, null],
+    ['WhatsApp português com o 351', (s) => { s.contactos.whatsapp = '351912345678'; }, null],
+    ['WhatsApp de outro país (Espanha), com o indicativo', (s) => { s.contactos.whatsapp = '34612345678'; }, null],
     ['domingo fechado e sexta com almoço', () => {}, null],
     ['capital social de 5000 € e conservatória', null, (e) => { e.capital_social = 5000; e.conservatoria = 'Conservatória do Registo Comercial de Ovar'; }],
     ['sem mapa nem coordenadas', null, (e) => { delete e.mapa; delete e.geo; }],
@@ -479,6 +485,11 @@ try {
     const comBuraco = clonar(SITE_OK); delete comBuraco.servicos[0];
     let lancou = null; try { R.problemas({ ...TEXTO, site: comBuraco, empresa: EMPRESA_OK }); } catch (e) { lancou = e; }
     certo(lancou === null, 'uma lista com um buraco (objecto do painel) não faz rebentar as regras', String(lancou));
+  }
+  {
+    const s = clonar(SITE_OK); s.contactos.whatsapp = '912345678';
+    const p = comA2(s, EMPRESA_OK).find((x) => x.chave === 'site:contactos.whatsapp');
+    certo(p && /escreva 351912345678/.test(p.mensagem), 'WhatsApp sem o 351: a mensagem dá o valor certo', p && p.mensagem);
   }
   certo(R.nifValido('516324950') && R.nifValido(516324950) && !R.nifValido('516324951') && !R.nifValido('abc') && !R.nifValido('000000000') && T.nifValido('516324950') && !T.nifValido('000000000'),
     'nifValido(): o NIF da loja passa, um algarismo trocado não, e o 000000000 também não (como no Worker dos pagamentos: os emails ficavam com o NIF anterior)');

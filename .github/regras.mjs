@@ -730,6 +730,13 @@ function problemasDoSite(lido, lista) {
     }
     if (!vazio(c.whatsapp) && !(typeof c.whatsapp === 'string' && RE_WHATSAPP.test(c.whatsapp))) {
       bloqueia('contactos.whatsapp', E_CONT, 'contactos.whatsapp', 'O WhatsApp não está bem escrito (só algarismos, com o indicativo, sem espaços nem +; ex.: 351935218857).');
+    } else if (typeof c.whatsapp === 'string' && (c.whatsapp.length === 9 || c.whatsapp.startsWith('0'))) {
+      /* O wa.me lê o número como internacional: «912345678» é a Índia (+91), e
+         todos os botões «Pedir orçamento» iam para lá sem ninguém dar por isso
+         (o telefone não tem o problema: a publicação junta-lhe o +351). Um
+         número começado por 0 (00351…) também não é o formato do wa.me. */
+      const pt = c.whatsapp.length === 9 && /^[29]/.test(c.whatsapp) ? ` Para um número português, escreva 351${c.whatsapp}.` : '';
+      bloqueia('contactos.whatsapp', E_CONT, 'contactos.whatsapp', `O WhatsApp tem de levar o indicativo do país à frente, sem 00 nem +.${pt}`);
     }
     if (!vazio(c.facebook) && !urlHttps(c.facebook)) bloqueia('contactos.facebook', E_CONT, 'contactos.facebook', 'O endereço do Facebook tem de começar por https:// (e não pode ter espaços nem caracteres invisíveis).');
     /* DL 59/2021: um número de telefone publicado leva a indicação do preço da

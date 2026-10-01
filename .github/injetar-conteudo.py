@@ -224,8 +224,10 @@ class Dados:
         self.telefone = self._telefone(c, 'telefone', 'O telefone', obrigatorio=True)
         self.telefone2 = self._telefone(c, 'telefone2', 'O segundo telefone', obrigatorio=False)
         self.whatsapp = self._texto(c, 'whatsapp', E_CONT, 'O WhatsApp')
-        if not RE_WHATSAPP.fullmatch(self.whatsapp):
-            falha('O WhatsApp não está bem escrito (só algarismos, com o indicativo).', E_CONT)
+        # 9 algarismos é um número sem o indicativo: o wa.me lia «912345678»
+        # como +91 (Índia). A mesma regra do regras.mjs.
+        if not RE_WHATSAPP.fullmatch(self.whatsapp) or len(self.whatsapp) == 9 or self.whatsapp.startswith('0'):
+            falha('O WhatsApp não está bem escrito (só algarismos, com o indicativo do país à frente: 351…).', E_CONT)
         self.email = self._texto(c, 'email', E_CONT, 'O email da loja')
         if not RE_EMAIL.fullmatch(self.email):
             falha('O email da loja não está bem escrito.', E_CONT)
