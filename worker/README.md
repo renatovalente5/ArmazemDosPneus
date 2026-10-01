@@ -73,13 +73,23 @@ escritos neste Worker**: o dono muda-os no painel e o Worker lê-os do site, no
 cliente nesse momento. Os emails que saem depois (webhook — com Multibanco, dias
 depois) repetem o retrato, e não o que o site disser entretanto.
 
-**Recurso.** Um ficheiro que não existe (404), não responde, não é JSON, passa
-de 64 KiB, ou traz um valor fora da regra, não chega aos emails: esse grupo usa
-os valores de sempre (`DELIVERY_*`, `STORE_PHONE`, `STORE_EMAIL` e a empresa
-escrita em `src/termos.js`). Cada grupo cai inteiro (prazos; denominação + NIF;
-morada). Encomendas criadas antes desta versão não têm retrato e usam o recurso
-— foi isso que se lhes prometeu. Os valores recusados ficam no registo
-(`termos: valores recusados…`).
+**Recurso.** Um ficheiro que ainda não existe (404), ou um valor fora da regra,
+não chega aos emails: esse grupo usa os valores de sempre (`DELIVERY_*`,
+`STORE_PHONE`, `STORE_EMAIL` e a empresa escrita em `src/termos.js`). Cada grupo
+cai inteiro (prazos; denominação + NIF; morada). Um `site.json` ou `empresa.json`
+que **existe e não se lê** (5xx, rede, JSON partido, mais de 64 KiB) **pára o
+`/checkout` com 503**: o recurso é a empresa e os contactos de 30 set, que o
+dono já mudou no painel, e não se promete isso a um cliente. Encomendas criadas
+antes desta versão não têm retrato e usam o recurso — foi isso que se lhes
+prometeu. Cada leitura que não é «ok» e os valores recusados ficam no registo
+(`termos: site.json não se leu…`, `termos: valores recusados…`).
+
+**Condições mostradas.** O `checkout.js` manda no pedido as condições que a
+página mostrou (`condicoes`: prazos e custo da devolução). Se as do retrato
+forem piores para o cliente, o `/checkout` responde **409** com as novas, sem
+sessão nem escrita, e a página mostra-as antes de o cliente confirmar outra vez.
+Numa encomenda com montagem, o retrato guarda também o preço da montagem que o
+checkout mostrou (`termos.montagem.preco_eur`).
 
 **Regras** (o painel tem de ser igual ou mais apertado, senão o que o dono grava
 não chega aos emails — o `.github/regras.mjs` é, e o `.github/test-guardas.mjs`
@@ -198,18 +208,30 @@ npx wrangler kv key list --binding ORDERS --prefix "order:"
 npx wrangler kv key get "order:AP-20260731-ab12cd34" --binding ORDERS
 ```
 
-Cada encomenda tem `status`: `criada` → `aguarda_pagamento` →
+Cada encomenda tem `status`: `aguarda_pagamento` (gravada quando a Stripe cria a
+sessão; as antigas podem estar em `criada` ou `erro_stripe`) →
 `aguarda_multibanco` → `paga` (ou `falhou`, `expirou`,
-`voucher_expirado_a_aguardar`, `reembolsada`, `contestada`).
+`voucher_expirado_a_aguardar`, `parcialmente_reembolsada`, `reembolsada`,
+`contestada`). O estado não recua: um evento atrasado não desfaz um pagamento,
+um reembolso nem uma contestação, e cada evento relê a encomenda antes de gravar
+e junta só o que mudou (`juntarEncomenda`). O KV não tem escrita condicional:
+dois eventos no mesmo milissegundo ainda podem perder um campo um do outro.
 
 ## Limites do plano gratuito
 
-100.000 pedidos/dia e **1.000 escritas KV/dia**. Cada encomenda gasta 4-6
-escritas → cerca de 150-200 encomendas/dia. Folgado.
+100.000 pedidos/dia e **1.000 escritas KV/dia — da conta inteira** (os outros
+projectos da conta também escrevem). Um `/checkout` grava 2 vezes (a encomenda e
+a sessão); um evento da Stripe grava a encomenda só se a mudou, e as marcas
+`evt:`/`seen:` só nos que mandam emails. Uma encomenda paga gasta cerca de 6–8.
 
-O rate limit é *best-effort* em memória, deliberadamente **não** em KV: um
-atacante a bater na rota esgotaria a quota de escritas, que é a mesma das
-encomendas.
+Um `/checkout` forjado gasta 3 (o checkout e a sessão expirada). O travão: o
+binding `TRAVAO_CHECKOUT` (`[[ratelimits]]` no `wrangler.toml`, 5 por minuto por
+IP, em todos os isolates da localização) e, sem ele, o de memória. Não chega
+contra um ataque de muitos IPs — isso pede Turnstile no checkout, ou as
+encomendas fora do KV (D1 ou um Durable Object).
+
+Se o Resend falhar, o webhook responde 500 e a Stripe reentrega (até 3 dias):
+os emails saem antes da resposta, e as marcas só depois deles.
 
 ## Notas de segurança
 
