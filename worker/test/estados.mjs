@@ -222,6 +222,30 @@ export async function correr({ ok }) {
     eq('   paga a referência: paga', m.encomenda().status, 'paga');
   }
 
+  /* ---------------------------------------------------------- L7-10 */
+  console.log('\nEstados — uma contestação não é engolida (L7-10)');
+  {
+    const m = await montar();
+    await m.webhook(EV.pago(m.e));                      // o checkout.session.completed perdeu-se
+    ok('só o payment_intent.succeeded: paga, e o índice pi: fica gravado', m.encomenda().status === 'paga' && m.kv.mapa.get('pi:pi_estados1') === m.e.order_id
+      && m.encomenda().payment_intent === 'pi_estados1', [m.encomenda().status, m.kv.mapa.get('pi:pi_estados1')]);
+    await m.webhook(EV.disputa(m.e));
+    eq('   a contestação semanas depois encontra a encomenda: contestada', [m.encomenda().status, m.encomenda().dispute_id], ['contestada', 'du_estados1']);
+  }
+  {
+    const m = await montar();
+    const ev = EV.disputa(m.e, { pi: 'pi_de_fora', du: 'du_fora' });
+    const r = await m.webhook(ev);
+    const aviso = m.rede.resend.find((x) => /CONTESTAÇÃO/.test(x.subject));
+    ok('uma contestação de um pagamento sem encomenda: 200, e um email ao dono com a contestação e o pagamento',
+      r.status === 200 && aviso && aviso.to[0] === ENV_HOJE.MAIL_TO && /du_fora/.test(aviso.text) && /pi_de_fora/.test(aviso.text), [r, m.emails()]);
+    await m.webhook(ev);
+    eq('   reentregue: não manda outra vez', m.emails().filter((x) => /CONTESTAÇÃO/.test(x)).length, 1);
+    const real = m.rede.fetch;
+    m.rede.fetch = async (u, init = {}) => (String(u) === 'https://api.resend.com/emails' ? new Response('{}', { status: 500 }) : real(u, init));
+    eq('   com o Resend em baixo: 500, para a Stripe reentregar', (await m.webhook(EV.disputa(m.e, { pi: 'pi_de_fora2', du: 'du_fora2' }))).status, 500);
+  }
+
   /* ---------------------------------------------------------- L7-06 */
   console.log('\nEstados — se o Resend falhar, a Stripe volta a tentar (L7-06)');
   {

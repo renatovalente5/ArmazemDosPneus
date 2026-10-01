@@ -27,7 +27,7 @@
 
 import { stripeFetch, verifyStripeSignature } from './stripe.js';
 import { priceOrder } from './pricing.js';
-import { avisoLoja, confirmacaoCliente, referenciaMultibanco, avisoPagamentoTardio } from './mail.js';
+import { avisoLoja, confirmacaoCliente, referenciaMultibanco, avisoPagamentoTardio, avisoDisputaSemEncomenda } from './mail.js';
 import { termosDasFontes, lerFontesDoSite, lerJsonOpcional, moradaLinha } from './termos.js';
 
 const MAX_BODY_BYTES = 8 * 1024;
@@ -425,6 +425,17 @@ async function handleWebhook(request, env, ctx) {
     result = null;
   }
 
+  if (result && result.disputaSemEncomenda) {
+    let r = null;
+    try { r = await avisoDisputaSemEncomenda(env, result.disputaSemEncomenda); } catch (e) { console.error('aviso da contestação lançou', e.message); }
+    if (!(r && (r.ok || r.skipped))) return new Response('aviso por enviar', { status: 500 });
+    await Promise.all([
+      env.ORDERS.put(evtKey, '1', { expirationTtl: EVENT_TTL_SECONDS }),
+      twinKey ? env.ORDERS.put(twinKey, '1', { expirationTtl: EVENT_TTL_SECONDS }) : Promise.resolve(),
+    ]);
+    return new Response('ok');
+  }
+
   // Os emails saem ANTES de responder, e não em waitUntil. Se o Resend falhar
   // (429, 5xx), a Stripe tem de reentregar: era o único «próximo evento» que
   // voltava a tentar, e com o 200 já dado ele não vinha — a confirmação ao
@@ -509,6 +520,16 @@ async function enviarEMarcar(env, order, notify, mudanca) {
   return porEnviar;
 }
 
+/* O índice pi:<PaymentIntent> → encomenda. É por ele que uma contestação
+   (o objecto Dispute não traz a nossa metadata) e um reembolso sem metadata
+   chegam à encomenda. Só se escreve quando falta: cada escrita conta para a
+   quota do KV. */
+async function indexarPagamento(env, pi, id) {
+  if (!pi || !id) return;
+  if ((await env.ORDERS.get(`pi:${pi}`)) === id) return;
+  await env.ORDERS.put(`pi:${pi}`, id, { expirationTtl: ORDER_TTL_SECONDS });
+}
+
 /** Resolve a encomenda a partir do objeto do evento. */
 async function resolveOrder(env, obj) {
   const md = obj.metadata || {};
@@ -572,7 +593,13 @@ async function applyEvent(event, env) {
       return { retry: true, id };
     }
     // Sem qualquer referência nossa: pagamento criado fora do site (ex.: link
-    // manual no dashboard). Aceitar e ignorar.
+    // manual no dashboard). Aceitar e ignorar — menos uma contestação: tem
+    // prazo de resposta e custa o valor e a comissão, e o painel nunca a
+    // mostraria. Vai por email ao dono.
+    if (event.type === 'charge.dispute.created') {
+      console.error('CONTESTAÇÃO SEM ENCOMENDA ASSOCIADA', obj.id, obj.payment_intent);
+      return { disputaSemEncomenda: obj };
+    }
     console.log('evento sem encomenda associada', event.type, obj.id);
     return null;
   }
@@ -589,7 +616,7 @@ async function applyEvent(event, env) {
       if (obj.shipping_details) order.shipping_details = obj.shipping_details;
       if (obj.payment_intent) {
         order.payment_intent = obj.payment_intent;
-        await env.ORDERS.put(`pi:${obj.payment_intent}`, id, { expirationTtl: ORDER_TTL_SECONDS });
+        await indexarPagamento(env, obj.payment_intent, id);
       }
       if (typeof obj.amount_total === 'number' && obj.amount_total !== order.total_cents) {
         // Não bloqueia o fulfilment (o dinheiro é real), mas tem de ser visto.
@@ -625,15 +652,23 @@ async function applyEvent(event, env) {
           }
         }
       }
-      if (obj.id) await env.ORDERS.put(`pi:${obj.id}`, id, { expirationTtl: ORDER_TTL_SECONDS });
+      await indexarPagamento(env, obj.id, id);
       break;
     }
 
     case 'checkout.session.async_payment_succeeded':
-    case 'payment_intent.succeeded':
+    case 'payment_intent.succeeded': {
       order.payment_method = describeMethod(obj) || order.payment_method;
+      // O índice do pagamento também aqui, e não só no session.completed: se
+      // esse se perdeu (1 h de 409 até ao «desisto», 3 dias de 500), uma
+      // contestação semanas depois não encontrava a encomenda e era engolida
+      // com um 200 (achado L7-10).
+      const pi = event.type === 'payment_intent.succeeded' ? obj.id : obj.payment_intent;
+      if (pi && !order.payment_intent) order.payment_intent = pi;
+      await indexarPagamento(env, pi, id);
       notify.push(...markPaid(order, env));
       break;
+    }
 
     case 'payment_intent.processing':
       // Multibanco: o voucher EXPIROU e corre o buffer. NÃO é "pago".

@@ -321,6 +321,33 @@ export function avisoPagamentoTardio(env, order) {
   });
 }
 
+/* ---------- 5. Contestação sem encomenda ---------- */
+/**
+ * Só ao dono. Uma contestação (charge.dispute.created) de um pagamento que o
+ * Worker não consegue ligar a uma encomenda — um pagamento feito fora do site,
+ * ou cujo aviso se perdeu. Tem prazo de resposta (no MB WAY, 7 dias) e, se
+ * ninguém responder, perde-se o valor e a comissão.
+ */
+export function avisoDisputaSemEncomenda(env, disputa) {
+  const d = disputa || {};
+  const valor = typeof d.amount === 'number' ? eur(d.amount) : '—';
+  const text = [
+    '*** UM CLIENTE CONTESTOU UM PAGAMENTO ***',
+    '',
+    'A Stripe abriu uma contestação de um pagamento que o site não consegue',
+    'ligar a nenhuma encomenda (por isso não aparece no painel).',
+    '',
+    `Valor: ${valor}`,
+    `Motivo indicado: ${d.reason || '—'}`,
+    `Contestação: ${d.id || '—'}`,
+    `Pagamento (Stripe): ${d.payment_intent || '—'} · Cobrança: ${d.charge || '—'}`,
+    '',
+    'Responda no dashboard da Stripe (Pagamentos → Contestações) ANTES do',
+    'prazo que lá aparece. Sem resposta, a Stripe dá razão ao cliente.',
+  ].join('\n');
+  return send(env, { to: env.MAIL_TO, subject: `[Loja] CONTESTAÇÃO — ${valor}, sem encomenda associada`, text });
+}
+
 /* ---------- 3. Referência Multibanco ---------- */
 export function referenciaMultibanco(env, order) {
   const c = order.cliente || {};
