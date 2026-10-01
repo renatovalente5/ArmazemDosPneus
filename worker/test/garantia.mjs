@@ -260,8 +260,11 @@ export async function correr({ ok }) {
   const juntar = (ls) => ls.map((l) => l.trim()).join(' ');
   eq('   texto e html dizem o mesmo, palavra a palavra', juntar(gHtml.join('\n').split('\n')), juntar(gTexto));
   ok('confirmação, html: os meses a negrito, e nada por escapar', c.html.includes(`${S18.name} — <strong>18 meses</strong>`));
-  eq('aviso ao dono: o bloco da garantia, a seguir aos artigos', blocoTexto(R.dono.text, 'GARANTIA DOS PNEUS SEMINOVOS'), [`  ${S18.name} — 18 meses`]);
-  ok('   com o título que diz que o cliente a aceitou', R.dono.text.includes('\nGARANTIA DOS PNEUS SEMINOVOS (reduzida por acordo: o cliente aceitou-a antes de pagar)\n'));
+  const hora = `${R.encomenda.created_at.slice(0, 16).replace('T', ' ')} UTC`;
+  eq('aviso ao dono: o bloco da garantia, a seguir aos artigos — e o texto aceite, com a hora do checkout e a versão (a prova que fica)',
+    blocoTexto(R.dono.text, 'GARANTIA DOS PNEUS SEMINOVOS'), [`  ${S18.name} — 18 meses`, `  Texto aceite no checkout em ${hora} (versão ${GARANTIA_VERSAO}): «${textoUm}»`]);
+  ok('   com o título que diz que o cliente a aceitou, depois do TOTAL e antes da ENTREGA',
+    /\n {2}TOTAL: [^\n]+\n\nGARANTIA DOS PNEUS SEMINOVOS \(reduzida por acordo: o cliente aceitou-a antes de pagar\)\n[^]*?\n\nENTREGA\n/.test(R.dono.text));
 
   {
     // Dois seminovos com meses diferentes, e outro com a garantia inteira.

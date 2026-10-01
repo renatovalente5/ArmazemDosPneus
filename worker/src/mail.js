@@ -93,6 +93,16 @@ function garantiaTexto(g) {
 function garantiaHtml(g) {
   return p(`${esc(GARANTIA_ACORDADA)}<br>${g.artigos.map((a) => `${esc(a.nome)} — <strong>${esc(a.meses)} meses</strong>`).join('<br>')}`);
 }
+/* No aviso ao dono vai também o texto aceite, a versão e a hora do checkout: a
+   encomenda só fica no KV 400 dias depois da última escrita (menos do que os 18
+   meses da garantia), e este email é a prova que fica. */
+function garantiaDono(order, g) {
+  const quando = typeof order.created_at === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(order.created_at)
+    ? ` em ${order.created_at.slice(0, 16).replace('T', ' ')} UTC` : '';
+  return ['', 'GARANTIA DOS PNEUS SEMINOVOS (reduzida por acordo: o cliente aceitou-a antes de pagar)',
+    ...g.artigos.map((a) => `  ${a.nome} — ${a.meses} meses`),
+    `  Texto aceite no checkout${quando} (versão ${g.versao}): «${g.texto}»`];
+}
 
 function entregaTexto(order) {
   if (order.entrega !== 'ctt') return 'Levantar e montar na loja (grátis)';
@@ -150,8 +160,7 @@ export function avisoLoja(env, order) {
     `  Subtotal: ${eur(order.subtotal_cents)}`,
     `  Portes: ${order.shipping_quote_later ? 'A COMBINAR — não cobrados' : (order.shipping_cents ? eur(order.shipping_cents) : 'grátis')}`,
     `  TOTAL: ${eur(order.total_cents)}`,
-    ...(g ? ['', 'GARANTIA DOS PNEUS SEMINOVOS (reduzida por acordo: o cliente aceitou-a antes de pagar)',
-      ...g.artigos.map((a) => `  ${a.nome} — ${a.meses} meses`)] : []),
+    ...(g ? garantiaDono(order, g) : []),
     '',
     'ENTREGA',
     '  ' + entregaTexto(order),

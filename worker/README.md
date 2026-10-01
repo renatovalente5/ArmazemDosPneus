@@ -126,8 +126,9 @@ Sem pneus seminovos de garantia reduzida nada disto acontece: o pedido, a
 encomenda, a Stripe e os emails ficam byte a byte como eram (`test/garantia.mjs`
 prova-o contra o Worker de antes). Mudar o texto é uma **versão nova**
 (`GARANTIA_VERSAO`, aqui e no `assets/js/checkout.js`), e este Worker publica-se
-**antes** do site. A prova do acordo dura o que dura a encomenda no KV (400 dias
-depois da última escrita); a que fica para sempre é o aviso ao dono, por email.
+**antes** do site. A prova do acordo no KV dura o que dura a encomenda (400 dias
+depois da última escrita — menos do que os 18 meses da garantia); a que fica é o
+aviso ao dono, por email, que leva o texto aceite, a versão e a hora do checkout.
 
 ## Deploy (pela primeira vez)
 
