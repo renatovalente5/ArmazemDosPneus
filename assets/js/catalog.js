@@ -28,6 +28,21 @@
   // backoffice nunca pode transformar-se numa cobrança de 0 €.
   function sellable(p) { return p.available !== false && Number(p.price_eur) > 0 && Number(p.stock) > 0; }
 
+  /* A etiqueta UE completa (Reg. (UE) 2020/740) — a mesma regra do
+     faltasDaEtiqueta do .github/regras.mjs. O art. 6.º (n.ºs 2 e 7) obriga a
+     mostrar a etiqueta junto de QUALQUER preço anunciado de um tipo de pneu,
+     esteja ou não à venda: um pneu novo sem ela não mostra o preço («Sob
+     consulta»), nem letras soltas que parecem a etiqueta e não são. */
+  var CLASSES = ['A', 'B', 'C', 'D', 'E'];
+  function etiquetaCompleta(p) {
+    return CLASSES.indexOf(p.label_fuel) >= 0 && CLASSES.indexOf(p.label_grip) >= 0 &&
+      ['A', 'B', 'C'].indexOf(p.label_noise_class) >= 0 &&
+      typeof p.label_noise_db === 'number' && p.label_noise_db % 1 === 0 && p.label_noise_db >= 50 && p.label_noise_db <= 99 &&
+      /^[0-9]{3,12}$/.test(p.eprel_id == null ? '' : String(p.eprel_id));
+  }
+  // Os seminovos estão excluídos do regulamento (art. 2.º n.º 2 al. h)).
+  function novoSemEtiqueta(p) { return isTyre(p) && p.condition !== 'Seminovo' && !etiquetaCompleta(p); }
+
   /* Etiqueta UE (Reg. 2020/740): pneus NOVOS mostram as três classes, sendo a
      de ruído uma CLASSE A/B/C acompanhada dos dB, mais os pictogramas de neve
      e gelo. Os SEMINOVOS estão excluídos do regulamento (art. 2.º n.º 2 al. h))
@@ -44,21 +59,19 @@
       if (!it.length) return '';
       return '<div class="pcard__label pcard__label--used" aria-label="Informação do pneu seminovo">' + it.join('') + '</div>';
     }
+    if (!etiquetaCompleta(p)) return '';
     if (p.label_fuel) it.push('<span title="Eficiência energética">⛽ ' + esc(p.label_fuel) + '</span>');
     if (p.label_grip) it.push('<span title="Aderência em piso molhado">🌧 ' + esc(p.label_grip) + '</span>');
-    if (p.label_noise_class || Number(p.label_noise_db) > 0) {
-      // A classe A/B/C é a exigida pelo regulamento; enquanto não for
-      // preenchida no backoffice mostram-se só os dB, sem inventar classe.
-      var noise = [];
-      if (p.label_noise_class) noise.push(esc(p.label_noise_class));
-      if (Number(p.label_noise_db) > 0) noise.push(esc(p.label_noise_db) + ' dB');
-      it.push('<span title="Ruído exterior de rolamento">🔊 ' + noise.join(' · ') + '</span>');
-    }
+    it.push('<span title="Ruído exterior de rolamento">🔊 ' + esc(p.label_noise_class) + ' · ' + esc(p.label_noise_db) + ' dB</span>');
     if (p.snow_3pmsf) it.push('<span title="Homologado para neve (3PMSF)">❄ 3PMSF</span>');
     if (p.ice_grip) it.push('<span title="Aderência em gelo">🧊 Gelo</span>');
     if (!it.length) return '';
+    // A etiqueta oficial e a ficha de informação do produto, na base de dados
+    // europeia (EPREL), a um clique (art. 6.º n.º 7: «a ficha de informação
+    // do produto pode ser consultada»).
+    var eprel = 'https://eprel.ec.europa.eu/screen/product/tyres/' + encodeURIComponent(String(p.eprel_id));
     return '<div class="pcard__label" aria-label="Etiqueta UE do pneu">' + it.join('') +
-      (p.eprel_id ? '<span class="pcard__eprel" title="Ficha de informação do produto">EPREL ' + esc(p.eprel_id) + '</span>' : '') +
+      '<span class="pcard__eprel"><a href="' + esc(eprel) + '" target="_blank" rel="noopener" title="Abre a etiqueta UE e a ficha de informação do produto (EPREL ' + esc(p.eprel_id) + ')">Etiqueta e ficha de informação</a></span>' +
       '</div>';
   }
 
@@ -72,8 +85,9 @@
     if (p.hidden === true || p.sku.indexOf('zz-') === 0) flags += '<span class="pcard__flag pcard__flag--test">Teste</span>';
     else if (p.condition === 'Seminovo') flags += '<span class="pcard__flag pcard__flag--used">Seminovo</span>';
     else if (p.featured) flags += '<span class="pcard__flag">Destaque</span>';
-    var ok = sellable(p);
-    var hasPrice = Number(p.price_eur) > 0;
+    var semEtiqueta = novoSemEtiqueta(p);
+    var ok = sellable(p) && !semEtiqueta;
+    var hasPrice = Number(p.price_eur) > 0 && !semEtiqueta;
     return '' +
       '<article class="pcard' + (ok ? '' : ' is-out') + '" data-cat="' + esc(p.category) + '" data-search="' + esc((p.name + ' ' + (p.brand || '') + ' ' + (p.size || '') + ' ' + (p.season || '')).toLowerCase()) + '">' +
         '<div class="pcard__media">' + img + flags + '</div>' +

@@ -176,6 +176,7 @@ body.menu-open{overflow:hidden}
 .pcard__price{font-family:var(--font-head);font-weight:700;font-size:1.35rem;color:var(--ink)}
 .pcard__label--used span{background:transparent;border-style:dashed}
 .pcard__label .pcard__eprel{font-weight:500;color:var(--muted);background:transparent;border-style:dotted}
+.pcard__eprel a{color:inherit;text-decoration:underline}
 .pcard__out{font-family:var(--font-head);text-transform:uppercase;font-size:.85rem;color:var(--muted)}
 .pcard__add{flex:none}
 .pcard__ask{font-size:.82rem;color:var(--muted);text-decoration:underline;text-underline-offset:2px}

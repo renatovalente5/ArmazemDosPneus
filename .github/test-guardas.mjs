@@ -949,13 +949,31 @@ try {
     for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0));
     return els['catalog-grid'].innerHTML;
   };
-  const cartaoDe = (html, sku) => (html.split('<article').find((a) => a.includes(`data-sku="${sku}"`) || a.includes(`Olá! Tenho interesse em: ${sku}`)) || '');
   {
     const p = clonar(HOJE.products.products[SEMINOVO]);
     const doze = await cartoes([{ ...p, warranty_months: 12 }]);
     const vinte = await cartoes([{ ...p, warranty_months: 24 }]);
     certo(/pcard__title/.test(doze) && !/Garantia 12 meses/.test(doze) && /Garantia 24 meses/.test(vinte),
       'seminovo: «Garantia 12 meses» já não se anuncia (o DL 84/2021 só deixa reduzir até 18); 24 meses sim (achado L6-01)', doze.slice(0, 200));
+  }
+
+  {
+    /* Achado L6-02: os pneus novos sem a etiqueta UE apareciam com o preço
+       («155,00 € Esgotado») e com letras soltas que não são a etiqueta. O
+       Reg. (UE) 2020/740 (art. 6.º n.ºs 2 e 7) obriga a etiqueta junto de
+       qualquer preço anunciado de um tipo de pneu. */
+    const m = clonar(HOJE.products.products[MICHELIN]);
+    const sem = await cartoes([m]);
+    certo(/pcard__title/.test(sem) && !/155,00/.test(sem) && /Sob consulta/.test(sem) && !/pcard__label/.test(sem) && !/data-add/.test(sem),
+      'pneu novo sem a etiqueta completa: sem preço («Sob consulta»), sem letras soltas e sem «Adicionar»', sem.slice(0, 300));
+    const completa = { ...m, available: true, stock: 4, label_noise_class: 'B', eprel_id: '123456' };
+    const com = await cartoes([completa]);
+    certo(/155,00 €/.test(com) && /data-add/.test(com) && /href="https:\/\/eprel\.ec\.europa\.eu\/screen\/product\/tyres\/123456"/.test(com) && /Etiqueta e ficha de informação/.test(com),
+      '   com a etiqueta completa: preço, «Adicionar» e a ligação para a etiqueta e a ficha no EPREL', com.slice(0, 300));
+    const semi = clonar(HOJE.products.products[SEMINOVO]);
+    certo(/32,90 €/.test(await cartoes([semi])), '   um seminovo (fora do regulamento) continua com o preço à vista');
+    const lembrete = R.problemas(TEXTO).find((p) => p.chave === `produto:${m.sku}:a-espera`);
+    certo(lembrete && /sem preço/.test(lembrete.mensagem), '   e o lembrete do painel diz ao dono que o pneu aparece sem preço', lembrete && lembrete.mensagem);
   }
 
   /* ================================================================== */
