@@ -434,7 +434,7 @@ async function handleWebhook(request, env, ctx) {
   if (result && result.notify && result.notify.length) {
     let porEnviar;
     try {
-      porEnviar = await enviarEMarcar(env, result.order, result.notify);
+      porEnviar = await enviarEMarcar(env, result.order, result.notify, result.mudanca);
     } catch (e) {
       console.error('envio de emails falhou', e.message);
       porEnviar = result.notify.map((n) => n.flag);
@@ -469,7 +469,7 @@ async function handleWebhook(request, env, ctx) {
  * Devolve as marcas que ficaram por enviar (o webhook responde 500 e a Stripe
  * reentrega).
  */
-async function enviarEMarcar(env, order, notify) {
+async function enviarEMarcar(env, order, notify, mudanca) {
   const orderId = order.order_id;
   const porEnviar = [];
   for (const n of notify) {
@@ -494,8 +494,17 @@ async function enviarEMarcar(env, order, notify) {
       porEnviar.push(n.flag);
       continue;
     }
+    // A marca grava-se sobre a encomenda relida AGORA, com o que este evento
+    // mudou outra vez por cima (juntarEncomenda): se outro evento, ao mesmo
+    // tempo, gravou por cima do nosso (o pagamento, o payment_intent), esta
+    // escrita, que vem depois dos emails, repõe-no — em vez de gravar a marca
+    // na cópia de quem nos apagou (achado L7-08).
     const atual = await getOrder(env, orderId);
-    if (atual && !atual[n.flag]) { atual[n.flag] = true; await putOrder(env, atual); }
+    if (atual && !atual[n.flag]) {
+      const final = mudanca ? juntarEncomenda(mudanca.lida, mudanca.minha, atual) : atual;
+      final[n.flag] = true;
+      await putOrder(env, final);
+    }
   }
   return porEnviar;
 }
@@ -662,8 +671,53 @@ async function applyEvent(event, env) {
       break;
   }
 
-  if (JSON.stringify(order) !== lida) await putOrder(env, order);
-  return { order, notify };
+  const mudanca = { lida: JSON.parse(lida), minha: order };
+  if (JSON.stringify(order) === lida) return { order, notify, mudanca };
+  // Os dois eventos de um pagamento por cartão saem da Stripe no mesmo
+  // segundo, e cada um lê, muda e regrava a encomenda inteira (o KV não tem
+  // escrita condicional). Gravar a cópia lida no início apagava o que o outro
+  // gravou entretanto (payment_intent, amount_total_cents), e um
+  // payment_failed atrasado deixava em «falhou» uma encomenda paga (achado
+  // L7-08). Relê-se mesmo antes de gravar e junta-se só o que ESTE evento
+  // mudou; o estado nunca recua. A janela fica de milissegundos — fechá-la
+  // de vez é um Durable Object ou o D1.
+  const final = juntarEncomenda(mudanca.lida, order, await getOrder(env, id));
+  await putOrder(env, final);
+  return { order: final, notify, mudanca };
+}
+
+/* A firmeza dos estados: o dinheiro entrou, saiu, ou está contestado — um
+   facto posterior ganha a um anterior. */
+const FIRMEZA = { paga: 1, parcialmente_reembolsada: 2, reembolsada: 3, contestada: 4 };
+/* As esperas antes do pagamento: a referência Multibanco vem depois da sessão. */
+const ESPERA = { criada: 0, aguarda_pagamento: 1, aguarda_multibanco: 2 };
+
+/**
+ * A encomenda que se grava: a que está no KV AGORA (`noKv`), com o que este
+ * evento mudou (de `lida` para `minha`) por cima. O estado não recua (um firme
+ * nunca dá lugar a um não firme, nem a um menos firme; a referência Multibanco
+ * não volta a «aguarda_pagamento»), o reembolsado só cresce, e o que o outro
+ * evento gravou (payment_intent, paid_at, amount_*, marcas notified_*) fica.
+ */
+export function juntarEncomenda(lida, minha, noKv) {
+  if (!noKv) return minha;
+  const out = { ...noKv };
+  for (const k of new Set([...Object.keys(lida || {}), ...Object.keys(minha)])) {
+    if (JSON.stringify((lida || {})[k]) === JSON.stringify(minha[k])) continue;
+    if (minha[k] === undefined) delete out[k]; else out[k] = minha[k];
+  }
+  const fK = FIRMEZA[noKv.status] || 0;
+  const fM = FIRMEZA[out.status] || 0;
+  if (fK > fM) out.status = noKv.status;
+  else if (!fK && !fM && noKv.status in ESPERA && out.status in ESPERA && ESPERA[noKv.status] > ESPERA[out.status]) out.status = noKv.status;
+  if (Number.isFinite(noKv.refunded_cents)) {
+    out.refunded_cents = Math.max(noKv.refunded_cents, Number.isFinite(out.refunded_cents) ? out.refunded_cents : 0);
+  }
+  for (const k of ['paid_at', 'payment_intent', 'amount_total_cents', 'amount_mismatch', 'dispute_id', 'multibanco', 'session_id', 'payment_method']) {
+    if ((out[k] === undefined || out[k] === null) && noKv[k] !== undefined && noKv[k] !== null) out[k] = noKv[k];
+  }
+  for (const k of Object.keys(noKv)) if (k.startsWith('notified_') && noKv[k] === true) out[k] = true;
+  return out;
 }
 
 function describeMethod(pi) {

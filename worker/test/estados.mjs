@@ -62,6 +62,45 @@ export async function montar({ settings = SETTINGS_HOJE, pedido = PEDIDOS.loja, 
   };
 }
 
+const dorme = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/* Um webhook assinado, como a Stripe o manda. */
+async function pedidoAssinado(ev, segredo = ENV_HOJE.STRIPE_WEBHOOK_SECRET) {
+  const corpo = JSON.stringify(ev);
+  const t = Math.floor(Date.now() / 1000);
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(segredo), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const mac = await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(`${t}.${corpo}`));
+  const sig = [...new Uint8Array(mac)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  return new Request('https://pay.exemplo/stripe/webhook', { method: 'POST', headers: { 'stripe-signature': `t=${t},v1=${sig}` }, body: corpo });
+}
+
+/**
+ * Eventos AO MESMO TEMPO, com latência no KV (como na Cloudflare). O fetch
+ * global fica fixo durante a corrida: o palco troca-o a cada pedido e
+ * devolve o original quando o primeiro acaba, o que em paralelo mandava os
+ * outros para a rede de verdade.
+ */
+async function emParalelo(m, eventosComAtraso, { getMs = 10, putMs = 30 } = {}) {
+  const { kv } = m;
+  const [g, p] = [kv.get, kv.put];
+  kv.get = async (k) => { await dorme(getMs); return g.call(kv, k); };
+  kv.put = async (k, v, o) => { await dorme(putMs); return p.call(kv, k, v, o); };
+  const antes = globalThis.fetch;
+  globalThis.fetch = m.rede.fetch;
+  try {
+    return await calado(() => Promise.all(eventosComAtraso.map(async ([ev, atraso]) => {
+      await dorme(atraso);
+      const pendentes = [];
+      const r = await worker.fetch(await pedidoAssinado(ev), { ...ENV_HOJE, ORDERS: kv }, { waitUntil: (x) => pendentes.push(x), passThroughOnException() {} });
+      await Promise.all(pendentes);
+      return r.status;
+    })));
+  } finally {
+    globalThis.fetch = antes;
+    [kv.get, kv.put] = [g, p];
+  }
+}
+
 /* O Worker escreve na consola o que faz; aqui não interessa (e enche a saída). */
 export async function calado(fn) {
   const [log, error, warn] = [console.log, console.error, console.warn];
@@ -122,6 +161,52 @@ export async function correr({ ok }) {
     const toml = (await import('node:fs')).readFileSync(new URL('../wrangler.toml', import.meta.url), 'utf8');
     ok('   o wrangler.toml declara o binding (TRAVAO_CHECKOUT, 5 por minuto, um namespace que não é o do carimbo)',
       /\[\[ratelimits\]\]\s*\nname = "TRAVAO_CHECKOUT"\s*\nnamespace_id = "1101"\s*\nsimple = \{ limit = 5, period = 60 \}/.test(toml));
+  }
+
+  /* ---------------------------------------------------------- L7-08 */
+  console.log('\nEstados — dois eventos do mesmo pagamento ao mesmo tempo (L7-08)');
+  /* O KV não tem escrita condicional: dois eventos que leem e gravam no
+     mesmo instante ainda podem perder um campo um do outro (fechar isso de
+     vez é um Durable Object ou o D1, decisão do Renato). O que se garante:
+     a junção não perde o que já está no KV, o estado nunca recua, e a marca
+     grava-se com o que o evento mudou outra vez por cima. */
+  {
+    const J0 = (await import('../src/index.js')).juntarEncomenda;
+    ok('o index.js exporta juntarEncomenda', typeof J0 === 'function');
+    const J = typeof J0 === 'function' ? J0 : (l, m) => m;
+    const pago = J({ status: 'aguarda_pagamento' }, { status: 'paga', paid_at: 'T1' }, { status: 'aguarda_pagamento', payment_intent: 'pi_1', amount_total_cents: 100 });
+    eq('juntar: o succeeded que leu antes da sessão não apaga o payment_intent nem o valor que ela gravou', [pago.status, pago.paid_at, pago.payment_intent, pago.amount_total_cents], ['paga', 'T1', 'pi_1', 100]);
+    const falhou = J({ status: 'aguarda_pagamento' }, { status: 'falhou' }, { status: 'paga', paid_at: 'T1', notified_paid: true });
+    eq('juntar: um payment_failed que leu antes do pagamento não o desfaz', [falhou.status, falhou.paid_at, falhou.notified_paid], ['paga', 'T1', true]);
+    const mb = J({ status: 'criada' }, { status: 'aguarda_pagamento' }, { status: 'aguarda_multibanco', multibanco: { reference: '1' } });
+    eq('juntar: a sessão não paga não tira a encomenda de «aguarda_multibanco»', [mb.status, mb.multibanco.reference], ['aguarda_multibanco', '1']);
+    const ree = J({ status: 'paga' }, { status: 'parcialmente_reembolsada', refunded_cents: 1000 }, { status: 'reembolsada', refunded_cents: 5000 });
+    eq('juntar: o reembolsado só cresce, e o estado mais firme fica', [ree.status, ree.refunded_cents], ['reembolsada', 5000]);
+  }
+  {
+    const mal = [];
+    for (const atraso of [0, 5, 15, 30, 50, 80]) {
+      const m = await montar();
+      await emParalelo(m, [[EV.sessao(m.e), 0], [EV.pago(m.e), atraso]]);
+      const o = m.encomenda();
+      if (!(o.status === 'paga' && o.paid_at && o.notified_paid)) mal.push(`${atraso} ms: ${JSON.stringify({ status: o.status, paid_at: o.paid_at, notified: o.notified_paid })}`);
+    }
+    ok('checkout.session.completed e payment_intent.succeeded juntos (0 a 80 ms): fica paga, com a hora do pagamento e a marca dos emails', mal.length === 0, mal.join(' | '));
+  }
+  {
+    const falhas = [];
+    for (const atraso of [0, 5, 15, 30, 50]) {
+      const m = await montar();
+      await emParalelo(m, [[EV.pago(m.e), 0], [EV.falhou(m.e), atraso]]);
+      const o = m.encomenda();
+      if (!(o.status === 'paga' && o.paid_at)) falhas.push(`${atraso} ms: ${o.status}`);
+    }
+    ok('um payment_failed atrasado ao mesmo tempo que o succeeded: a encomenda paga não fica «falhou»', falhas.length === 0, falhas.join(' | '));
+  }
+  {
+    const m = await montar({ pedido: PEDIDOS.ctt });
+    await emParalelo(m, [[EV.multibanco(m.e), 0], [EV.sessao(m.e, { pago: false }), 0]]);
+    eq('a referência Multibanco e a sessão (não paga) ao mesmo tempo: fica à espera da referência', m.encomenda().status, 'aguarda_multibanco');
   }
 
   /* ---------------------------------------------------------- L7-06 */
