@@ -19,7 +19,7 @@
 #
 # Uso (bash; no Mac o python3 do sistema é o do Xcode):
 #   PYTHON=<python com Pillow> scripts/comparar-site.sh <base> [depois]
-# Ex.: PYTHON=… scripts/comparar-site.sh a01-ci-guardas HEAD
+# Ex.: PYTHON=… scripts/comparar-site.sh main HEAD   (a mudança contra o site publicado)
 # =============================================================
 set -euo pipefail
 BASE="${1:?uso: comparar-site.sh <base> [depois]}"
@@ -94,48 +94,37 @@ A, B = Path(sys.argv[1]), Path(sys.argv[2])
 # ---------------------------------------------------------------------------
 # AS DIFERENÇAS ESPERADAS — cada uma com a razão. Uma diferença que não esteja
 # aqui falha; uma daqui que não apareça também (a lista tem de dizer a verdade).
+# São as da mudança que se está a provar, contra o site publicado:
+#     PYTHON=… scripts/comparar-site.sh main HEAD
+# Agora: a fase G (out 2026) — sai o Pages CMS, e o /admin e a «Gestão» passam
+# para o painel. A lista anterior (a fase A2, a revisão de 1 out e a garantia
+# dos seminovos, contra o a01-ci-guardas) está no histórico:
+#     git show a26acb9:scripts/comparar-site.sh
 # ---------------------------------------------------------------------------
 # (ficheiro, texto que sai, texto que entra, razão)
+GESTAO_ANTES = '<a href="admin/" class="footer__admin">Gestão</a>'
+GESTAO_DEPOIS = '<a href="https://backoffice.armazemdospneus.pt/" class="footer__admin" rel="nofollow">Gestão</a>'
 HTML = [
-    ('index.html', '<strong>+9 marcas</strong>', '<strong>+8 marcas</strong>',
-     'o chip das marcas passa a ser contado da lista (8 marcas); dizia 9 à mão (§5.1)'),
-    ('index.html', 'Os horários são os mesmos que o site mostra', 'são escritos na publicação',
-     'comentário do JSON-LD: passa a dizer de onde vêm os dados (só o comentário)'),
-    ('obrigado.html', '<p class="co__note">Chamada para a rede móvel nacional.</p>', '<p class="co__note">(Chamada para a rede móvel nacional)</p>',
-     'a nota do preço da chamada passa a ser a do painel, igual em todas as páginas'),
-    ('legal/livre-resolucao.html', '(chamada para a rede móvel nacional)', '(Chamada para a rede móvel nacional)',
-     'a nota do preço da chamada passa a ser a do painel, igual em todas as páginas'),
-    ('checkout.html', '<span id="recap-max">30</span> dias.', '<span id="recap-max">30 dias</span>.',
-     'o resumo do checkout ganha os marcadores dos prazos (o texto que se vê é o mesmo): o «dias» entra no marcador prazo-maximo (revisão L6-06/L7-02)'),
-    ('legal/termos.html', 'Estando o estabelecimento sediado em <strong>Ovar</strong>', 'A entidade competente, em razão da sede do estabelecimento, é o',
-     'Termos §7: sai a justificação da RAL escrita à mão («sediado em Ovar»), que ficava falsa se o dono mudasse a sede no painel (revisão L6-04)'),
-    # Decisões do dono de 1 out 2026 (garantia dos seminovos por acordo; sem foro).
-    ('checkout.html', '', '<label class="co__check co__check--legal" id="co-garantia" hidden>',
-     'a caixa OBRIGATÓRIA do acordo da garantia dos pneus seminovos (DL 84/2021, art. 12.º): escondida; o checkout.js mostra-a só com um seminovo de garantia reduzida no carrinho'),
-    ('legal/termos.html', 'Última atualização: julho de 2026', 'Última atualização: outubro de 2026',
-     'a data escrita dos Termos passa a outubro de 2026: o texto mudou (§6 e §9, decisões do dono de 1 out)'),
-    ('legal/termos.html', 'podem ter prazo reduzido nos termos legais). A garantia não cobre o desgaste normal, danos por má utilização, montagem indevida ou acidentes.',
-     'nunca inferior a 18 meses</strong>, e a redução é <strong>aceite expressamente pelo cliente antes de concluir a compra</strong> (art. 12.º do DL n.º 84/2021). A garantia não cobre o desgaste normal, danos por má utilização, montagem indevida feita por terceiros ou acidentes.',
-     'Termos §6: nos pneus seminovos a garantia de cada artigo, nunca menos de 18 meses, aceite antes da compra (DL 84/2021, art. 12.º); a montagem que a garantia não cobre é a feita por terceiros (Dir. 2019/771, art. 8.º)'),
-    ('legal/termos.html', 'sendo competentes os tribunais da comarca de Aveiro, ', 'Aos presentes termos aplica-se a lei portuguesa, sem prejuízo das normas imperativas de proteção do consumidor.</p>',
-     'Termos §9: sai o foro da comarca de Aveiro (decisão do dono de 1 out); fica a lei portuguesa e as normas imperativas de proteção do consumidor'),
+    ('index.html', GESTAO_ANTES, GESTAO_DEPOIS,
+     'a «Gestão» do rodapé leva ao painel novo (e não à página do Pages CMS, que saiu); rel="nofollow" porque o painel tem Disallow no robots.txt'),
+    ('loja.html', GESTAO_ANTES, GESTAO_DEPOIS,
+     'a «Gestão» do rodapé leva ao painel novo (e não à página do Pages CMS, que saiu); rel="nofollow" porque o painel tem Disallow no robots.txt'),
 ]
 # (ficheiro, caminho no JSON-LD (expressão regular), razão)
-JSONLD = [
-    ('index.html', r'^@graph\[0\]\.hasOfferCatalog\.itemListElement\[\d+\]\.itemOffered\.(name|description)$',
-     'os serviços dos dados estruturados passam a ser os do painel: o nome é o título visível e a descrição o texto visível (antes eram nomes escritos à mão, diferentes dos da página)'),
-]
-# ficheiros: (caminho (expressão regular), 'novo'|'mudou', razão, tem de aparecer?)
-# As do A3 podem não aparecer: o plano publica o A3 antes do A2, e então a base
-# já as tem.
+JSONLD = []
+# ficheiros: (caminho (expressão regular), 'novo'|'mudou'|'saiu', razão, tem de aparecer?)
 FICHEIROS = [
-    (r'^data/site\.json$', 'novo', 'os contactos, horário, serviços e textos (painel: Contactos e horário, Serviços, Textos)', True),
-    (r'^data/empresa\.json$', 'novo', 'os dados da empresa (painel: Dados da empresa)', True),
-    (r'^assets/js/checkout\.js$', 'mudou', 'o WhatsApp e o telefone passam a vir das metas ap:*; da revisão de 1 out, o peso em inteiros, «3 dias úteis» e as condições mostradas no pedido; e (decisão do dono de 1 out) a caixa obrigatória da garantia dos pneus seminovos, com a aceitação no pedido e o 400 do Worker tratado', True),
-    (r'^assets/js/(catalog|main|obrigado)\.js$', 'mudou', 'o WhatsApp e o telefone passam a vir das metas ap:* (com o valor de hoje como recurso); e, da revisão de 1 out, o catálogo sem preço para os pneus novos sem etiqueta UE e sem garantias abaixo de 18 meses', True),
-    (r'^assets/js/cart\.js$', 'mudou', 'A3: o carrinho actualiza o nome e a fotografia com o catálogo, e uma fotografia que falhe mostra o logótipo', False),
-    (r'^assets/css/styles\.css$', 'mudou', 'A3: .citem__img--ph, o logótipo no lugar da fotografia que falta no carrinho; e a ligação para a etiqueta UE no EPREL no cartão do pneu (revisão L6-02)', True),
+    (r'^admin/index\.html$', 'saiu', 'a página do Pages CMS (a porta de entrada dele) sai com ele: o /admin reencaminha para o painel', True),
+    (r'^_redirects$', 'mudou', 'o /admin e o /admin/* reencaminham (301) para https://backoffice.armazemdospneus.pt/; saem as três regras da pasta admin/, que deixou de existir', True),
+    (r'^robots\.txt$', 'mudou', 'só comentários: o /admin deixou de ser uma página com noindex e reencaminha para o painel', True),
+    (r'^assets/js/cart\.js$', 'mudou', 'só um comentário: quem grava /assets/… é o painel (como o Pages CMS gravava)', True),
 ]
+# Num ficheiro de texto que muda, as linhas que saem e as que entram mostram-se
+# sempre; nos daqui conferem-se uma a uma (outra linha qualquer falha).
+LINHAS = {
+    '_redirects': ({'/admin/ /admin/index.html 200', '/admin /admin/ 301', '/admin/index /admin/ 301'},
+                   {'/admin https://backoffice.armazemdospneus.pt/ 301', '/admin/* https://backoffice.armazemdospneus.pt/ 301'}),
+}
 # ---------------------------------------------------------------------------
 
 JSONLD_RE = re.compile(r'(<script\b[^>]*type="application/ld\+json"[^>]*>)(.*?)(</script>)', re.S)
@@ -143,7 +132,7 @@ JSONLD_RE = re.compile(r'(<script\b[^>]*type="application/ld\+json"[^>]*>)(.*?)(
 def normalizar(texto):
     """Os marcadores, os atributos data-ap-* e as metas ap:* saem; o JSON-LD
     fica de parte (compara-se como dados)."""
-    metas = len(re.findall(r'<meta name="ap:[^"]*" content="[^"]*" data-ap-meta />', texto))
+    metas = re.findall(r'<meta name="ap:[^"]*" content="[^"]*" data-ap-meta />', texto)
     t = re.sub(r'\n[ \t]*<meta name="ap:[^"]*" content="[^"]*" data-ap-meta />', '', texto)
     t = re.sub(r'<!--\s*/?ap:[^>]*?-->', '', t)
     t = re.sub(r'\s+data-ap-(?:href|attr)="[^"]*"', '', t)
@@ -190,7 +179,9 @@ for rel in sorted(fb - fa):
     print(f'  {"esperado" if r else "INESPERADO"}: novo {rel}' + (f' — {r}' if r else ''))
     if not r: inesperadas.append(f'ficheiro novo {rel}')
 for rel in sorted(fa - fb):
-    print(f'  INESPERADO: desapareceu {rel}'); inesperadas.append(f'ficheiro a menos {rel}')
+    r = esperado_ficheiro(rel, 'saiu')
+    print(f'  {"esperado" if r else "INESPERADO"}: saiu {rel}' + (f' — {r}' if r else ''))
+    if not r: inesperadas.append(f'ficheiro a menos {rel}')
 
 total_metas = 0; paginas = 0; iguais_html = 0
 for rel in sorted(fa & fb):
@@ -200,13 +191,25 @@ for rel in sorted(fa & fb):
             r = esperado_ficheiro(rel, 'mudou')
             print(f'  {"esperado" if r else "INESPERADO"}: mudou {rel}' + (f' — {r}' if r else ''))
             if not r: inesperadas.append(f'ficheiro mudado {rel}')
+            try:
+                la, lb = ba.decode('utf-8').split('\n'), bb.decode('utf-8').split('\n')
+            except UnicodeDecodeError:
+                continue
+            sai = [l for l in la if l not in lb]; entra = [l for l in lb if l not in la]
+            for sinal, ls in (('-', sai), ('+', entra)):
+                for l in ls[:12]: print(f'      {sinal} {curto(l)}')
+                if len(ls) > 12: print(f'      {sinal} … e mais {len(ls) - 12}')
+            if rel in LINHAS and (set(sai), set(entra)) != LINHAS[rel]:
+                inesperadas.append(f'{rel}: as linhas que mudaram não são as esperadas')
         continue
     paginas += 1
     ta, ja, ma = normalizar(ba.decode('utf-8'))
     tb, jb, mb = normalizar(bb.decode('utf-8'))
-    total_metas += mb
-    if ma:
-        inesperadas.append(f'{rel}: a base já tinha metas ap:*')
+    total_metas += len(mb)
+    # A comparação do HTML põe as metas de parte. Uma base de antes do A2 não
+    # as tem; uma que já as tenha (o main) tem de ter as mesmas.
+    if ma and ma != mb:
+        inesperadas.append(f'{rel}: as metas ap:* mudaram ({ma} → {mb})')
     # (1) o HTML
     if ta == tb:
         iguais_html += 1
@@ -284,9 +287,9 @@ else:
     if '</' in (B / 'index.html').read_text(encoding='utf-8').split('data-ap-jsonld')[1].split('</script>')[0]:
         inesperadas.append('o JSON-LD tem um «</» por escapar')
 
-print(f'\n=== {paginas} páginas: {iguais_html} com o HTML igual byte a byte (sem os marcadores); {total_metas} metas ap:* acrescentadas')
-if total_metas != 2 * (paginas - 1):   # todas menos a do Pages CMS (admin/)
-    inesperadas.append(f'esperava {2 * (paginas - 1)} metas ap:* (2 por página, menos a admin/), há {total_metas}')
+print(f'\n=== {paginas} páginas: {iguais_html} com o HTML igual byte a byte (sem os marcadores); {total_metas} metas ap:* (2 por página)')
+if total_metas != 2 * paginas:   # todas: a única sem elas era a do Pages CMS (admin/), que saiu na fase G
+    inesperadas.append(f'esperava {2 * paginas} metas ap:* (2 por página), há {total_metas}')
 por_usar = [f'HTML: {HTML[i][0]} «{HTML[i][1]}»' for i in range(len(HTML)) if ('h', i) not in usadas] + \
            [f'JSON-LD: {JSONLD[i][0]} {JSONLD[i][1]}' for i in range(len(JSONLD)) if ('j', i) not in usadas] + \
            [f'ficheiro: {FICHEIROS[i][0]}' for i in range(len(FICHEIROS)) if ('f', i) not in usadas and FICHEIROS[i][3]]
