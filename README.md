@@ -6,9 +6,10 @@ _"Os nossos clientes são a nossa prioridade!"_
 
 **https://armazemdospneus.pt** — site estático (HTML/CSS/JS) num **Worker da Cloudflare** só de
 ficheiros (`wrangler.jsonc`, publicado pelo CI em `.github/workflows/pages.yml`; o GitHub Pages
-foi deixado em setembro de 2026 porque os termos dele proíbem lojas), com
-**backoffice** (Pages CMS) e **pagamentos online** (cartão, MB WAY, Multibanco, Klarna) via
-**Stripe**, através de um **Cloudflare Worker**.
+foi deixado em setembro de 2026 porque os termos dele proíbem lojas), com um **painel** próprio
+para o dono (https://backoffice.armazemdospneus.pt/, num repositório privado à parte) e
+**pagamentos online** (cartão, MB WAY, Multibanco, Klarna) via **Stripe**, através de um
+**Cloudflare Worker**.
 
 A chave secreta vive apenas como segredo na Cloudflare. Nunca no repositório, nunca no browser.
 
@@ -18,8 +19,6 @@ index.html          Página principal (loja + serviços)
 loja.html           Catálogo completo
 checkout.html       Finalizar encomenda
 obrigado.html       Retorno do pagamento (pago / à espera de referência / erro)
-admin/              Acesso ao backoffice (Pages CMS)
-.pages.yml          Configuração do backoffice
 worker/             Cloudflare Worker de pagamentos — ver worker/README.md
 assets/css|js|img|fonts|uploads
 data/               products.json, content.json, settings.json; site.json (contactos, horário,
@@ -35,7 +34,7 @@ _source/            Fotos em alta + logo vetorial (NÃO publicado — ver .gitig
 | Ficheiro | Para quem |
 |---|---|
 | **[ENCOMENDAS.md](ENCOMENDAS.md)** | Quem trata das encomendas. Fatura no mesmo dia, estados, reembolsos |
-| **[BACKOFFICE.md](BACKOFFICE.md)** | Quem edita produtos e imagens |
+| **[BACKOFFICE.md](BACKOFFICE.md)** | O dono: o painel (backoffice.armazemdospneus.pt), ecrã a ecrã |
 | **[worker/README.md](worker/README.md)** | Quem mexe no código dos pagamentos |
 
 ## Ver localmente
@@ -55,8 +54,13 @@ O CI (`.github/workflows/pages.yml`) tem três jobs:
 - **avisar** — abre (trancada), comenta ou fecha a issue «Publicação parada» — só a aberta
   pelo bot; um erro do `gh` fica como aviso e não marca a corrida como falhada.
 
-A barreira dos três jobs só existe **sem a App do Pages CMS** instalada: ela tem a permissão
-Workflows (e Administration, e Actions). Desinstalá-la antes do merge, ou no mesmo momento.
+O painel substituiu o **Pages CMS** (o editor antigo) em outubro de 2026: saiu o `.pages.yml`
+(e o `preparar-site.sh` pára se ele voltar — dois editores sobre os mesmos ficheiros
+atropelam-se), e o `/admin`, que era a página dele, reencaminha (301) para o painel. A barreira
+dos três jobs só existe **sem a App do Pages CMS** no acesso a este repositório: ela tem a
+permissão Workflows (e Administration, e Actions). Tirar o repositório da instalação dela
+(github.com/settings/installations → Pages CMS → Configure) — sem desinstalar a App, que serve
+outros sites.
 
 Se a publicação parar depois da guarda (no injector, ou numa fotografia que não se abre), a
 mensagem sai como `::error` (o painel mostra-a) e vai para a issue.

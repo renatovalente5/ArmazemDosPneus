@@ -24,8 +24,8 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function cents(v) { return Math.round(parseFloat(String(v).replace(',', '.')) * 100) || 0; }
   function fmt(c) { return (c / 100).toFixed(2).replace('.', ',') + ' €'; }
-  /* Igual ao catalog.js: o painel e o Pages CMS gravam /assets/…, o HTML usa
-     caminhos relativos. */
+  /* Igual ao catalog.js: o painel grava /assets/… (como o Pages CMS gravava), o
+     HTML usa caminhos relativos. */
   function normImg(p) { if (!p) return ''; if (/^https?:\/\//.test(p)) return p; return String(p).replace(/^\/+/, ''); }
   /* Sem fotografia (ou com uma que já não existe) aparece o logótipo, como no
      cartão da loja — nunca um quadrado vazio nem uma imagem partida. */

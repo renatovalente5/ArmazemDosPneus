@@ -20,10 +20,30 @@ cd "$SITE"
 # As regras de _redirects aplicam-se ANTES dos ficheiros, mesmo que exista um
 # ficheiro na morada — por isso nunca há uma regra genérica (/:pagina), que
 # apanharia o robots.txt e o sitemap.xml.
+#
+# O /admin ERA a página do Pages CMS, o editor antigo, que saiu (out 2026): o
+# dono usa o painel em backoffice.armazemdospneus.pt. Quem tiver o endereço
+# antigo guardado vai lá parar, por um 301 para fora do domínio. O /admin/*
+# casa também o /admin/ e o /admin/index.html, mas não o /admin: cada um tem a
+# sua regra (ensaiado no wrangler dev). Uma pasta admin/ ou uma admin.html na
+# _site nunca seriam servidas (a regra vem antes dos ficheiros), por isso param
+# aqui, com a razão (::error para o painel), em vez de ficarem mortas em
+# silêncio.
+PAINEL='https://backoffice.armazemdospneus.pt/'
+for x in admin admin.html; do
+  if [ -e "$x" ]; then
+    MSG="A _site tem «$x», mas o /admin reencaminha para o painel ($PAINEL) e nada lá seria servido: tem de sair do repositório. Só o Renato o pode corrigir."
+    echo "::error title=Publicação::$MSG"
+    echo "ERRO: $MSG" >&2
+    exit 1
+  fi
+done
 {
   echo "# Gerado por .github/preparar-cloudflare.sh no CI — não editar à mão."
   echo "/ /index.html 200"
   echo "/index / 301"
+  echo "/admin $PAINEL 301"
+  echo "/admin/* $PAINEL 301"
   find . -mindepth 2 -name index.html | sed 's|^\./||; s|/index\.html$||' | sort | while read -r pasta; do
     echo "/$pasta/ /$pasta/index.html 200"
     echo "/$pasta /$pasta/ 301"

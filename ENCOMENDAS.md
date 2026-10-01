@@ -44,8 +44,11 @@ Stripe, e avisar o Renato.
 
 ## Ver as encomendas
 
-**No telemóvel** (mais prático): instalar a app **Stripe Dashboard** e ligar as
-notificações. Cada pagamento dá um aviso, e dá para reembolsar ali mesmo.
+**No painel** (`backoffice.armazemdospneus.pt`): o ecrã **«Encomendas»** mostra o que falta
+preparar, entregar e faturar, e na ficha de cada uma marca-se o que já está feito.
+
+**No telemóvel**: instalar também a app **Stripe Dashboard** e ligar as notificações. Cada
+pagamento dá um aviso, e dá para reembolsar ali mesmo.
 
 **No computador:** `dashboard.stripe.com/payments`
 
@@ -71,8 +74,9 @@ alguns dias de atraso depois disso.
 
 **Durante esse tempo o stock não fica reservado** — e é isso que está escrito nos termos
 do site, portanto está protegido. Mas na prática significa que, se for uma peça única
-(uma jante, um pneu seminovo), é melhor marcá-la como indisponível no backoffice logo que
-alguém peça a referência, para não vender duas vezes a mesma peça.
+(uma jante, um pneu seminovo), é melhor tirá-la de venda no painel (**Produtos** → a ficha →
+desligar **«À venda online»**) logo que alguém peça a referência, para não vender duas vezes a
+mesma peça.
 
 **Nunca preparar nem despachar uma encomenda antes do email PAGAMENTO CONFIRMADO.**
 
@@ -80,7 +84,9 @@ alguém peça a referência, para não vender duas vezes a mesma peça.
 
 ## Reembolsar
 
-`dashboard.stripe.com/payments` → clicar no pagamento → **Refund**. Também dá pela app.
+No painel, na ficha da encomenda → **«Abrir na Stripe»** → **Refund** (ou
+`dashboard.stripe.com/payments` → clicar no pagamento → **Refund**; também dá pela app).
+Passados uns minutos, a encomenda aparece no painel como reembolsada.
 
 Duas coisas a saber:
 
@@ -88,7 +94,7 @@ Duas coisas a saber:
   fica com cerca de 9 € de custo. Não é a Stripe a ser injusta — é assim em todos os
   sistemas de pagamento.
 - **É preciso emitir nota de crédito** no programa de faturação. O reembolso na Stripe não
-  substitui o documento fiscal.
+  substitui o documento fiscal. Depois, marca-se a nota de crédito na ficha da encomenda.
 
 O cliente tem **14 dias** desde que recebe os artigos para desistir da compra sem dar
 explicação, e o reembolso tem de ser feito em 14 dias, **incluindo os portes de entrega**.
@@ -113,29 +119,30 @@ ficar.
 Os pneus estão de fora por enquanto. A lei obriga a mostrar, em cada pneu novo vendido
 à distância, informação que ainda falta no catálogo.
 
-Para cada **pneu novo**, no backoffice:
-- **Etiqueta UE — Classe de ruído (A/B/C)** — o valor em dB já lá está, falta a letra
-- **ID EPREL** — o número da ficha do produto, que vem do fabricante
-- Classe do pneu (C1, C2 ou C3) e os pictogramas de neve/gelo, se aplicáveis
+Para cada **pneu novo**, no painel (**Produtos** → a ficha do pneu → **«Etiqueta UE do pneu»**):
+- **Ruído (classe)** — A, B ou C; o valor em dB já lá está, falta a letra
+- **N.º EPREL** — o número da ficha do produto, que vem do fabricante
+- **Classe do pneu** (C1, C2 ou C3) e **Neve (símbolo 3PMSF)** ou **Gelo**, se aplicáveis
 
-Para cada **pneu seminovo**:
-- **Código DOT** (a semana e o ano de fabrico, ex. `3221`)
-- **Sulco medido em mm**
-- **Garantia em meses** — de 18 a 36. A lei dá 3 anos (36 meses); num pneu usado
+Para cada **pneu seminovo** (na ficha, **«Pneu seminovo»**):
+- **DOT (semana e ano)** — a semana e o ano de fabrico, ex. `3221`
+- **Sulco** — medido em mm
+- **Garantia** — de 18 a 36 meses. A lei dá 3 anos (36 meses); num pneu usado
   pode descer até 18, mas só com o acordo do cliente: com menos de 36, o checkout
   mostra-lhe a garantia de cada pneu e só deixa pagar depois de ele a aceitar, e a
   confirmação da encomenda (e o email que lhe chega a si) dizem-na.
 
-Depois de preencher, marcar **Disponível** e o pneu passa a vender-se. Não é preciso mexer
-em código nem chamar ninguém.
+Depois de preencher, ligar **«À venda online»** e o pneu passa a vender-se; se faltar
+alguma coisa, o painel diz o quê, por baixo do interruptor. Não é preciso mexer em código nem
+chamar ninguém.
 
 ---
 
-## Ainda por preencher (no backoffice, sem precisar de ninguém)
+## Ainda por preencher (no painel, sem precisar de ninguém)
 
-- **Preço da montagem** — nas definições da loja, em *Montagem*. O checkout mostra-o a quem
-  pede montagem.
-- **Custo real de devolução de um pneu ou jante** — nas definições da loja, em *Devoluções*.
+- **Preço da montagem** — em **Loja online → Montagem**. O checkout mostra-o a quem pede
+  montagem.
+- **Custo real de devolução de um pneu ou jante** — em **Loja online → Devoluções**.
   Enquanto estiver vazio, a loja suporta esses custos por lei. Preenchido com o custo real
   da transportadora, o checkout, os Termos e condições e os emails das encomendas passam a
   dizer que o cliente paga esse valor.
@@ -147,18 +154,22 @@ em código nem chamar ninguém.
 Se algo correr mal — a Stripe em baixo, um problema com as chaves, uma cobrança
 errada — dá para desligar os pagamentos sozinho, sem ninguém:
 
-No backoffice → **Definições → Pagamento → "Pagamentos online"** → escolher
-**`reserva`** → **Save**.
+No painel → **Loja online → Pagamentos online** → **«Desligar os pagamentos online»** →
+confirmar (**«Desligar e gravar já»**). Grava-se logo, e chega à loja em cerca de 1 a 2
+minutos (o tempo de publicar o site).
 
 A partir daí, quem tentar finalizar uma encomenda vê uma mensagem a explicar que
 o pagamento online está indisponível, com os botões de **telefone** e de
 **WhatsApp**. As encomendas continuam a entrar, por telefone, como antes de haver
 loja online.
 
-Para voltar a ligar, o mesmo caminho e escolher **`online`**.
+Para voltar a ligar: o mesmo sítio, **«Ligar os pagamentos online»**.
 
-> Isto é aplicado também do lado do servidor, não é apenas um aviso no ecrã:
-> com o interruptor em `reserva`, nenhuma cobrança é possível.
+> Isto é aplicado também do lado do servidor, não é apenas um aviso no ecrã: com os
+> pagamentos desligados, nenhum pagamento novo é possível. Quem já estiver na página de
+> pagamento ainda pode pagar durante cerca de 1 hora, e uma referência Multibanco já emitida
+> pode ser paga durante até 7 dias: essas encomendas aparecem no painel e, se não as puder
+> cumprir, cancelam-se reembolsando na Stripe.
 
 ## Se algo parecer avariado
 
