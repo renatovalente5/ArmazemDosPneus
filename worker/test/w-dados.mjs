@@ -106,9 +106,25 @@ async function correrCenario(ws, cen, { settings = cen.settings, site, empresa, 
     encomendaNoCheckout,
     encomenda: chave ? JSON.parse(kv.mapa.get(chave)) : null,
     kvOps: kv.ops,
+    kvFinal: new Map(kv.mapa),
     chamadas: rede.chamadas,
     chamadasNoWebhook: rede.chamadas.slice(nCheckout),
   };
+}
+
+/* As chaves de negócio do KV (order:, session:, pi:) no fim de um cenário,
+   sem os carimbos de hora (mudam de corrida para corrida). */
+function estadoFinal(R) {
+  const out = {};
+  for (const [k, v] of R.kvFinal) {
+    if (!/^(order|session|pi):/.test(k)) continue;
+    let x = v;
+    try { x = JSON.parse(v); } catch { /* o session: e o pi: são texto */ }
+    // Sem os carimbos de hora, e sem o retrato (o Worker de antes não o tinha; prova-se à parte).
+    if (x && typeof x === 'object') { delete x.created_at; delete x.updated_at; delete x.paid_at; delete x.termos; }
+    out[k] = x;
+  }
+  return semAcaso(out);
 }
 
 /* Os emails pelo nome: 0 = aviso ao dono, os outros ao cliente. */
@@ -194,7 +210,14 @@ export async function correr({ ok }) {
       eq(`${cen.nome}: página da Stripe`, semAcaso(N.stripe), semAcaso(A.stripe));
       eq(`${cen.nome}: emails (assunto, texto, html, reply_to)`, semAcaso(N.emails), semAcaso(A.emails));
       eq(`${cen.nome}: respostas aos webhooks`, semAcaso(N.webhooks), semAcaso(A.webhooks));
-      eq(`${cen.nome}: as mesmas leituras e escritas no KV`, semAcaso(N.kvOps), semAcaso(A.kvOps));
+      /* As escritas no KV mudaram de propósito depois do W-dados (achados
+         L4-07/L7-04, a quota de 1 000 escritas/dia da conta): o /checkout grava
+         uma vez a encomenda (sem o «criada» de antes), e as marcas evt:/seen:
+         só se gravam nos eventos que mandam emails. Prova-se que o estado final
+         das encomendas, sessões e pagamentos é o mesmo, com menos escritas. */
+      const escritas = (R) => R.kvOps.filter((o) => o.startsWith('put ')).length;
+      ok(`${cen.nome}: menos escritas no KV do que antes, ou as mesmas (${escritas(N)} ≤ ${escritas(A)})`, escritas(N) <= escritas(A));
+      eq(`${cen.nome}: o mesmo estado final no KV (encomenda, sessão e pagamento)`, estadoFinal(N), estadoFinal(A));
       const pedidos = (R) => R.chamadas.map((c) => `${c.method} ${c.url}`);
       const novos = pedidos(N).filter((u) => /\/data\/(site|empresa)\.json$/.test(u));
       eq(`${cen.nome}: os mesmos pedidos à rede, mais os dos dois ficheiros novos`,

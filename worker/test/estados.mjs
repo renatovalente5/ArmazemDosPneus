@@ -71,6 +71,58 @@ export async function calado(fn) {
 
 export async function correr({ ok }) {
   const eq = (nome, a, b) => ok(nome, JSON.stringify(a) === JSON.stringify(b), `\n     obtido:   ${JSON.stringify(a)}\n     esperado: ${JSON.stringify(b)}`);
+  const escritas = (kv, desde = 0) => kv.ops.slice(desde).filter((o) => o.startsWith('put '));
+
+  /* ---------------------------------------------------- L4-07 / L7-04 */
+  console.log('\nEstados — a quota de 1 000 escritas/dia da conta: menos escritas, e o travão da Cloudflare (L4-07, L7-04)');
+  {
+    const m = await montar();
+    eq('um /checkout aceite grava 2 vezes (a encomenda e a sessão), e não 3', escritas(m.kv).map((o) => o.replace(/AP-\S+|cs_\S+/, 'x')), ['put order:x', 'put session:x']);
+    let n = m.kv.ops.length;
+    await m.webhook(EV.expirou(m.e));
+    eq('   a sessão expira (o destino de um /checkout forjado): 1 escrita, sem as marcas evt:/seen:', escritas(m.kv, n).map((o) => o.split(':')[0]), ['put order']);
+    eq('   e a encomenda fica «expirou»', m.encomenda().status, 'expirou');
+    n = m.kv.ops.length;
+    await m.webhook(EV.expirou(m.e));
+    eq('   a mesma sessão expirada reentregue: nenhuma escrita', escritas(m.kv, n), []);
+  }
+  {
+    const m = await montar();
+    await m.webhook(EV.sessao(m.e));
+    const n = m.kv.ops.length;
+    await m.webhook(EV.sessao(m.e));
+    eq('um pagamento já tratado e reentregue: nenhuma escrita (nem marcas, nem a encomenda igual)', escritas(m.kv, n), []);
+  }
+  {
+    const rede = redeFalsa({ 'products.json': PRODUTOS, 'settings.json': SETTINGS_HOJE });
+    const real = rede.fetch;
+    rede.fetch = async (u, init = {}) => (String(u) === 'https://api.stripe.com/v1/checkout/sessions' ? new Response('{"error":{"message":"falhou"}}', { status: 500 }) : real(u, init));
+    const kv = kvFalso();
+    const r = await calado(() => palco(worker, { env: ENV_HOJE, kv, rede }).checkout(PEDIDOS.loja));
+    eq('a Stripe falha ao criar a sessão: 502, e nada gravado no KV', [r.status, escritas(kv)], [502, []]);
+  }
+  {
+    const kv = kvFalso();
+    kv.put = async () => { throw new Error('KV PUT failed: 429 Too Many Requests'); };
+    const rede = redeFalsa({ 'products.json': PRODUTOS, 'settings.json': SETTINGS_HOJE });
+    const r = await calado(() => palco(worker, { env: ENV_HOJE, kv, rede }).checkout(PEDIDOS.loja));
+    ok('a quota do KV esgotada: 503 com uma mensagem (e não um 500 sem CORS), e o endereço da Stripe não sai',
+      r.status === 503 && /registar a encomenda/.test(JSON.parse(r.corpo).error) && !/checkout\.stripe\.com/.test(r.corpo), r);
+  }
+  {
+    const chaves = [];
+    const travao = (sucesso) => ({ limit: async ({ key }) => { chaves.push(key); return { success: sucesso }; } });
+    const rede = redeFalsa({ 'products.json': PRODUTOS, 'settings.json': SETTINGS_HOJE });
+    const kv = kvFalso();
+    const r = await calado(() => palco(worker, { env: { ...ENV_HOJE, TRAVAO_CHECKOUT: travao(false) }, kv, rede }).checkout(PEDIDOS.loja));
+    ok('o travão da Cloudflare (binding TRAVAO_CHECKOUT) diz que não: 429, sem ler o catálogo, sem Stripe e sem KV',
+      r.status === 429 && rede.chamadas.length === 0 && kv.ops.length === 0 && /^checkout:10\./.test(chaves[0]), [r.status, rede.chamadas.length, kv.ops, chaves]);
+    const r2 = await calado(() => palco(worker, { env: { ...ENV_HOJE, TRAVAO_CHECKOUT: travao(true) }, kv: kvFalso(), rede }).checkout(PEDIDOS.loja));
+    eq('   e diz que sim: o checkout segue', r2.status, 200);
+    const toml = (await import('node:fs')).readFileSync(new URL('../wrangler.toml', import.meta.url), 'utf8');
+    ok('   o wrangler.toml declara o binding (TRAVAO_CHECKOUT, 5 por minuto, um namespace que não é o do carimbo)',
+      /\[\[ratelimits\]\]\s*\nname = "TRAVAO_CHECKOUT"\s*\nnamespace_id = "1101"\s*\nsimple = \{ limit = 5, period = 60 \}/.test(toml));
+  }
 
   /* ---------------------------------------------------------- L7-01 */
   console.log('\nEstados — um pagamento que chega atrasado não desfaz um reembolso nem uma contestação (L7-01)');

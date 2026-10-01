@@ -13,6 +13,17 @@ binding = "ORDERS"
 id = "fe11533f26664a4194853d5c4aa1e9e4"
 preview_id = "0870815be1eb4fc19ea338ca0e376686"
 
+# Travão do /checkout que vale para TODOS os isolates (o de memória, em
+# src/index.js, só vale para o seu): 5 pedidos por minuto por IP, contados em
+# cada localização da Cloudflare. Cada /checkout aceite grava no KV, e a quota
+# de 1 000 escritas/dia é da conta inteira — um script esgotava-a e o checkout
+# e os webhooks ficavam em 500 até à meia-noite UTC. O namespace_id é único na
+# conta: o 1001 e o 1002 são do carimbo.
+[[ratelimits]]
+name = "TRAVAO_CHECKOUT"
+namespace_id = "1101"
+simple = { limit = 5, period = 60 }
+
 [vars]
 # Origens autorizadas a chamar /checkout (separadas por vírgula).
 # O renatovalente5.github.io NÃO consta de propósito: com o domínio próprio

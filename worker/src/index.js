@@ -81,8 +81,14 @@ function corsHeaders(request, env) {
 /* ---------- rate limit best-effort, por isolate ----------
    Deliberadamente em memória e não em KV: o plano gratuito só dá 1.000
    escritas KV/dia e um atacante esgotaria essa quota (que é a mesma das
-   encomendas) só a bater na rota. A Cloudflare já filtra volumetria à
-   frente disto; aqui só travamos abuso trivial. */
+   encomendas) só a bater na rota. Mas um Map em memória só trava o isolate
+   onde está — um script com checkouts VÁLIDOS passava 10 por minuto e cada
+   um gravava 3 vezes no KV: 1 000 escritas em meia hora, de um só IP, e o
+   checkout e os webhooks desta loja (e dos outros projectos da conta) ficavam
+   em 500 até à meia-noite UTC (achados L4-07 e L7-04). Por isso, no
+   /checkout, vale primeiro o travão da Cloudflare (binding TRAVAO_CHECKOUT,
+   [[ratelimits]] no wrangler.toml), que conta em todos os isolates; e cada
+   checkout passou a gravar 2 vezes, e os eventos sem email nenhum 1 vez. */
 const hits = new Map();
 const RATE_MAX = 10, RATE_WINDOW_MS = 60_000;
 function rateLimited(ip) {
@@ -92,6 +98,19 @@ function rateLimited(ip) {
   rec.n += 1;
   if (hits.size > 5000) hits.clear();   // trava de memória
   return rec.n > RATE_MAX;
+}
+
+/** O /checkout: o travão da Cloudflare (se o binding existir) E o de memória. */
+async function checkoutTravado(env, ip) {
+  if (env.TRAVAO_CHECKOUT && typeof env.TRAVAO_CHECKOUT.limit === 'function') {
+    try {
+      const { success } = await env.TRAVAO_CHECKOUT.limit({ key: `checkout:${ip}` });
+      if (!success) return true;
+    } catch (e) {
+      console.error('travão da Cloudflare falhou (vale o de memória):', e.message);
+    }
+  }
+  return rateLimited(ip);
 }
 
 /* ---------- KV ---------- */
@@ -170,7 +189,7 @@ function newOrderId() {
    ============================================================= */
 async function handleCheckout(request, env, cors) {
   const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
-  if (rateLimited(ip)) return json({ error: 'Demasiadas tentativas. Aguarde um minuto.' }, 429, cors);
+  if (await checkoutTravado(env, ip)) return json({ error: 'Demasiadas tentativas. Aguarde um minuto.' }, 429, cors);
 
   const len = parseInt(request.headers.get('Content-Length') || '0', 10);
   if (len > MAX_BODY_BYTES) return json({ error: 'Pedido demasiado grande.' }, 413, cors);
@@ -218,10 +237,12 @@ async function handleCheckout(request, env, cors) {
 
   const order_id = newOrderId();
 
-  // Grava ANTES de falar com a Stripe: se a criação da sessão falhar a meio,
-  // fica rasto da tentativa; se gravássemos depois, um pagamento podia existir
-  // na Stripe sem nada do nosso lado.
-  const order = await putOrder(env, {
+  // Grava UMA vez, DEPOIS de a Stripe criar a sessão. Antes gravava-se também
+  // a tentativa («criada») e a falha da Stripe («erro_stripe»): duas escritas
+  // por pedido que não pagam nada, e é por /checkouts forjados que se esgota a
+  // quota do KV. Não há pagamento possível sem registo: o cliente só recebe o
+  // endereço da página de pagamento depois de a encomenda estar gravada.
+  const order = {
     order_id,
     status: 'criada',
     entrega: delivery,
@@ -237,7 +258,7 @@ async function handleCheckout(request, env, cors) {
     termos,
     cliente,
     created_at: new Date().toISOString(),
-  });
+  };
 
   const params = {
     ui_mode: 'hosted_page',
@@ -314,17 +335,23 @@ async function handleCheckout(request, env, cors) {
   try {
     session = await stripeFetch(env, '/checkout/sessions', { body: params, idempotencyKey: `chk_${order_id}` });
   } catch (e) {
-    console.error('falha ao criar sessão', order_id, e.message, e.stripeCode);
-    order.status = 'erro_stripe';
-    order.error = e.message;
-    await putOrder(env, order);
+    // Sem escrita no KV: o rasto fica no registo do Worker.
+    console.error('falha ao criar sessão', order_id, e.message, e.stripeCode, JSON.stringify({ total_cents: calc.total_cents, entrega: delivery }));
     return json({ error: 'Não foi possível iniciar o pagamento. Tente novamente ou fale connosco.' }, 502, cors);
   }
 
   order.status = 'aguarda_pagamento';
   order.session_id = session.id;
-  await putOrder(env, order);
-  await env.ORDERS.put(`session:${session.id}`, order_id, { expirationTtl: ORDER_TTL_SECONDS });
+  try {
+    await putOrder(env, order);
+    await env.ORDERS.put(`session:${session.id}`, order_id, { expirationTtl: ORDER_TTL_SECONDS });
+  } catch (e) {
+    // A quota do KV esgotada, ou o KV em baixo. A sessão da Stripe existe mas o
+    // cliente não recebe o endereço: não paga uma encomenda que não está
+    // registada, e a sessão expira sozinha.
+    console.error('ENCOMENDA NÃO GRAVADA (KV)', order_id, session.id, e.message);
+    return json({ error: 'Não foi possível registar a encomenda agora. Tente daqui a pouco ou fale connosco.' }, 503, cors);
+  }
 
   return json({
     url: session.url,
@@ -398,10 +425,15 @@ async function handleWebhook(request, env, ctx) {
     result = null;
   }
 
-  await Promise.all([
-    env.ORDERS.put(evtKey, '1', { expirationTtl: EVENT_TTL_SECONDS }),
-    twinKey ? env.ORDERS.put(twinKey, '1', { expirationTtl: EVENT_TTL_SECONDS }) : Promise.resolve(),
-  ]);
+  // As marcas só servem a quem tem efeitos que não se podem repetir: os emails.
+  // Um evento sem emails (sessão expirada, reembolso, falha…) aplicado duas
+  // vezes dá o mesmo — e cada marca é uma escrita na quota do KV.
+  if (result && result.notify && result.notify.length) {
+    await Promise.all([
+      env.ORDERS.put(evtKey, '1', { expirationTtl: EVENT_TTL_SECONDS }),
+      twinKey ? env.ORDERS.put(twinKey, '1', { expirationTtl: EVENT_TTL_SECONDS }) : Promise.resolve(),
+    ]);
+  }
 
   if (result && result.notify && result.notify.length) {
     ctx.waitUntil(enviarEMarcar(env, result.order, result.notify)
@@ -516,6 +548,9 @@ async function applyEvent(event, env) {
     return null;
   }
   const notify = [];
+  // Para não regravar uma encomenda que este evento não mudou (uma reentrega,
+  // um evento gémeo): cada escrita conta para a quota do KV.
+  const lida = JSON.stringify(order);
 
   switch (event.type) {
     case 'checkout.session.completed': {
@@ -597,7 +632,7 @@ async function applyEvent(event, env) {
       break;
   }
 
-  await putOrder(env, order);
+  if (JSON.stringify(order) !== lida) await putOrder(env, order);
   return { order, notify };
 }
 
