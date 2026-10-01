@@ -1,43 +1,65 @@
-# Backoffice — Armazém dos Pneus (Pages CMS)
+# O painel da loja — guia rápido
 
-O site usa o **[Pages CMS](https://pagescms.org)** (gratuito) para o cliente gerir a loja
-**sem tocar em código**. Cada alteração é gravada no repositório e o site atualiza em 1–2 min.
+O site e as encomendas gerem-se no **painel**: **https://backoffice.armazemdospneus.pt/**
 
-## Ativar (uma vez — feito pelo Renato)
+O endereço antigo (`armazemdospneus.pt/admin`) e a ligação **«Gestão»**, no fundo das páginas
+do site, vão lá ter. O editor antigo (o Pages CMS) já não se usa.
 
-1. Ir a **https://app.pagescms.org** e **Sign in with GitHub** (conta `renatovalente5`).
-2. Instalar a **GitHub App "Pages CMS"** no repositório `renatovalente5/ArmazemDosPneus`
-   (Sign in → *Install/authorize* → escolher o repo).
-3. Abrir o repo no Pages CMS. Ele lê o ficheiro **`.pages.yml`** e mostra 3 secções:
-   - **Produtos** — adicionar/editar/remover pneus, jantes, baterias, óleos.
-     A lista aparece fechada, um produto por linha, com nome, medida e preço no resumo.
-     Cada campo tem a explicação por baixo, no próprio backoffice — incluindo o que
-     acontece se ficar mal preenchido. Vale a pena ler antes de perguntar.
-     · **Preço**, **Stock** e **Peso** são obrigatórios: são eles que decidem o que é
-       cobrado e quanto custam os portes.
-     · **Disponível** — o interruptor para tirar algo de venda sem apagar a ficha.
-     · **Etiqueta UE** (pneus novos) e **Seminovo** (DOT, sulco, garantia) — campos
-       agrupados pelo prefixo do nome. Um pneu novo sem classe de ruído e sem ficha
-       EPREL não pode ser anunciado; ver `ENCOMENDAS.md`.
-     · **Código interno** — está no fim do formulário, porque quase nunca se toca.
-       **Não alterar** num produto já existente: carrinhos guardados nos telemóveis
-       dos clientes deixam de o encontrar e o pagamento é recusado.
-   - **Imagens do site** — imagem do topo (hero) e da secção "Sobre".
-   - **Definições** — portes por peso, prazos de entrega, devoluções, montagem,
-     o interruptor dos pagamentos online e os contactos usados no aviso de avaria.
-4. **Convidar o cliente**: em *Settings → Collaborators*, convidar por **email**
-   (o cliente entra com um link, **sem precisar de conta GitHub**).
+## Entrar
 
-## Dia a dia (cliente)
+1. **No telemóvel, junte primeiro o painel ao ecrã principal** (no iPhone: Safari → Partilhar →
+   «Adicionar ao ecrã principal») e abra-o sempre daí. Peça o código e escreva-o **dentro dessa
+   app**: o Safari e a app do ecrã principal não partilham a entrada.
+2. Escreva o seu email e carregue em **«Enviar código»**.
+3. Chega um email com um **código de 8 algarismos**. Vale 15 minutos e só funciona no browser
+   onde o pediu.
 
-- Entrar em **`/admin`** no site (ou em app.pagescms.org) → editar → **Save**.
-- As imagens carregadas vão para `assets/uploads/` automaticamente.
-- **Encomendas**: a loja recebe **pagamentos online** (cartão, MB WAY, Multibanco, Klarna).
-  Cada pagamento gera um email com os dados do cliente e o NIF, e **a fatura tem de sair no
-  mesmo dia**. Ver **[ENCOMENDAS.md](ENCOMENDAS.md)** — é o guia do dia a dia.
-  Os pedidos de orçamento e de serviços de oficina continuam a chegar por WhatsApp (935 218 857).
+## Gravar e publicar
 
-## Notas
-- Enviar imagens já com tamanho web (≤ 1600px) para o site ficar rápido.
-- O botão "View on GitHub" que aparece nas imagens do Pages CMS é da ferramenta deles
-  (não é possível escondê-lo). Com o repositório privado, não expõe nada.
+- O que muda fica **por gravar** (guardado neste aparelho) até carregar em
+  **«Gravar e publicar»**, na barra de baixo. **«Desfazer tudo»** volta ao que está no site.
+- Depois de gravar, o site actualiza em **1 a 2 minutos**. A faixa no topo mostra o caminho:
+  Gravado → A publicar → Publicado ✓.
+- Grave antes de mudar de aparelho: o que está por gravar não passa para outro telemóvel.
+
+## Os ecrãs
+
+- **Início** — o que pede atenção: os pagamentos desligados, uma publicação que falhou, as
+  encomendas por tratar, os produtos tirados de venda e os pneus à espera da etiqueta.
+- **Encomendas** — «Por tratar», «Pagas», «Todas» e «Tentativas». Na ficha de cada uma: o
+  cliente, os artigos e o pagamento; marcar **Preparada**, **Enviada** (com o n.º de seguimento
+  dos CTT) ou **Levantada**, **Faturada** (com o n.º da fatura) e a **nota de crédito**; uma
+  nota interna; **«Baixar o stock»**; e **«Abrir na Stripe»**, para reembolsos e contestações.
+- **Produtos** — pesquisar, filtrar, **«Novo produto»** e **«Ordenar»**. Na ficha: nome,
+  categoria, marca e medida; preço e stock; a fotografia; a **etiqueta UE** (pneus novos) ou o
+  DOT, o sulco e a garantia (pneus seminovos); **«À venda online»**, **«Destaque na página
+  inicial»** e **«Sob consulta»**; duplicar e apagar.
+- **Loja online** — o interruptor dos **pagamentos online** (para uma emergência), o texto do
+  pagamento, o levantamento na loja, os portes, a montagem, os prazos de entrega e as
+  devoluções. O checkout, os Termos e condições e os emails das encomendas acompanham.
+- **Contactos e horário** — os telefones, o WhatsApp, o email, o Facebook e o horário de cada
+  dia.
+- **Serviços** — os serviços da oficina na página inicial, pela ordem do site.
+- **Textos da página inicial** — o topo, o «Sobre», as frases dos contactos e do rodapé, e as
+  marcas. O **negrito** e o *itálico* escrevem-se com asteriscos.
+- **Fotografias do site** — a fotografia do topo e a do «Sobre».
+- **Dados da empresa** — o nome, o NIF, a morada, o mapa, a resolução de litígios e o Livro de
+  Reclamações. As páginas legais acompanham.
+- **Publicação** — se o que gravou já chegou ao site, porque é que uma publicação parou e,
+  quando faz sentido, **«Publicar outra vez»**.
+- **Ajuda** — as perguntas mais comuns, com a resposta.
+- **Conta** — sair neste aparelho ou em todos, e o registo do que se fez no painel.
+
+As fotografias do telemóvel servem: o painel reduz-as e tira-lhes a localização antes de as
+enviar.
+
+## Encomendas e faturação
+
+O dia a dia das encomendas — a fatura no mesmo dia, os estados, os reembolsos — está em
+**[ENCOMENDAS.md](ENCOMENDAS.md)**.
+
+## Avarias técnicas
+
+Tudo o que está acima trata-se no painel, sem ninguém. Se o painel ou o site avariarem — uma
+mensagem de erro que não passa, uma página que não abre —, o contacto do Renato está na
+**Ajuda** do painel, depois de entrar.

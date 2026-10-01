@@ -34,7 +34,7 @@ _source/            Fotos em alta + logo vetorial (NÃO publicado — ver .gitig
 | Ficheiro | Para quem |
 |---|---|
 | **[ENCOMENDAS.md](ENCOMENDAS.md)** | Quem trata das encomendas. Fatura no mesmo dia, estados, reembolsos |
-| **[BACKOFFICE.md](BACKOFFICE.md)** | Quem edita produtos e imagens |
+| **[BACKOFFICE.md](BACKOFFICE.md)** | O dono: o painel (backoffice.armazemdospneus.pt), ecrã a ecrã |
 | **[worker/README.md](worker/README.md)** | Quem mexe no código dos pagamentos |
 
 ## Ver localmente
