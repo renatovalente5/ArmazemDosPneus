@@ -983,7 +983,7 @@ try {
      products.json pelo fetch, e o /checkout do Worker a responder o que o
      teste mandar. Devolve os elementos (textContent, hidden…), o corpo que
      seguiu para o Worker e um submeter(). */
-  const checkoutNaPagina = async ({ settings = HOJE.settings, produtos = HOJE.products, carrinho, entrega = 'pickup', respostas = [] } = {}) => {
+  const checkoutNaPagina = async ({ settings = HOJE.settings, produtos = HOJE.products, carrinho, entrega = 'pickup', respostas = [], textos = {} } = {}) => {
     const els = {};
     const el = (id) => (els[id] ||= {
       id, textContent: '', innerHTML: '', hidden: true, disabled: false, value: '', checked: false,
@@ -991,6 +991,7 @@ try {
       setAttribute(k, v) { this.attrs[k] = v; }, removeAttribute(k) { delete this.attrs[k]; }, focus() {}, scrollIntoView() {},
       addEventListener(t, f) { this.handlers[t] = f; }, querySelector: () => null,
     });
+    for (const [id, t] of Object.entries(textos)) el(id).textContent = t;   // o que a publicação escreveu na página
     const form = el('co-form');
     Object.assign(form, {
       nome: { value: 'Maria Ensaio' }, email: { value: 'cliente@exemplo.pt' }, tel: { value: '912 000 000' }, nif: { value: '' }, notas: { value: '' },
@@ -1012,7 +1013,7 @@ try {
         if (/products\.json/.test(u)) return { ok: true, json: async () => clonar(produtos) };
         pedidos.push(JSON.parse(init.body));
         const r = respostas.shift() || { status: 200, corpo: { url: 'https://checkout.stripe.com/x', total_cents: 0 } };
-        return { ok: r.status === 200, json: async () => r.corpo };
+        return { ok: r.status === 200, status: r.status, json: async () => r.corpo };
       },
     };
     vm.runInNewContext(ler('assets/js/checkout.js'), ctx);
@@ -1043,6 +1044,30 @@ try {
       textos.push((await checkoutNaPagina({ settings, carrinho })).els['recap-prazo'].textContent);
     }
     certo(JSON.stringify(textos) === JSON.stringify(['3 dias úteis', '1 dia útil', '2 a 5 dias úteis']), 'checkout: «3 dias úteis» e «1 dia útil» com o mínimo igual ao máximo (como os Termos e a Stripe)', textos.join(' | '));
+  }
+
+  {
+    /* Achados L6-06 e L7-02: o pedido não levava as condições mostradas, e com
+       o settings.json a falhar no browser o checkout seguia com valores de
+       reserva que podiam não ser os publicados. */
+    const carrinho = [{ sku: 'jante-liga-leve-16-5x112-et45', name: 'Jante', qty: 1, price_cents: 8990, weight: 9 }];
+    const comCusto = clonar(HOJE.settings); comCusto.returns.return_cost_eur = 6.5;
+    const a = await checkoutNaPagina({ settings: comCusto, carrinho });
+    await a.submeter();
+    certo(JSON.stringify(a.pedidos[0] && a.pedidos[0].condicoes) === JSON.stringify({ prazo_min: 2, prazo_max: 5, prazo_maximo: 30, custo_devolucao_cents: 650 }),
+      'checkout: o pedido leva as condições que a página mostrou (prazos e custo da devolução)', JSON.stringify(a.pedidos[0]));
+    const publicados = { 'recap-prazo': '3 a 7 dias úteis', 'recap-max': '20 dias', 'recap-devolucao': 'os custos de devolução são suportados pela loja.' };
+    const b = await checkoutNaPagina({ settings: new Error('Failed to fetch'), carrinho, textos: publicados });
+    await b.submeter();
+    certo(b.pedidos.length === 0 && /Recarregue a página/.test(b.els['co-error'].textContent) && b.els['recap-prazo'].textContent === '3 a 7 dias úteis' && b.els['recap-max'].textContent === '20 dias',
+      'checkout: sem o settings.json, não deixa pagar, e o resumo fica com o texto publicado (e não com valores de reserva)', `${b.pedidos.length} ${b.els['co-error'].textContent} ${b.els['recap-prazo'].textContent}`);
+    const novas = { prazo_min: 5, prazo_max: 10, prazo_maximo: 30, custo_devolucao_cents: 1500 };
+    const c = await checkoutNaPagina({ settings: HOJE.settings, carrinho, respostas: [{ status: 409, corpo: { error: 'As condições mudaram entretanto: …', condicoes: novas } }] });
+    await c.submeter();
+    certo(c.els['recap-prazo'].textContent === '5 a 10 dias úteis' && /15,00 €/.test(c.els['recap-devolucao'].textContent) && /As condições mudaram/.test(c.els['co-error'].textContent) && !c.janela.location.href,
+      'checkout: o Worker diz que as condições mudaram (409): o resumo mostra as novas, diz porquê, e não segue para a Stripe', `${c.els['recap-prazo'].textContent} | ${c.els['recap-devolucao'].textContent}`);
+    await c.submeter();
+    certo(c.pedidos.length === 2 && JSON.stringify(c.pedidos[1].condicoes) === JSON.stringify(novas), '   e a segunda vez manda as condições novas, que o cliente já viu', JSON.stringify(c.pedidos[1] && c.pedidos[1].condicoes));
   }
 
   /* ================================================================== */

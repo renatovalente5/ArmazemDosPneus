@@ -20,6 +20,11 @@
   var WORKER = isLocal ? 'http://localhost:8787' : WORKER_PROD;
 
   var items = load();
+  /* O settings.json chegou? Sem ele, o resumo fica com o texto que a
+     publicação escreveu na página (os marcadores do checkout.html, os valores
+     publicados) e o pagamento não segue: o Worker lê as condições do mesmo
+     ficheiro, e os valores de reserva daqui podiam não ser os de lá. */
+  var settingsLido = false;
   var settings = {
     shipping: { pickup_label: 'Levantar e montar na loja', note: '', tiers: [] },
     delivery: { estimate_min_days: 2, estimate_max_days: 5, max_days: 30 },
@@ -147,8 +152,20 @@
     return true;
   }
 
+  /* As condições que a página MOSTROU: o Worker compara-as com as que vai
+     prometer no email e, se forem piores para o cliente, responde 409 com as
+     novas (como faz com o preço). */
+  function condicoesMostradas() {
+    var d = settings.delivery || {}, r = settings.returns || {};
+    return {
+      prazo_min: d.estimate_min_days, prazo_max: d.estimate_max_days, prazo_maximo: d.max_days,
+      custo_devolucao_cents: (typeof r.return_cost_eur === 'number' && r.return_cost_eur > 0) ? Math.round(r.return_cost_eur * 100) : 0
+    };
+  }
+
   function payload(f) {
     var body = {
+      condicoes: condicoesMostradas(),
       items: items.map(function (it) { return { sku: it.sku, qty: it.qty }; }),
       entrega: delivery() === 'envio' ? 'ctt' : 'loja',
       nome: f.nome.value.trim(),
@@ -179,6 +196,9 @@
     e.preventDefault();
     var f = elForm;
     if (!validate(f)) return;
+    if (!settingsLido) {
+      return showError('Não foi possível carregar as condições da loja (prazos de entrega e devoluções). Recarregue a página para continuar.');
+    }
     // Rede de segurança: se o endereço do Worker for editado para algo
     // inválido, é melhor mandar o cliente ligar do que tentar cobrar.
     if (!isLocal && !/^https:\/\/[a-z0-9.-]+\.(workers\.dev|armazemdospneus\.pt)(\/|$)/.test(WORKER)) {
@@ -191,8 +211,18 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload(f))
     })
-      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, d: d }; }); })
       .then(function (res) {
+        // As condições (prazos, devolução) mudaram entretanto para pior: o
+        // resumo passa a mostrar as do Worker, e o cliente confirma outra vez.
+        if (res.status === 409 && res.d && res.d.condicoes) {
+          var c = res.d.condicoes;
+          settings.delivery = Object.assign(settings.delivery || {}, { estimate_min_days: c.prazo_min, estimate_max_days: c.prazo_max, max_days: c.prazo_maximo });
+          settings.returns = Object.assign(settings.returns || {}, { return_cost_eur: c.custo_devolucao_cents > 0 ? c.custo_devolucao_cents / 100 : null });
+          applySettings();
+          busy(false);
+          return showError(res.d.error);
+        }
         if (!res.ok) throw new Error(res.d && res.d.error ? res.d.error : 'Não foi possível iniciar o pagamento.');
 
         // O preço mostrado tem de ser o preço cobrado. Se o catálogo mudou
@@ -228,7 +258,7 @@
         : d.estimate_min_days + ' a ' + d.estimate_max_days + ' dias úteis';
     }
     var max = doc.getElementById('recap-max');
-    if (max && d.max_days) max.textContent = d.max_days;
+    if (max && d.max_days) max.textContent = d.max_days === 1 ? '1 dia' : d.max_days + ' dias';
 
     // DL 24/2014 art. 10.º n.º 2 al. b): o consumidor só suporta o custo da
     // devolução se tiver sido previamente informado de que o tem de pagar
@@ -304,7 +334,8 @@
     }
 
     if (elForm) elForm.hidden = false;
-    renderItems(); renderTotals(); applySettings();
+    renderItems(); renderTotals();
+    if (settingsLido) applySettings();
 
     doc.querySelectorAll('input[name="entrega"]').forEach(function (r) {
       r.addEventListener('change', function () {
@@ -360,6 +391,7 @@
   ]).then(function (out) {
     var s = out[0], cat = out[1];
     if (s) {
+      settingsLido = true;
       settings.payment = s.payment || {};
       settings.delivery = Object.assign(settings.delivery, s.delivery || {});
       settings.returns = Object.assign(settings.returns, s.returns || {});

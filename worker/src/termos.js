@@ -378,6 +378,36 @@ export function contactoLinha(t) {
 }
 
 /**
+ * As condições que o checkout MOSTROU ao cliente (o checkout.js manda-as no
+ * pedido): { prazo_min, prazo_max, prazo_maximo, custo_devolucao_cents }, ou
+ * null se não vierem (uma página antiga em cache) ou não forem números.
+ */
+export function condicoesMostradas(c) {
+  if (!eObjeto(c)) return null;
+  const n = (k) => { const v = proprio(c, k); return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 1e7 ? v : null; };
+  const out = { prazo_min: n('prazo_min'), prazo_max: n('prazo_max'), prazo_maximo: n('prazo_maximo'), custo_devolucao_cents: n('custo_devolucao_cents') };
+  return Object.values(out).every((v) => v !== null) ? out : null;
+}
+
+/** As condições do retrato, na forma das que o checkout manda. */
+export function condicoesDoRetrato(t) {
+  return { prazo_min: t.prazos.min_dias, prazo_max: t.prazos.max_dias_uteis, prazo_maximo: t.prazos.max_dias, custo_devolucao_cents: custoDevolucaoCentimos(t) };
+}
+
+/**
+ * O retrato é PIOR para o cliente do que o que ele viu antes de pagar? (um
+ * prazo maior, ou uma devolução mais cara). O dono mudou as condições com a
+ * página aberta, a cache de 60 s do Worker e a do browser não batiam, ou o
+ * settings.json não chegou ao browser: o email (o suporte duradouro do
+ * contrato) dizia uma condição que o cliente nunca viu (achados L6-06 e L7-02).
+ */
+export function condicoesPiores(mostradas, t) {
+  const r = condicoesDoRetrato(t);
+  return r.custo_devolucao_cents > mostradas.custo_devolucao_cents || r.prazo_maximo > mostradas.prazo_maximo
+    || r.prazo_max > mostradas.prazo_max || r.prazo_min > mostradas.prazo_min;
+}
+
+/**
  * Cêntimos que o CLIENTE paga pela devolução; 0 = a loja paga. A mesma regra
  * do checkout (assets/js/checkout.js, applySettings): só um número > 0 conta.
  */

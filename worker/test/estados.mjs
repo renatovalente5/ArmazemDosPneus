@@ -268,6 +268,25 @@ export async function correr({ ok }) {
     ok('   e outra reentrega já não manda nada (duplicado)', r4.status === 200 && m.emails().length === 2, [r4, m.emails()]);
   }
 
+  /* ------------------------------------------------- L6-06 / L7-02 */
+  console.log('\nEstados — as condições que o checkout mostrou são as que ficam no retrato (L6-06, L7-02)');
+  {
+    const settings = { ...SETTINGS_HOJE, returns: { return_cost_eur: 15, note: '' }, delivery: { ...SETTINGS_HOJE.delivery, estimate_min_days: 5, estimate_max_days: 10 } };
+    const viu = { prazo_min: 2, prazo_max: 5, prazo_maximo: 30, custo_devolucao_cents: 0 };   // a página tinha os de antes
+    const m = await montar({ settings, pedido: { ...PEDIDOS.ctt, condicoes: viu } });
+    const d = JSON.parse(m.checkout.corpo);
+    ok('a página mostrou «a loja paga» e 2 a 5 dias, o settings.json diz 15 € e 5 a 10: 409, sem sessão nem encomenda',
+      m.checkout.status === 409 && m.rede.stripe.length === 0 && !m.kv.ops.some((o) => o.startsWith('put ')), m.checkout);
+    eq('   e a resposta traz as condições novas, para a página as mostrar', d.condicoes, { prazo_min: 5, prazo_max: 10, prazo_maximo: 30, custo_devolucao_cents: 1500 });
+    ok('   com uma mensagem que as diz', /entrega em 5 a 10 dias úteis/.test(d.error) && /15,00 €/.test(d.error), d.error);
+    const m2 = await montar({ settings, pedido: { ...PEDIDOS.ctt, condicoes: d.condicoes } });
+    eq('a segunda vez, com as condições novas confirmadas: segue', m2.checkout.status, 200);
+    const melhor = await montar({ pedido: { ...PEDIDOS.ctt, condicoes: { prazo_min: 3, prazo_max: 9, prazo_maximo: 30, custo_devolucao_cents: 650 } } });
+    eq('se as de agora forem MELHORES para o cliente (a loja paga a devolução): segue', melhor.checkout.status, 200);
+    const antiga = await montar({ settings });
+    eq('um pedido sem as condições (uma página antiga em cache): segue como antes', antiga.checkout.status, 200);
+  }
+
   /* ---------------------------------------------------------- L7-12 */
   console.log('\nEstados — o preço da montagem que o checkout mostrou fica na encomenda e nos emails (L7-12)');
   {

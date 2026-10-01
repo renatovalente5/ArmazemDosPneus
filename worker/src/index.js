@@ -28,7 +28,7 @@
 import { stripeFetch, verifyStripeSignature } from './stripe.js';
 import { priceOrder } from './pricing.js';
 import { avisoLoja, confirmacaoCliente, referenciaMultibanco, avisoPagamentoTardio, avisoDisputaSemEncomenda } from './mail.js';
-import { termosDasFontes, lerFontesDoSite, lerJsonOpcional, moradaLinha, prazoEntregaTexto } from './termos.js';
+import { termosDasFontes, lerFontesDoSite, lerJsonOpcional, moradaLinha, prazoEntregaTexto, condicoesMostradas, condicoesDoRetrato, condicoesPiores, custoDevolucaoCentimos } from './termos.js';
 
 const MAX_BODY_BYTES = 8 * 1024;
 const SESSION_TTL_SECONDS = 3600;        // 1 h para concluir o pagamento
@@ -247,6 +247,22 @@ async function handleCheckout(request, env, cors) {
   if (modo !== 'online') {
     console.log('checkout recusado: payment.mode =', modo);
     return json({ error: 'O pagamento online está temporariamente indisponível. Ligue-nos para concluir a encomenda.' }, 503, cors);
+  }
+
+  // O que a página mostrou antes do «Pagar agora» tem de ser o que fica no
+  // retrato: como com o preço, se as condições mudaram para pior, a página
+  // mostra as novas e o cliente confirma outra vez (o checkout.js trata o 409).
+  // Sem elas no pedido (uma página antiga em cache), segue como antes.
+  const mostradas = condicoesMostradas(body.condicoes);
+  if (mostradas && condicoesPiores(mostradas, termos)) {
+    const c = condicoesDoRetrato(termos);
+    const devolucao = custoDevolucaoCentimos(termos)
+      ? `os custos de envio de retorno são suportados por si, no valor de ${(c.custo_devolucao_cents / 100).toFixed(2).replace('.', ',')} €`
+      : 'os custos de devolução são suportados pela loja';
+    return json({
+      error: `As condições mudaram entretanto: entrega em ${prazoEntregaTexto(termos.prazos)}, nunca mais de ${c.prazo_maximo} dias; ${devolucao}. Reveja-as e carregue outra vez para continuar.`,
+      condicoes: c,
+    }, 409, cors);
   }
 
   const order_id = newOrderId();

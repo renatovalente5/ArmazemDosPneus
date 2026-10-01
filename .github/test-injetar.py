@@ -112,7 +112,9 @@ for rel in PAGINAS:
     depois = I.injetar_html(HTML[rel], d0, rel)
     # Só o JSON-LD (reescrito) e os ramos das variantes que não servem mudam.
     limpo = lambda t: re.sub(r'<script\b[^>]*data-ap-jsonld[^>]*>.*?</script>', '', t, flags=re.S)
-    igual = visivel(limpo(depois)) == visivel(limpo(HTML[rel])) or rel == 'legal/termos.html'
+    # Os Termos e o checkout têm variantes (portes, devolução): a página em bruto
+    # mostra os dois ramos, a publicada só o que vale.
+    igual = visivel(limpo(depois)) == visivel(limpo(HTML[rel])) or rel in ('legal/termos.html', 'checkout.html')
     certo(igual, f'{rel}: injectar os dados de hoje não muda nada do que se vê (os valores de reserva são os de hoje)')
     certo(I.injetar_html(depois, d0, rel) == depois, f'{rel}: injectar outra vez dá o mesmo')
 termos = visivel(I.injetar_html(HTML['legal/termos.html'], d0, 'legal/termos.html'))
@@ -260,6 +262,17 @@ certo(P(sp) == '1 dia útil|1 dia', 'um dia: no singular')
 e2 = copy.deepcopy(EMPRESA); e2.update(capital_social=5000, conservatoria='Conservatória do Registo Comercial de Ovar')
 certo(visivel(injetar('NIF 1.<!--ap:registo-->x<!--/ap:registo--> Sede', dados(empresa=e2))) == 'NIF 1. Capital social: 5000,00 €. Matriculada na Conservatória do Registo Comercial de Ovar. Sede', 'registo (CSC art. 171.º): capital social e conservatória, quando preenchidos')
 certo(visivel(injetar('NIF 1.<!--ap:registo-->x<!--/ap:registo--> Sede')) == 'NIF 1. Sede', 'registo: vazios, não se escreve nada')
+
+# Achados L6-06/L7-02: o resumo do checkout.html não tinha marcadores — sem o
+# settings.json no browser, dizia os valores escritos à mão.
+spc = copy.deepcopy(SETTINGS); spc['delivery'].update(estimate_min_days=3, estimate_max_days=7, max_days=20); spc['returns']['return_cost_eur'] = 6.5
+co = visivel(I.injetar_html(HTML['checkout.html'], dados(settings=spc), 'checkout.html'))
+certo('Entrega em <span id="recap-prazo">3 a 7 dias úteis</span>, nunca mais de <span id="recap-max">20 dias</span>.' in co
+      and 'no valor de 6,50 €.</span>' in co and 'suportados pela loja' not in co,
+      'checkout.html: o resumo (prazos e devolução) sai escrito pela publicação, como nos Termos')
+co0 = visivel(I.injetar_html(HTML['checkout.html'], dados(), 'checkout.html'))
+certo('nunca mais de <span id="recap-max">30 dias</span>.' in co0 and '<span id="recap-devolucao">os custos de devolução são suportados pela loja.</span>' in co0,
+      '   e com os valores de hoje diz o mesmo de sempre')
 
 # =============================================================================
 secao('o geo e o mapa inválidos ficam de fora (para a guarda são só aviso)')
