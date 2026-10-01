@@ -288,6 +288,37 @@ export function confirmacaoCliente(env, order) {
   return send(env, { to: c.email, subject: assunto, text, html, replyTo: t.contactos.email });
 }
 
+/* ---------- 4. Pagamento que chegou depois do reembolso ou da contestação ---------- */
+/**
+ * Só ao dono. A Stripe confirmou o pagamento de uma encomenda que já estava
+ * reembolsada ou contestada (os eventos chegam por qualquer ordem, e uma
+ * avaria do Worker junta-os). O «confirmada» ao cliente e o «A FAZER HOJE:
+ * emitir a fatura» levavam a faturar e despachar o que já foi devolvido.
+ */
+export function avisoPagamentoTardio(env, order) {
+  const estado = ({ reembolsada: 'reembolsada', parcialmente_reembolsada: 'parcialmente reembolsada', contestada: 'contestada pelo cliente' })[order.status] || order.status;
+  const text = [
+    `*** ATENÇÃO: A ENCOMENDA ${order.order_id} JÁ ESTÁ ${String(estado).toUpperCase()} ***`,
+    '',
+    'A Stripe confirmou agora o pagamento desta encomenda, mas o aviso chegou',
+    `depois do ${order.status === 'contestada' ? 'aviso da contestação' : 'reembolso'} (a Stripe entrega os avisos por qualquer ordem).`,
+    '',
+    'NÃO emita a fatura nem prepare a encomenda sem confirmar o estado real no',
+    'dashboard da Stripe. O cliente NÃO recebeu a confirmação da encomenda.',
+    '',
+    `Total da encomenda: ${eur(order.total_cents)}`,
+    typeof order.refunded_cents === 'number' && order.refunded_cents > 0 ? `Já reembolsado: ${eur(order.refunded_cents)}` : null,
+    order.dispute_id ? `Contestação: ${order.dispute_id}` : null,
+    `Stripe: ${order.payment_intent || '—'}`,
+  ].filter((l) => l !== null).join('\n');
+  return send(env, {
+    to: env.MAIL_TO,
+    subject: `[Loja] NÃO FATURAR — ${order.order_id} já está ${estado}`,
+    text,
+    replyTo: (order.cliente || {}).email,
+  });
+}
+
 /* ---------- 3. Referência Multibanco ---------- */
 export function referenciaMultibanco(env, order) {
   const c = order.cliente || {};

@@ -27,7 +27,7 @@
 
 import { stripeFetch, verifyStripeSignature } from './stripe.js';
 import { priceOrder } from './pricing.js';
-import { avisoLoja, confirmacaoCliente, referenciaMultibanco } from './mail.js';
+import { avisoLoja, confirmacaoCliente, referenciaMultibanco, avisoPagamentoTardio } from './mail.js';
 import { termosDasFontes, lerFontesDoSite, lerJsonOpcional, moradaLinha } from './termos.js';
 
 const MAX_BODY_BYTES = 8 * 1024;
@@ -404,7 +404,7 @@ async function handleWebhook(request, env, ctx) {
   ]);
 
   if (result && result.notify && result.notify.length) {
-    ctx.waitUntil(enviarEMarcar(env, result.order.order_id, result.notify)
+    ctx.waitUntil(enviarEMarcar(env, result.order, result.notify)
       .catch((e) => console.error('envio de emails falhou', e.message)));
   }
   return new Response('ok');
@@ -420,14 +420,17 @@ async function handleWebhook(request, env, ctx) {
  * um email repetido traz o mesmo número de encomenda e é evidente a quem o
  * recebe, enquanto um email que nunca sai é invisível.
  */
-async function enviarEMarcar(env, orderId, notify) {
+async function enviarEMarcar(env, order, notify) {
+  const orderId = order.order_id;
   for (const n of notify) {
     const antes = await getOrder(env, orderId);
     if (antes && antes[n.flag]) continue;    // um evento gémeo já tratou disto
 
     let ok = false;
     try {
-      const r = await n.envia();
+      // O texto decide-se pelo estado de AGORA (relido), e não pelo do evento:
+      // entretanto pode ter chegado um reembolso ou uma contestação.
+      const r = await n.envia(antes || order);
       const rs = Array.isArray(r) ? r : [r];
       // `skipped` conta como resolvido: falta a chave do Resend, ou o cliente
       // não deixou email. Insistir não muda nada.
@@ -462,8 +465,19 @@ async function resolveOrder(env, obj) {
 const ESTADOS_FIRMES = ['paga', 'reembolsada', 'parcialmente_reembolsada', 'contestada'];
 export function podeRegredir(order) { return !ESTADOS_FIRMES.includes(order.status); }
 
+/* O dinheiro entrou e depois saiu, ou está contestado. Um evento de pagamento
+   que chegue DEPOIS (a Stripe reentrega por qualquer ordem, e uma avaria do
+   Worker ou da quota do KV junta-os) não pode pôr a encomenda outra vez
+   «paga» nem mandar faturar e despachar. */
+const DEPOIS_DE_PAGA = ['reembolsada', 'parcialmente_reembolsada', 'contestada'];
+
 /**
  * Marca como paga e devolve os emails a enviar.
+ *
+ * Só promove a «paga» o que ainda pode mudar (podeRegredir): num estado firme
+ * grava apenas o paid_at. E se, no momento de avisar, a encomenda já estiver
+ * reembolsada ou contestada, não sai o «confirmada» ao cliente nem o «A FAZER
+ * HOJE» ao dono — sai um aviso ao dono com o estado real.
  *
  * NÃO marca `notified_paid` aqui: quem o faz é enviarEMarcar(), e só depois de
  * o envio ser aceite. Marcar antes significava que uma falha do Resend (429,
@@ -473,12 +487,15 @@ export function podeRegredir(order) { return !ESTADOS_FIRMES.includes(order.stat
  */
 function markPaid(order, env) {
   const notify = [];
-  if (order.status !== 'paga') {
-    order.status = 'paga';
-    order.paid_at = order.paid_at || new Date().toISOString();
-  }
+  if (podeRegredir(order)) order.status = 'paga';
+  order.paid_at = order.paid_at || new Date().toISOString();
   if (!order.notified_paid) {
-    notify.push({ flag: 'notified_paid', envia: () => Promise.all([avisoLoja(env, order), confirmacaoCliente(env, order)]) });
+    notify.push({
+      flag: 'notified_paid',
+      envia: (o) => (DEPOIS_DE_PAGA.includes(o.status)
+        ? avisoPagamentoTardio(env, o)
+        : Promise.all([avisoLoja(env, o), confirmacaoCliente(env, o)])),
+    });
   }
   return notify;
 }
@@ -536,7 +553,7 @@ async function applyEvent(event, env) {
         if (podeRegredir(order)) {
           order.status = 'aguarda_multibanco';
           if (!order.notified_mb) {
-            notify.push({ flag: 'notified_mb', envia: () => referenciaMultibanco(env, order) });
+            notify.push({ flag: 'notified_mb', envia: (o) => referenciaMultibanco(env, o) });
           }
         }
       }
