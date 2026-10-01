@@ -52,11 +52,20 @@ O CI (`.github/workflows/pages.yml`) tem três jobs:
   `.github/preparar-site.sh` monta a `_site`;
 - **publicar** — tem o token da Cloudflare e **não corre nada do repositório** (sem checkout;
   a config do wrangler e as verificações de fuga estão escritas no YAML);
-- **avisar** — abre, comenta ou fecha a issue «Publicação parada».
+- **avisar** — abre (trancada), comenta ou fecha a issue «Publicação parada» — só a aberta
+  pelo bot; um erro do `gh` fica como aviso e não marca a corrida como falhada.
+
+A barreira dos três jobs só existe **sem a App do Pages CMS** instalada: ela tem a permissão
+Workflows (e Administration, e Actions). Desinstalá-la antes do merge, ou no mesmo momento.
+
+Se a publicação parar depois da guarda (no injector, ou numa fotografia que não se abre), a
+mensagem sai como `::error` (o painel mostra-a) e vai para a issue.
 
 Um produto com dados partidos sai de venda **só na cópia publicada** e o resto publica; só um
 problema de estrutura (JSON ilegível, o interruptor dos pagamentos, os portes, os prazos, os
-dados legais) pára a publicação.
+dados legais) pára a publicação. As regras recusam tudo o que o injector recusaria (o
+`test-guardas.mjs` prova-o com o diferencial, campo a campo, contra o injector verdadeiro): o
+que o painel grava, publica.
 
 Os prazos, o custo de devolução, o telefone, o email e os dados da empresa chegam também à
 página de pagamento e aos emails das encomendas: o Worker dos pagamentos lê-os dos mesmos JSON
