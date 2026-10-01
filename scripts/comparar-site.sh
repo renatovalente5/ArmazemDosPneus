@@ -109,6 +109,16 @@ HTML = [
      'o resumo do checkout ganha os marcadores dos prazos (o texto que se vê é o mesmo): o «dias» entra no marcador prazo-maximo (revisão L6-06/L7-02)'),
     ('legal/termos.html', 'Estando o estabelecimento sediado em <strong>Ovar</strong>', 'A entidade competente, em razão da sede do estabelecimento, é o',
      'Termos §7: sai a justificação da RAL escrita à mão («sediado em Ovar»), que ficava falsa se o dono mudasse a sede no painel (revisão L6-04)'),
+    # Decisões do dono de 1 out 2026 (garantia dos seminovos por acordo; sem foro).
+    ('checkout.html', '', '<label class="co__check co__check--legal" id="co-garantia" hidden>',
+     'a caixa OBRIGATÓRIA do acordo da garantia dos pneus seminovos (DL 84/2021, art. 12.º): escondida; o checkout.js mostra-a só com um seminovo de garantia reduzida no carrinho'),
+    ('legal/termos.html', 'Última atualização: julho de 2026', 'Última atualização: outubro de 2026',
+     'a data escrita dos Termos passa a outubro de 2026: o texto mudou (§6 e §9, decisões do dono de 1 out)'),
+    ('legal/termos.html', 'podem ter prazo reduzido nos termos legais). A garantia não cobre o desgaste normal, danos por má utilização, montagem indevida ou acidentes.',
+     'nunca inferior a 18 meses</strong>, e a redução é <strong>aceite expressamente pelo cliente antes de concluir a compra</strong> (art. 12.º do DL n.º 84/2021). A garantia não cobre o desgaste normal, danos por má utilização, montagem indevida feita por terceiros ou acidentes.',
+     'Termos §6: nos pneus seminovos a garantia de cada artigo, nunca menos de 18 meses, aceite antes da compra (DL 84/2021, art. 12.º); a montagem que a garantia não cobre é a feita por terceiros (Dir. 2019/771, art. 8.º)'),
+    ('legal/termos.html', 'sendo competentes os tribunais da comarca de Aveiro, ', 'Aos presentes termos aplica-se a lei portuguesa, sem prejuízo das normas imperativas de proteção do consumidor.</p>',
+     'Termos §9: sai o foro da comarca de Aveiro (decisão do dono de 1 out); fica a lei portuguesa e as normas imperativas de proteção do consumidor'),
 ]
 # (ficheiro, caminho no JSON-LD (expressão regular), razão)
 JSONLD = [
@@ -121,7 +131,8 @@ JSONLD = [
 FICHEIROS = [
     (r'^data/site\.json$', 'novo', 'os contactos, horário, serviços e textos (painel: Contactos e horário, Serviços, Textos)', True),
     (r'^data/empresa\.json$', 'novo', 'os dados da empresa (painel: Dados da empresa)', True),
-    (r'^assets/js/(catalog|main|checkout|obrigado)\.js$', 'mudou', 'o WhatsApp e o telefone passam a vir das metas ap:* (com o valor de hoje como recurso); e, da revisão de 1 out, o catálogo sem preço para os pneus novos sem etiqueta UE e sem garantias abaixo de 18 meses, e o checkout com o peso em inteiros, «3 dias úteis» e as condições mostradas no pedido', True),
+    (r'^assets/js/checkout\.js$', 'mudou', 'o WhatsApp e o telefone passam a vir das metas ap:*; da revisão de 1 out, o peso em inteiros, «3 dias úteis» e as condições mostradas no pedido; e (decisão do dono de 1 out) a caixa obrigatória da garantia dos pneus seminovos, com a aceitação no pedido e o 400 do Worker tratado', True),
+    (r'^assets/js/(catalog|main|obrigado)\.js$', 'mudou', 'o WhatsApp e o telefone passam a vir das metas ap:* (com o valor de hoje como recurso); e, da revisão de 1 out, o catálogo sem preço para os pneus novos sem etiqueta UE e sem garantias abaixo de 18 meses', True),
     (r'^assets/js/cart\.js$', 'mudou', 'A3: o carrinho actualiza o nome e a fotografia com o catálogo, e uma fotografia que falhe mostra o logótipo', False),
     (r'^assets/css/styles\.css$', 'mudou', 'A3: .citem__img--ph, o logótipo no lugar da fotografia que falta no carrinho; e a ligação para a etiqueta UE no EPREL no cartão do pneu (revisão L6-02)', True),
 ]
