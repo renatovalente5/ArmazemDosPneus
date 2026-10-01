@@ -977,6 +977,64 @@ try {
   }
 
   /* ================================================================== */
+  secao('o checkout (assets/js/checkout.js): o que a página mostra e o que manda');
+  /* O checkout.js verdadeiro, num vm: um DOM de faz-de-conta com os elementos
+     que ele usa, o carrinho no localStorage, o settings.json e o
+     products.json pelo fetch, e o /checkout do Worker a responder o que o
+     teste mandar. Devolve os elementos (textContent, hidden…), o corpo que
+     seguiu para o Worker e um submeter(). */
+  const checkoutNaPagina = async ({ settings = HOJE.settings, produtos = HOJE.products, carrinho, entrega = 'pickup', respostas = [] } = {}) => {
+    const els = {};
+    const el = (id) => (els[id] ||= {
+      id, textContent: '', innerHTML: '', hidden: true, disabled: false, value: '', checked: false,
+      attrs: {}, handlers: {}, classList: { toggle() {} },
+      setAttribute(k, v) { this.attrs[k] = v; }, removeAttribute(k) { delete this.attrs[k]; }, focus() {}, scrollIntoView() {},
+      addEventListener(t, f) { this.handlers[t] = f; }, querySelector: () => null,
+    });
+    const form = el('co-form');
+    Object.assign(form, {
+      nome: { value: 'Maria Ensaio' }, email: { value: 'cliente@exemplo.pt' }, tel: { value: '912 000 000' }, nif: { value: '' }, notas: { value: '' },
+      montagem: { checked: false }, montagem_imediata: { checked: false }, matricula: { value: '' }, termos: { checked: true },
+      morada: { value: 'Rua do Ensaio, 10' }, cp: { value: '1000-001' }, localidade: { value: 'Lisboa' },
+    });
+    const pedidos = [];
+    const ctx = {
+      document: {
+        getElementById: (id) => el(id),
+        querySelector: (q) => (q === 'input[name="entrega"]:checked' ? { value: entrega } : null),
+        querySelectorAll: () => ({ forEach() {} }),
+      },
+      location: { hostname: 'armazemdospneus.pt', search: '' }, URLSearchParams,
+      localStorage: { getItem: () => JSON.stringify(carrinho), setItem() {} },
+      window: { location: {} },
+      fetch: async (u, init) => {
+        if (/settings\.json/.test(u)) { if (settings instanceof Error) throw settings; return { ok: true, json: async () => clonar(settings) }; }
+        if (/products\.json/.test(u)) return { ok: true, json: async () => clonar(produtos) };
+        pedidos.push(JSON.parse(init.body));
+        const r = respostas.shift() || { status: 200, corpo: { url: 'https://checkout.stripe.com/x', total_cents: 0 } };
+        return { ok: r.status === 200, json: async () => r.corpo };
+      },
+    };
+    vm.runInNewContext(ler('assets/js/checkout.js'), ctx);
+    for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 0));
+    const submeter = async () => { form.handlers.submit && form.handlers.submit({ preventDefault() {} }); for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 0)); };
+    return { els, pedidos, submeter, janela: ctx.window };
+  };
+  {
+    /* Achado L7-11: o peso somava-se em vírgula flutuante. */
+    const produtos = { products: [
+      { name: 'Óleo A', category: 'Óleos', price_eur: 10, stock: 8, weight_kg: 1.6, condition: 'Novo', available: true, sku: 'oleo-a' },
+      { name: 'Filtro B', category: 'Acessórios', price_eur: 5, stock: 8, weight_kg: 0.2, condition: 'Novo', available: true, sku: 'filtro-b' },
+    ] };
+    const settings = clonar(HOJE.settings); settings.shipping.quote_later = false;
+    settings.shipping.tiers = [{ max_kg: 5, price: 4.99 }, { max_kg: 20, price: 8.99 }];
+    const carrinho = [{ sku: 'oleo-a', name: 'Óleo A', qty: 3, price_cents: 1000, weight: 1.6 }, { sku: 'filtro-b', name: 'Filtro B', qty: 1, price_cents: 500, weight: 0.2 }];
+    const p = await checkoutNaPagina({ settings, produtos, carrinho, entrega: 'envio' });
+    certo(p.els['co-ship'].textContent === '4,99 €' && p.els['co-ship-label'].textContent === 'Portes (5 kg)',
+      'checkout: 3 × 1,6 kg + 1 × 0,2 kg são 5 kg e 4,99 € de portes (o escalão certo, como o Worker)', `${p.els['co-ship-label'].textContent} ${p.els['co-ship'].textContent}`);
+  }
+
+  /* ================================================================== */
   secao('o pages.yml: quem tem o quê');
   const construir = jobDoYaml('construir'); const publicar = jobDoYaml('publicar'); const avisar = jobDoYaml('avisar');
   /* Achado L8-01: o comentário dizia «nenhuma App tem a permissão Workflows»,

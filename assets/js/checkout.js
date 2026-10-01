@@ -53,7 +53,12 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function fmt(c) { return (c / 100).toFixed(2).replace('.', ',') + ' €'; }
   function subtotal() { return items.reduce(function (a, it) { return a + it.price_cents * it.qty; }, 0); }
-  function weight() { return items.reduce(function (a, it) { return a + (it.weight || 0) * it.qty; }, 0); }
+  /* O peso em CENTÉSIMOS DE KG inteiros, como o Worker (pricing.js): somado
+     em vírgula flutuante, 3 × 1,6 + 0,2 dava 5,000000000000001 kg e caía no
+     escalão de portes seguinte. */
+  function centesimos(kg) { return Math.round((Number(kg) || 0) * 100); }
+  function weightCg() { return items.reduce(function (a, it) { return a + centesimos(it.weight) * it.qty; }, 0); }
+  function weight() { return weightCg() / 100; }
   function delivery() { var r = doc.querySelector('input[name="entrega"]:checked'); return r ? r.value : 'pickup'; }
 
   /* Portes por acordar: a loja ainda não tem tabela, por isso não se cobra nada
@@ -66,8 +71,8 @@
   /* Espelho da tabela de portes. O valor cobrado é sempre o do servidor. */
   function shipCost() {
     if (delivery() === 'pickup' || portesACombinar()) return 0;
-    var w = weight(), tiers = settings.shipping.tiers || [];
-    for (var i = 0; i < tiers.length; i++) if (w <= tiers[i].max_kg) return Math.round(tiers[i].price * 100);
+    var cg = weightCg(), tiers = settings.shipping.tiers || [];
+    for (var i = 0; i < tiers.length; i++) if (cg <= centesimos(tiers[i].max_kg)) return Math.round(tiers[i].price * 100);
     return tiers.length ? Math.round(tiers[tiers.length - 1].price * 100) : 0;
   }
 

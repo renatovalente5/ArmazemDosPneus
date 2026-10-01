@@ -268,6 +268,28 @@ export async function correr({ ok }) {
     ok('   e outra reentrega já não manda nada (duplicado)', r4.status === 200 && m.emails().length === 2, [r4, m.emails()]);
   }
 
+  /* ---------------------------------------------------------- L7-11 */
+  console.log('\nEstados — o peso soma-se em inteiros (L7-11)');
+  {
+    const { shippingTierCents } = await import('../src/pricing.js');
+    const tabela = { shipping: { tiers: [{ max_kg: 5, price: 4.99 }, { max_kg: 20, price: 8.99 }, { max_kg: 40, price: 14.99 }] } };
+    eq('3 × 1,6 kg + 0,2 kg (5,000000000000001 em vírgula flutuante) é o escalão de 5 kg', shippingTierCents(3 * 1.6 + 0.2, tabela), 499);
+    eq('3 × 5,4 kg + 3,8 kg (20,000000000000004) é o escalão de 20 kg', shippingTierCents(3 * 5.4 + 3.8, tabela), 899);
+    eq('5,01 kg continua no seguinte', shippingTierCents(5.01, tabela), 899);
+    const produtos = { products: [
+      { name: 'Óleo A', category: 'Óleos', price_eur: 10, stock: 8, weight_kg: 1.6, condition: 'Novo', available: true, sku: 'oleo-a' },
+      { name: 'Filtro B', category: 'Acessórios', price_eur: 5, stock: 8, weight_kg: 0.2, condition: 'Novo', available: true, sku: 'filtro-b' },
+    ] };
+    const settings = { ...SETTINGS_HOJE, shipping: { ...SETTINGS_HOJE.shipping, quote_later: false, tiers: tabela.shipping.tiers } };
+    const pedido = { ...PEDIDOS.ctt, items: [{ sku: 'oleo-a', qty: 3 }, { sku: 'filtro-b', qty: 1 }] };
+    const m = await montar({ pedido, rede: { 'products.json': produtos, 'settings.json': settings } });
+    const r = JSON.parse(m.checkout.corpo);
+    const linha = new URLSearchParams(m.rede.stripe[0].corpo);
+    eq('o /checkout com 3 × 1,6 kg e 1 × 0,2 kg: 5 kg e 4,99 € de portes, e a linha da Stripe diz o mesmo',
+      [r.weight_kg, r.shipping_cents, linha.get('line_items[2][price_data][product_data][name]'), linha.get('line_items[2][price_data][unit_amount]')],
+      [5, 499, 'Envio CTT (5 kg)', '499']);
+  }
+
   /* ---------------------------------------------------------- L7-05 */
   console.log('\nEstados — os reembolsos só somam, e não apagam uma contestação (L7-05)');
   {
