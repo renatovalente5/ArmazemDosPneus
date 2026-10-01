@@ -124,6 +124,33 @@ export async function correr({ ok }) {
       /\[\[ratelimits\]\]\s*\nname = "TRAVAO_CHECKOUT"\s*\nnamespace_id = "1101"\s*\nsimple = \{ limit = 5, period = 60 \}/.test(toml));
   }
 
+  /* ---------------------------------------------------------- L7-05 */
+  console.log('\nEstados — os reembolsos só somam, e não apagam uma contestação (L7-05)');
+  {
+    const m = await montar();
+    await m.webhook(EV.sessao(m.e));
+    await m.webhook(EV.reembolso(m.e, { reembolsado: m.e.total }));                  // o resto, total
+    await m.webhook(EV.reembolso(m.e, { reembolsado: 1000 }));                       // o parcial ANTERIOR, entregue tarde
+    const o = m.encomenda();
+    eq('reembolso total e depois o parcial anterior (fora de ordem): continua reembolsada pelo total', [o.status, o.refunded_cents], ['reembolsada', m.e.total]);
+  }
+  {
+    const m = await montar();
+    await m.webhook(EV.sessao(m.e));
+    await m.webhook(EV.disputa(m.e));
+    await m.webhook(EV.reembolso(m.e, { reembolsado: 1000 }));
+    const o = m.encomenda();
+    eq('contestação e depois um reembolso parcial atrasado: continua contestada, com o reembolso registado', [o.status, o.refunded_cents, o.dispute_id], ['contestada', 1000, 'du_estados1']);
+  }
+  {
+    const m = await montar();
+    await m.webhook(EV.sessao(m.e));
+    await m.webhook(EV.reembolso(m.e, { reembolsado: 1000 }));
+    eq('um reembolso parcial: parcialmente_reembolsada', [m.encomenda().status, m.encomenda().refunded_cents], ['parcialmente_reembolsada', 1000]);
+    await m.webhook(EV.reembolso(m.e, { reembolsado: m.e.total }));
+    eq('   e o resto: reembolsada pelo total', [m.encomenda().status, m.encomenda().refunded_cents], ['reembolsada', m.e.total]);
+  }
+
   /* ---------------------------------------------------------- L7-01 */
   console.log('\nEstados — um pagamento que chega atrasado não desfaz um reembolso nem uma contestação (L7-01)');
   {

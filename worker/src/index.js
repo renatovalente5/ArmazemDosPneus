@@ -618,10 +618,20 @@ async function applyEvent(event, env) {
       if (podeRegredir(order)) order.status = 'expirou';
       break;
 
-    case 'charge.refunded':
-      order.status = obj.amount_refunded === obj.amount ? 'reembolsada' : 'parcialmente_reembolsada';
-      order.refunded_cents = obj.amount_refunded;
+    case 'charge.refunded': {
+      // O total reembolsado só cresce: um evento de um reembolso parcial
+      // ANTERIOR, entregue tarde, não o faz baixar (o dono via «Reembolsado
+      // 10,00 € de 249,80 €» e a nota de crédito saía errada). E não tira a
+      // encomenda de «contestada»: o painel deixava de pedir a resposta à
+      // disputa, que tem prazo (achado L7-05).
+      const ja = Number.isFinite(order.refunded_cents) ? order.refunded_cents : 0;
+      const agora = Number.isFinite(obj.amount_refunded) ? obj.amount_refunded : 0;
+      order.refunded_cents = Math.max(ja, agora);
+      if (order.status !== 'contestada') {
+        order.status = order.refunded_cents >= obj.amount ? 'reembolsada' : 'parcialmente_reembolsada';
+      }
       break;
+    }
 
     case 'charge.dispute.created':
       order.status = 'contestada';
