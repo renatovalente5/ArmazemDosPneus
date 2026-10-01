@@ -60,6 +60,8 @@ export const MARCADORES = [
   // O dono muda os portes, os prazos e o custo de devolução: os Termos acompanham-nos.
   'portes', 'devolucao', 'custo-devolucao', 'prazo-entrega', 'prazo-maximo',
   'ral', 'facebook',
+  // «Última atualização» das páginas legais (o injector calcula-a do histórico).
+  'atualizacao',
 ];
 /* Os marcadores que são variantes (<!--ap:x se=…-->A<!--ap:x senao-->B<!--/ap:x-->),
    e a condição de cada um. Os outros não levam condição. */

@@ -1098,6 +1098,7 @@ try {
   certo(!/nenhuma App a tem/.test(YAML) && /Pages CMS[^]{0,200}workflows: write/.test(YAML) && /desinstalada/.test(YAML),
     'o pages.yml não promete que nenhuma App tem «workflows», e diz que a do Pages CMS tem e tem de sair antes do merge');
   certo(!/secrets\./.test(construir) && /persist-credentials: false/.test(construir), 'construir: sem segredos, e o checkout não deixa credenciais');
+  certo(/fetch-depth: 0/.test(construir), 'construir: o checkout traz o histórico todo (a «Última atualização» das páginas legais sai dele — achado L6-11)');
   certo(!/actions\/checkout/.test(publicar) && !/\.github\//.test(publicar.replace(/^\s*#.*$/gm, '')), 'publicar: sem checkout, e não corre nenhum script do repositório');
   certo((YAML.match(/secrets\.CLOUDFLARE_API_TOKEN/g) || []).length === 1 && /secrets\.CLOUDFLARE_API_TOKEN/.test(publicar), 'o token só aparece no publicar');
   certo(!/actions\/checkout/.test(avisar) && /issues: write/.test(avisar) && !/secrets\./.test(avisar), 'avisar: sem checkout, só issues');

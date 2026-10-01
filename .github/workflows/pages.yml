@@ -64,6 +64,10 @@ jobs:
           # O GITHUB_TOKEN (só leitura) não fica em .git/config ao alcance dos
           # scripts que correm a seguir.
           persist-credentials: false
+          # O histórico todo: a «Última atualização» das páginas legais sai do
+          # último commit dos dados que mudou o que elas dizem
+          # (.github/injetar-conteudo.py). O repositório é público.
+          fetch-depth: 0
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:

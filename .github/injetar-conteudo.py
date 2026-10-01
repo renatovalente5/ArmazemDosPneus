@@ -50,6 +50,7 @@ Só a biblioteca-padrão do Python 3.
 import html
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import quote, urlsplit
@@ -66,7 +67,7 @@ MARCADORES = [
     'topo-sobretitulo', 'topo-titulo', 'topo-frase', 'topo-destaques',
     'sobre-titulo', 'sobre-texto', 'sobre-pontos', 'contactos-frase', 'rodape-frase',
     'portes', 'devolucao', 'custo-devolucao', 'prazo-entrega', 'prazo-maximo',
-    'ral', 'facebook',
+    'ral', 'facebook', 'atualizacao',
 ]
 ATRIBUTOS = [
     'tel', 'tel-2', 'whatsapp', 'whatsapp-orcamento', 'whatsapp-orcamento-servico', 'mailto',
@@ -296,6 +297,8 @@ class Dados:
             falha('O custo de devolução tem de ser um valor em euros, ou ficar vazio.', E_PRAZOS)
         # Vazio ou zero: a loja paga (o mesmo que o checkout diz).
         self.custo_devolucao = rc if (e_numero(rc) and rc > 0) else None
+        # {página: 'AAAA-MM-DD'} — ver datas_das_mudancas(); o main() preenche-o.
+        self.mudancas = {}
 
     # --- ajudantes de leitura ------------------------------------------
     @staticmethod
@@ -412,6 +415,104 @@ class Dados:
             else:
                 grupos.append(([dia], iv))
         return grupos
+
+
+# ---------------------------------------------------------------------------
+# «Última atualização» das páginas legais
+# ---------------------------------------------------------------------------
+# Os Termos e a Privacidade mudam de conteúdo quando o dono muda prazos,
+# devolução, portes, morada, RAL… no painel — e a data escrita à mão ficava
+# «julho de 2026»: um cliente não conseguia saber que versão aceitou (achado
+# L6-11). O marcador <!--ap:atualizacao-->julho de 2026<!--/ap:atualizacao-->
+# escreve o mais recente de dois: a data que lá está (a da última vez que o
+# Renato mudou o texto) e o mês do último commit dos dados que mudou o que a
+# página DIZ (o <article>, publicado). A segunda sai do histórico do git
+# (o CI faz checkout com o histórico todo); sem ele, fica a primeira.
+MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho',
+         'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
+FICHEIROS_DOS_DADOS = ['data/site.json', 'data/empresa.json', 'data/settings.json']
+HISTORICO_MAXIMO = 400   # commits dos dados a percorrer, no máximo
+
+
+def mes_do_texto(t):
+    """«julho de 2026» → (2026, 7); outra coisa → None."""
+    m = re.fullmatch(r'\s*([a-zç]+) de ([0-9]{4})\s*', t)
+    if not m or m.group(1) not in MESES:
+        return None
+    return int(m.group(2)), MESES.index(m.group(1)) + 1
+
+
+def texto_do_mes(ano_mes):
+    return f'{MESES[ano_mes[1] - 1]} de {ano_mes[0]}'
+
+
+def o_que_a_pagina_diz(texto, d, rel):
+    """O texto legal publicado (o <article>), com os dados `d`."""
+    out = injetar_html(texto, d, rel)
+    m = re.search(r'<article\b.*?</article>', out, re.S)
+    return m.group(0) if m else out
+
+
+def datas_das_mudancas(paginas, raiz_git=None):
+    """{rel: 'AAAA-MM-DD'} — o último commit dos dados que mudou o que cada
+    página diz. `paginas` = {rel: texto}. Sem git, sem histórico ou com dados
+    antigos que já não se lêem: {} para essa página (vale a data escrita)."""
+    raiz_git = Path(raiz_git or Path(__file__).resolve().parent.parent)
+
+    def git(*a):
+        r = subprocess.run(['git', '-C', str(raiz_git), *a], capture_output=True, text=True, encoding='utf-8')
+        if r.returncode != 0:
+            raise OSError(r.stderr.strip()[:200])
+        return r.stdout
+
+    cache = {}
+
+    def dados_em(rev):
+        if rev not in cache:
+            try:
+                site, empresa, settings = (json.loads(git('show', f'{rev}:{f}')) for f in FICHEIROS_DOS_DADOS)
+                cache[rev] = Dados(site, empresa, settings)
+            except (OSError, ValueError, Falha):
+                cache[rev] = None
+        return cache[rev]
+
+    try:
+        # Só o repositório DESTA publicação: uma cópia sem .git dentro de outro
+        # repositório (o ensaio do painel) não pode ler o histórico do outro.
+        if Path(git('rev-parse', '--show-toplevel').strip()).resolve() != raiz_git.resolve():
+            return {}
+        log = [l.split('\t') for l in git('log', '--first-parent', '--format=%H%x09%cs', '-n', str(HISTORICO_MAXIMO),
+                                          '--', *FICHEIROS_DOS_DADOS).splitlines() if '\t' in l]
+    except (OSError, FileNotFoundError):
+        return {}
+    pendentes = dict(paginas)
+    out = {}
+    for commit, data in log:
+        if not pendentes:
+            break
+        depois, antes = dados_em(commit), dados_em(commit + '^')
+        if depois is None or antes is None:
+            break   # o começo dos dados (antes do A2), ou dados que já não se lêem
+        for rel, texto in list(pendentes.items()):
+            try:
+                mudou = o_que_a_pagina_diz(texto, depois, rel) != o_que_a_pagina_diz(texto, antes, rel)
+            except Falha:
+                mudou = False
+            if mudou:
+                out[rel] = data
+                del pendentes[rel]
+    return out
+
+
+def data_da_atualizacao(reserva, mudanca, ficheiro, linha):
+    escrita = mes_do_texto(reserva)
+    if escrita is None:
+        falha_da_pagina(ficheiro, linha, f'o marcador «atualizacao» tem de ter uma data como «julho de 2026» (tem «{reserva.strip()[:40]}»).')
+    if mudanca:
+        ano, mes = int(mudanca[:4]), int(mudanca[5:7])
+        if (ano, mes) > escrita:
+            return texto_do_mes((ano, mes))
+    return texto_do_mes(escrita)
 
 
 # ---------------------------------------------------------------------------
@@ -663,6 +764,10 @@ def trocar_marcadores(texto, d, ficheiro, conta):
     def um(no):
         a, s, f = no['abre'], no['senao'], no['fecho']
         conta[no['nome']] = conta.get(no['nome'], 0) + 1
+        if no['nome'] == 'atualizacao':
+            # A data depende da página e do que já lá está (injectar duas vezes dá o mesmo).
+            reserva = texto[a.end():f.start()]
+            return a.group(0) + escapar(data_da_atualizacao(reserva, d.mudancas.get(ficheiro), ficheiro, no['linha'])) + f.group(0)
         if not no['cond']:
             return a.group(0) + gerar(no['nome'], d, indentacao(texto, a.start()), ECRA_DO_MARCADOR) + f.group(0)
         sim = condicao(no['nome'], d)
@@ -899,6 +1004,12 @@ def main(args):
         paginas = sorted(p for p in raiz.rglob('*.html') if p.is_file())
         if not paginas:
             falha(f'Não há páginas em {raiz}/.')
+        com_data = {p.relative_to(raiz).as_posix(): p.read_text(encoding='utf-8') for p in paginas}
+        com_data = {rel: t for rel, t in com_data.items() if '<!--ap:atualizacao-->' in t}
+        if com_data:
+            d.mudancas = datas_das_mudancas(com_data)
+            for rel, data in sorted(d.mudancas.items()):
+                print(f'    {rel}: o que a página diz mudou com os dados de {data}')
         total = {}
         for p in paginas:
             rel = p.relative_to(raiz).as_posix()

@@ -150,7 +150,7 @@ for nome, esperado in casos.items():
     saida = injetar(f'<p><!--ap:{nome}-->RESERVA<!--/ap:{nome}--></p>', d)
     certo(saida == f'<p><!--ap:{nome}-->{esperado}<!--/ap:{nome}--></p>', f'{nome} → {esperado[:60] or "(vazio)"}', saida)
 testados = set(casos) | {'servicos', 'servicos-frase', 'marcas', 'topo-frase', 'topo-destaques', 'sobre-titulo', 'sobre-texto',
-                         'sobre-pontos', 'contactos-frase', 'rodape-frase', 'portes', 'devolucao', 'custo-devolucao', 'facebook'}
+                         'sobre-pontos', 'contactos-frase', 'rodape-frase', 'portes', 'devolucao', 'custo-devolucao', 'facebook', 'atualizacao'}
 certo(testados == set(I.MARCADORES), 'todos os marcadores da lista têm um caso nesta bateria', ', '.join(sorted(set(I.MARCADORES) ^ testados)))
 
 bloco = injetar('<ul>\n      <!--ap:topo-destaques--><li>x</li><!--/ap:topo-destaques-->\n    </ul>', d)
@@ -283,6 +283,58 @@ termos_feira = visivel(I.injetar_html(HTML['legal/termos.html'], dados(empresa=e
 certo('Ovar' not in termos_feira and 'CICAP' in termos_feira and '4520-200 Santa Maria da Feira' in termos_feira,
       'Termos: a sede muda para Santa Maria da Feira e a RAL para o CICAP — nenhum «Ovar» escrito à mão fica a justificar a entidade',
       [l for l in termos_feira.split('\n') if 'Ovar' in l][:2])
+
+# =============================================================================
+secao('«Última atualização» das páginas legais (achado L6-11)')
+ATU = '<p>Última atualização: <!--ap:atualizacao-->julho de 2026<!--/ap:atualizacao--></p>'
+d_atu = dados(); d_atu.mudancas = {'pagina.html': '2026-10-01'}
+certo(visivel(injetar(ATU)) == '<p>Última atualização: julho de 2026</p>', 'sem mudanças nos dados: fica a data escrita')
+uma = injetar(ATU, d_atu)
+certo(visivel(uma) == '<p>Última atualização: outubro de 2026</p>' and injetar(uma, d_atu) == uma, 'os dados mudaram o que a página diz em outubro: «outubro de 2026» (e injectar outra vez dá o mesmo)')
+d_atu.mudancas = {'pagina.html': '2026-05-03'}
+certo(visivel(injetar(ATU, d_atu)) == '<p>Última atualização: julho de 2026</p>', 'uma mudança dos dados anterior ao texto escrito não puxa a data para trás')
+msg = falha_de(lambda: injetar('<!--ap:atualizacao-->ontem<!--/ap:atualizacao-->'))
+certo(msg is not None and 'julho de 2026' in msg, 'uma data que não se percebe pára, e diz o formato', msg or '')
+
+# O histórico do git: um repositório de ensaio com os commits dos dados.
+with tempfile.TemporaryDirectory() as tmp:
+    rep = Path(tmp)
+    ambiente = {'GIT_CONFIG_GLOBAL': '/dev/null', 'GIT_CONFIG_SYSTEM': '/dev/null', 'HOME': tmp, 'PATH': __import__('os').environ['PATH']}
+    def git(*a, data=None):
+        env = dict(ambiente)
+        if data:
+            env.update(GIT_AUTHOR_DATE=f'{data}T12:00:00+00:00', GIT_COMMITTER_DATE=f'{data}T12:00:00+00:00')
+        return subprocess.run(['git', '-C', tmp, '-c', 'user.name=Ensaio', '-c', 'user.email=ensaio@exemplo.pt', *a], capture_output=True, text=True, env=env, check=True).stdout
+    def gravar(data, site=SITE, empresa=EMPRESA, settings=SETTINGS, outro=None):
+        (rep / 'data').mkdir(exist_ok=True)
+        for nome, v in (('site', site), ('empresa', empresa), ('settings', settings)):
+            (rep / 'data' / f'{nome}.json').write_text(json.dumps(v, ensure_ascii=False, indent=2), encoding='utf-8')
+        if outro:
+            (rep / 'outro.txt').write_text(outro, encoding='utf-8')
+        git('add', '-A'); git('commit', '-q', '-m', f'dados {data}', data=data)
+    git('init', '-q')
+    (rep / 'outro.txt').write_text('antes dos dados', encoding='utf-8'); git('add', '-A'); git('commit', '-q', '-m', 'antes', data='2026-07-01')
+    gravar('2026-09-30')                                                                  # o A2: os dados de hoje
+    s2 = copy.deepcopy(SITE); s2['servicos'][0]['texto'] = 'Outro texto do serviço.'
+    gravar('2026-10-05', site=s2)                                                         # muda um serviço: os Termos não o dizem
+    st3 = copy.deepcopy(SETTINGS); st3['returns']['return_cost_eur'] = 6.5
+    gravar('2026-11-10', site=s2, settings=st3)                                           # a devolução: os Termos mudam
+    gravar('2026-12-01', site=s2, settings=st3, outro='só outro ficheiro')               # não toca nos dados
+    st5 = copy.deepcopy(st3); st5['payment']['mode'] = 'reserva'
+    gravar('2027-01-15', site=s2, settings=st5)                                           # o interruptor: os Termos não o dizem
+    legais = {rel: HTML[rel] for rel in ('legal/termos.html', 'legal/privacidade.html', 'legal/cookies.html')}
+    datas = I.datas_das_mudancas(legais, rep)
+    certo(datas.get('legal/termos.html') == '2026-11-10', 'Termos: a data é a do commit que mudou o que eles dizem (a devolução), e não a do último commit dos dados', datas)
+    certo('legal/privacidade.html' not in datas and 'legal/cookies.html' not in datas, '   a Privacidade e os Cookies não mudaram de conteúdo: fica a data escrita', datas)
+    e6 = copy.deepcopy(EMPRESA); e6['denominacao'] = 'Rodas & Filhos, Lda.'
+    gravar('2027-02-20', site=s2, empresa=e6, settings=st5)
+    datas = I.datas_das_mudancas(legais, rep)
+    certo(datas.get('legal/privacidade.html') == '2027-02-20' and datas.get('legal/termos.html') == '2027-02-20', '   a denominação muda: mudam os Termos e a Privacidade', datas)
+    termos = visivel(I.injetar_html(HTML['legal/termos.html'], (lambda d: (setattr(d, 'mudancas', datas), d)[1])(dados(empresa=e6)), 'legal/termos.html'))
+    certo('Última atualização: fevereiro de 2027' in termos, '   e os Termos publicados dizem «fevereiro de 2027»')
+    certo(I.datas_das_mudancas(legais, rep / 'nao-existe') == {}, 'sem repositório (o ensaio do painel, uma cópia): nenhuma data, vale a escrita')
+    sub = rep / 'copia'; sub.mkdir()
+    certo(I.datas_das_mudancas(legais, sub) == {}, '   e uma cópia DENTRO de outro repositório não lê o histórico do outro')
 
 # =============================================================================
 secao('o geo e o mapa inválidos ficam de fora (para a guarda são só aviso)')
