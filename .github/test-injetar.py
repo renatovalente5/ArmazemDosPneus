@@ -16,7 +16,10 @@ O que prova:
   · O CAMINHO DO CLIENTE (memória testar-o-caminho-do-cliente): sobre as
     páginas VERDADEIRAS do repositório, muda-se cada campo de site.json,
     empresa.json e settings.json, um a um, e confere-se que o valor novo
-    aparece onde deve e o antigo desaparece de todas as páginas.
+    aparece onde deve e o antigo desaparece de todas as páginas;
+  · os Termos de 1 out 2026: o §6 (a garantia dos seminovos, por acordo) e o
+    §9 (sem foro), com os marcadores intactos — e nenhuma página, fonte do
+    Worker ou documento com foro ou tribunais.
 """
 import copy
 import importlib.util
@@ -617,6 +620,51 @@ if Image is not None:
         certo(r.returncode == 1 and 'Traceback' not in r.stderr and 'ERRO: A fotografia do topo' in r.stderr
               and '::error title=Fotografias do site::A fotografia do topo (assets/uploads/estragada.jpg) não se consegue abrir' in r.stdout,
               'uma fotografia estragada: pára sem rebentar, e diz em «Fotografias do site» qual (::error)', (r.stdout + r.stderr)[-400:])
+
+# =============================================================================
+secao('os Termos de 1 out 2026: a garantia dos seminovos (§6) e sem foro (§9)')
+# Decisões do dono: nos pneus seminovos (bens usados) a garantia é a de cada
+# artigo, nunca menos de 18 meses, e a redução é aceite expressamente antes da
+# compra (DL 84/2021, art. 12.º); a montagem que a garantia não cobre é a feita
+# por terceiros (a da loja é dela, Dir. 2019/771 art. 8.º); e sai o foro da
+# comarca de Aveiro (num contrato com um consumidor não vale, e só confundia).
+def paragrafo(html, titulo):
+    m = re.search(rf'<h2>{re.escape(titulo)}</h2>\s*<p>(.*?)</p>', html, re.S)
+    return re.sub(r'<[^>]+>', '', m.group(1)) if m else None
+
+
+for nome, pagina in (('na página em bruto', HTML['legal/termos.html']), ('na página publicada', visivel(I.injetar_html(HTML['legal/termos.html'], d0, 'legal/termos.html')))):
+    s6, s9 = paragrafo(pagina, '6. Garantia'), paragrafo(pagina, '9. Lei aplicável')
+    certo(s6 == ('Aos bens de consumo aplica-se a garantia legal de conformidade nos termos do DL n.º 84/2021: 3 anos para os bens novos; '
+                 'para os pneus seminovos (bens usados), o prazo é o indicado em cada artigo, nunca inferior a 18 meses, e a redução é aceite '
+                 'expressamente pelo cliente antes de concluir a compra (art. 12.º do DL n.º 84/2021). A garantia não cobre o desgaste normal, '
+                 'danos por má utilização, montagem indevida feita por terceiros ou acidentes.'),
+          f'§6 {nome}: 3 anos nos novos; nos seminovos o prazo de cada artigo, nunca menos de 18 meses, aceite antes da compra; montagem por terceiros', s6)
+    certo(s9 == 'Aos presentes termos aplica-se a lei portuguesa, sem prejuízo das normas imperativas de proteção do consumidor.',
+          f'§9 {nome}: a lei portuguesa, sem foro', s9)
+    certo(not re.search(r'comarca|tribunais|segunda mão', pagina, re.I), f'   {nome}: nenhuma «comarca», «tribunais» nem «segunda mão»')
+termos_pub = visivel(I.injetar_html(HTML['legal/termos.html'], d0, 'legal/termos.html'))
+certo('Última atualização: outubro de 2026' in termos_pub, 'os Termos mudaram de texto em outubro: a data escrita é «outubro de 2026»')
+# Os marcadores ficaram intactos: os mesmos, pela mesma ordem, da versão de
+# antes desta mudança (o pai do commit que escreveu «nunca inferior a 18
+# meses»; antes do commit, o HEAD).
+def git_texto(*a):
+    r = subprocess.run(['git', '-C', str(RAIZ), *a], capture_output=True, text=True, encoding='utf-8')
+    return r.stdout if r.returncode == 0 else None
+
+
+marcas = lambda t: re.findall(r'<!--\s*/?ap:[^>]*?-->|data-ap-[a-z-]+="[^"]*"', t)
+mudou = (git_texto('log', '--reverse', '--format=%H', '-S', 'nunca inferior a 18 meses', '--', 'legal/termos.html') or '').split()
+antes_t = git_texto('show', f'{mudou[0]}^:legal/termos.html' if mudou else 'HEAD:legal/termos.html')
+depois_t = git_texto('show', f'{mudou[0]}:legal/termos.html') if mudou else HTML['legal/termos.html']
+certo(antes_t is not None and 'segunda mão' in antes_t and len(marcas(antes_t)) > 30 and marcas(antes_t) == marcas(depois_t) == marcas(HTML['legal/termos.html']),
+      f'os {len(marcas(HTML["legal/termos.html"]))} marcadores <!--ap:…--> e data-ap-* dos Termos são os de antes da mudança ({mudou[0][:7] if mudou else "HEAD"}), pela mesma ordem')
+# A mesma cláusula em mais nenhum sítio: as páginas, os emails do Worker e a documentação.
+onde = {rel: HTML[rel] for rel in PAGINAS}
+onde.update({p.relative_to(RAIZ).as_posix(): p.read_text(encoding='utf-8') for p in (RAIZ / 'worker' / 'src').glob('*.js')})
+onde.update({p.relative_to(RAIZ).as_posix(): p.read_text(encoding='utf-8') for p in [*RAIZ.glob('*.md'), RAIZ / 'worker' / 'README.md']})
+com_foro = sorted(rel for rel, t in onde.items() if re.search(r'comarca|tribunais|foro\b', t, re.I))
+certo(len(onde) > 15 and not com_foro, f'nenhuma das {len(onde)} páginas, fontes do Worker e documentos fala de foro ou de tribunais', com_foro)
 
 print(f'\n{passou} passaram, {falhou} falharam')
 sys.exit(1 if falhou else 0)
