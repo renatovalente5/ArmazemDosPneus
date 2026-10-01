@@ -317,6 +317,17 @@ e_ral = copy.deepcopy(EMPRESA); e_ral['ral']['url'] = 'https://ex\u2100mple.pt'
 msg = falha_de(lambda: injetar('<!--ap:ral-->x<!--/ap:ral-->', dados(empresa=e_ral)))
 certo(msg is None or '* sem par' not in msg, 'um endereço que o urlsplit recusa (ValueError) não passa por «um * sem par»', msg or '')
 
+# Achado L8-02: um Facebook sem «facebook.com» em minúsculas ficava duas vezes
+# no sameAs à segunda injecção, e a prova de idempotência parava a publicação.
+for fbx in ('https://www.Facebook.com/ArmazemDosPneus', 'https://fb.me/armazemdospneus', 'https://www.instagram.com/armazemdospneus'):
+    sfb = copy.deepcopy(SITE); sfb['contactos']['facebook'] = fbx
+    d_fb = dados(site=sfb)
+    uma = I.injetar_html(HTML['index.html'], d_fb, 'index.html')
+    duas = I.injetar_html(uma, d_fb, 'index.html')
+    same = negocio(uma).get('sameAs') or []
+    certo(duas == uma and same.count(fbx) == 1 and not any('facebook.com/armazem.dospeneus' in x for x in same),
+          f'Facebook «{fbx}»: injectar duas vezes dá o mesmo, e o sameAs tem-no uma vez (e já não o antigo)', repr(same))
+
 # =============================================================================
 secao('as falhas: cada uma pára, e diz onde se corrige')
 S = lambda f: (lambda s: (f(s), s)[1])(copy.deepcopy(SITE))

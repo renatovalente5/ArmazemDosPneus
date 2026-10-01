@@ -769,7 +769,14 @@ def actualizar_negocio(no, d):
     no['address'] = morada
     por_ou_tirar(no, 'geo', {'@type': 'GeoCoordinates', 'latitude': d.geo['lat'], 'longitude': d.geo['lng']} if d.geo else None)
     por_ou_tirar(no, 'hasMap', d.mapa)
-    outros = [x for x in (no.get('sameAs') or []) if isinstance(x, str) and 'facebook.com' not in x]
+    # O Facebook do painel vai à frente; sai o que lá estava escrito à mão
+    # (facebook.com) e o que uma injecção anterior lá pôs — que pode não ter
+    # «facebook.com» em minúsculas (www.Facebook.com, fb.me…, qualquer https que
+    # o painel deixe gravar). Sem isto, injectar duas vezes duplicava-o, a
+    # prova de idempotência falhava e a publicação parava (achado L8-02).
+    fb = d.facebook.lower() if d.facebook else None
+    outros = [x for x in (no.get('sameAs') or [])
+              if isinstance(x, str) and 'facebook.com' not in x.lower() and x.lower() != fb]
     por_ou_tirar(no, 'sameAs', ([d.facebook] if d.facebook else []) + outros or None)
     no['openingHoursSpecification'] = horario_schema(d)
     catalogo = no.get('hasOfferCatalog') if isinstance(no.get('hasOfferCatalog'), dict) else {'@type': 'OfferCatalog', 'name': 'Serviços de oficina'}
