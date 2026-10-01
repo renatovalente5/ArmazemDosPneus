@@ -127,6 +127,18 @@ export const CUSTO_DEVOLUCAO_MAX = 1000;
    fora ao gravar. */
 export const BLOQUEADOS = ['store', 'shipping.free_pickup'];
 
+/* AS SECÇÕES DE TOPO DO settings.json QUE O PAINEL PODE CRIAR: as do ecrã
+   «Loja online» (pagamentos, portes, prazos, devoluções, montagem). O Pages
+   CMS omite ao gravar as secções que ficam vazias (memória
+   pages-cms-apaga-chaves): um settings.json sem «returns» deixava o dono sem
+   forma de pôr o custo de devolução, porque qualquer chave de topo nova
+   contava como bloqueada — e o painel mandava-o falar com o Renato por uma
+   coisa que é dele (revisão de 1 out, L2-04). Uma chave de topo FORA desta
+   lista continua recusada (chave_nova): nenhum ecrã a escreve, e um defeito do
+   painel não pode inventar secções. O que vai dentro de uma secção nova passa
+   pelas regras de sempre (problemas()). */
+export const SECCOES_DEFINICOES = ['payment', 'shipping', 'delivery', 'returns', 'mounting'];
+
 const RE_SKU = /^[a-z0-9][a-z0-9-]{0,79}$/;
 /* As fotografias vivem em assets/uploads. O Pages CMS e o painel gravam com a
    barra à frente; até 13 ago o content.json tinha-as sem ela, escritas à mão —
@@ -322,7 +334,9 @@ function mesmoValor(a, b) {
 }
 
 /* O que mudou em BLOQUEADOS entre o HEAD e a gravação, mais as chaves de topo
-   acrescentadas. [] = pode gravar. */
+   acrescentadas que não são uma das SECCOES_DEFINICOES (uma secção conhecida
+   que o ficheiro perdeu pode voltar pelo painel). Cada caminho aparece uma
+   vez. [] = pode gravar. */
 export function mudancasBloqueadas(antes, depois) {
   const a = eObjecto(antes) ? antes : {};
   const d = eObjecto(depois) ? depois : {};
@@ -330,7 +344,10 @@ export function mudancasBloqueadas(antes, depois) {
   for (const caminho of BLOQUEADOS) {
     if (!mesmoValor(valorEm(a, caminho), valorEm(d, caminho))) out.push({ caminho, motivo: 'mudou' });
   }
-  for (const k of Object.keys(d)) if (!(Object.prototype.hasOwnProperty.call(a, k))) out.push({ caminho: k, motivo: 'chave_nova' });
+  for (const k of Object.keys(d)) {
+    if (Object.prototype.hasOwnProperty.call(a, k) || SECCOES_DEFINICOES.includes(k) || out.some((x) => x.caminho === k)) continue;
+    out.push({ caminho: k, motivo: 'chave_nova' });
+  }
   return out;
 }
 

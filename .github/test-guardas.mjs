@@ -28,6 +28,8 @@
  *   · o varrimento: apagar cada chave, uma a uma (memória
  *     testar-o-caminho-do-cliente), mudar cada categoria, ligar e desligar
  *     cada produto;
+ *   · o dono é autónomo: uma secção da Loja online que o settings.json perdeu
+ *     volta pelo painel (L2-04);
  *   · o pages.yml: os passos corridos TAL COMO ESTÃO ESCRITOS no YAML
  *     (extraídos, nunca reescritos — memória correr-a-guarda-verdadeira): as
  *     verificações de fuga, a config do wrangler contra o wrangler.jsonc, o
@@ -741,6 +743,40 @@ try {
   const mb = R.mudancasBloqueadas(HOJE.settings, { ...clonar(HOJE.settings), store: { ...HOJE.settings.store, phone: '1' }, extra: 1 });
   certo(mb.length === 2 && mb[0].caminho === 'store' && mb[1].motivo === 'chave_nova', 'mudancasBloqueadas: store e chaves novas de topo, não');
   certo(R.mudancasBloqueadas({ a: { b: null }, store: { x: 1 } }, { store: { x: 1 }, a: {} }).length === 0, 'mudancasBloqueadas: null ≡ ausente, e a ordem das chaves não conta');
+
+  /* ================================================================== */
+  /* REVISÃO DE 1 OUT, L2-04, e o ajuste do Renato (o dono é autónomo): um
+     settings.json sem uma secção da Loja online (o Pages CMS omite as vazias)
+     travava no painel o custo de devolução — qualquer chave de topo nova era
+     «bloqueada» — e mandava o dono falar com o Renato por conteúdo. */
+  secao('o dono é autónomo: as secções da Loja online');
+  {
+    const semReturns = clonar(HOJE.settings); delete semReturns.returns;
+    certo(JSON.stringify(R.mudancasBloqueadas(semReturns, { ...clonar(semReturns), returns: { return_cost_eur: 6.5 } })) === '[]',
+      'mudancasBloqueadas: num settings.json sem «returns», o painel pode pôr o custo de devolução (L2-04)');
+    /* A secção volta como o ecrã a escreve: sem os campos bloqueados lá
+       dentro (o free_pickup dos portes nenhum ecrã o mostra). */
+    const falham = R.SECCOES_DEFINICOES.filter((k) => {
+      const s = clonar(HOJE.settings); const v = s[k] ?? {}; delete s[k];
+      for (const b of R.BLOQUEADOS.filter((x) => x.startsWith(`${k}.`))) delete v[b.slice(k.length + 1)];
+      return R.mudancasBloqueadas(s, { ...clonar(s), [k]: v }).length !== 0;
+    });
+    certo(falham.length === 0 && R.SECCOES_DEFINICOES.length === 5, `   e o mesmo com cada uma das ${R.SECCOES_DEFINICOES.length} secções da Loja online (${R.SECCOES_DEFINICOES.join(', ')})`, falham.join(', '));
+    certo(Object.keys(HOJE.settings).every((k) => R.SECCOES_DEFINICOES.includes(k) || R.BLOQUEADOS.includes(k)),
+      '   cada chave de topo do settings.json de hoje é uma secção da Loja online ou está bloqueada (uma chave nova no ficheiro tem de ser classificada aqui)', Object.keys(HOJE.settings).join(', '));
+    certo(R.SECCOES_DEFINICOES.every((k) => !R.BLOQUEADOS.includes(k)), '   nenhuma secção da Loja online está bloqueada inteira (só o free_pickup, dentro dos portes)');
+    const semStore = clonar(HOJE.settings); delete semStore.store;
+    const st = R.mudancasBloqueadas(semStore, { ...clonar(semStore), store: { phone: '1' } });
+    certo(st.length === 1 && st[0].caminho === 'store' && st[0].motivo === 'mudou', '   o legado «store» não volta a nascer (uma só recusa, «mudou»)', JSON.stringify(st));
+    const fp = R.mudancasBloqueadas(HOJE.settings, { ...clonar(HOJE.settings), shipping: { ...HOJE.settings.shipping, free_pickup: false } });
+    certo(fp.length === 1 && fp[0].caminho === 'shipping.free_pickup' && fp[0].motivo === 'mudou', '   e o «free_pickup» continua bloqueado', JSON.stringify(fp));
+    const estranhas = JSON.parse(JSON.stringify(HOJE.settings).replace(/^\{/, '{"__proto__":{"x":1},"constructor":1,"novidade":{},'));
+    const ch = R.mudancasBloqueadas(HOJE.settings, estranhas).filter((x) => x.motivo === 'chave_nova').map((x) => x.caminho).sort();
+    certo(JSON.stringify(ch) === '["__proto__","constructor","novidade"]', '   uma chave de topo que não é secção da Loja online continua recusada (também «__proto__» e «constructor»)', JSON.stringify(ch));
+    /* O conteúdo de uma secção que volta passa pelas regras de sempre. */
+    const r1 = R.problemas({ ...TEXTO, settings: { ...clonar(semReturns), returns: { return_cost_eur: 5000 } } });
+    certo(tem(r1, 'bloqueia', 'settings:returns.return_cost_eur'), '   e o que vai dentro dela passa pelas regras (5000 € de devolução: pára)');
+  }
 
   /* ================================================================== */
   secao('os marcadores das páginas (para o A2)');
