@@ -479,10 +479,16 @@ with tempfile.TemporaryDirectory() as tmp:
     (t / 'mau.json').write_text(json.dumps(mau), encoding='utf-8')
     r3 = subprocess.run([py, script, str(t / 'site'), str(t / 'mau.json'), str(RAIZ / 'data/empresa.json'), str(RAIZ / 'data/settings.json')], capture_output=True, text=True)
     certo(r3.returncode == 1 and 'ERRO' in r3.stderr and '«Contactos e horário»' in r3.stderr, 'um dado em falta: sai com 1 e diz o ecrã do painel', r3.stderr.strip())
+    # Achado L8-03: a mensagem só ficava no registo; o painel lê as anotações.
+    anot = [l for l in r3.stdout.split('\n') if l.startswith('::error ')]
+    certo(len(anot) == 1 and anot[0].startswith('::error title=Contactos e horário::') and 'email da loja' in anot[0]
+          and '«Contactos e horário»' in anot[0], '   e escreve-a como anotação ::error, com o ecrã no título (é o que o painel e a issue mostram)', r3.stdout[-300:])
     certo(all((t / 'site' / rel).read_text(encoding='utf-8') == primeira[rel] for rel in HTML), '   e não escreveu nenhuma página')
     (t / 'site' / 'partida.html').write_text('<p><!--ap:telefone-->x</p>', encoding='utf-8')
     r4 = subprocess.run([py, script, str(t / 'site'), str(RAIZ / 'data/site.json'), str(RAIZ / 'data/empresa.json'), str(RAIZ / 'data/settings.json')], capture_output=True, text=True)
     certo(r4.returncode == 1 and 'partida.html, linha 1' in r4.stderr, 'uma página com um marcador partido: sai com 1 e diz a página e a linha', r4.stderr.strip())
+    certo('::error title=Publicação::partida.html, linha 1%3A' not in r4.stdout and '::error title=Publicação::partida.html, linha 1: ' in r4.stdout,
+          '   e a anotação vai para «Publicação» (os «:» só se escapam no título)', r4.stdout[-300:])
     r5 = subprocess.run([py, script, str(t / 'nada')], capture_output=True, text=True, cwd=str(RAIZ))
     certo(r5.returncode == 1 and 'Não há páginas' in r5.stderr, 'uma pasta sem páginas: sai com 1', r5.stderr.strip())
     r6 = subprocess.run([py, script, '--listas'], capture_output=True, text=True)
@@ -526,6 +532,14 @@ if Image is not None:
                 certo(so.size == (300, 200), 'uma foto sem orientação fica como estava')
         else:
             certo(False, 'o index.html ficou com as duas fotos escritas', html)
+        # Uma fotografia que existe mas não se abre (a guarda só vê se existe):
+        # a publicação pára, e diz porquê ao painel (achado L8-03).
+        (t / 'assets' / 'uploads' / 'estragada.jpg').write_bytes(b'isto nao e um jpeg')
+        (t / 'content.json').write_text(json.dumps({'hero': {'image': '/assets/uploads/estragada.jpg'}, 'sobre': {'image': '/assets/uploads/direita.jpg'}}), encoding='utf-8')
+        r = subprocess.run([sys.executable, str(RAIZ / '.github' / 'injetar-imagens.py'), str(t), str(t / 'content.json')], capture_output=True, text=True)
+        certo(r.returncode == 1 and 'Traceback' not in r.stderr and 'ERRO: A fotografia do topo' in r.stderr
+              and '::error title=Fotografias do site::A fotografia do topo (assets/uploads/estragada.jpg) não se consegue abrir' in r.stdout,
+              'uma fotografia estragada: pára sem rebentar, e diz em «Fotografias do site» qual (::error)', (r.stdout + r.stderr)[-400:])
 
 print(f'\n{passou} passaram, {falhou} falharam')
 sys.exit(1 if falhou else 0)

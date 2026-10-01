@@ -944,7 +944,7 @@ t.close()`, join(d, 'site.tgz'), s, ...membros]);
 
   /* ================================================================== */
   secao('o pages.yml: o job «avisar», com um gh de faz-de-conta');
-  const avisarEm = ({ construir: c = 'success', publicar: p = 'success', ensaio = '', abertas = [], relatorio = null }) => {
+  const avisarEm = ({ construir: c = 'success', publicar: p = 'success', ensaio = '', abertas = [], relatorio = null, preparar = null }) => {
     const d = mkdtempSync(join(TMP, 'avisar-'));
     mkdirSync(join(d, 'bin'));
     writeFileSync(join(d, 'bin', 'gh'), `#!/usr/bin/env bash
@@ -955,6 +955,7 @@ case "$1 $2" in
 esac
 `, { mode: 0o755 });
     if (relatorio) { mkdirSync(join(d, 'relatorio')); writeFileSync(join(d, 'relatorio', 'relatorio.json'), JSON.stringify(relatorio)); }
+    if (preparar !== null) { mkdirSync(join(d, 'preparar')); writeFileSync(join(d, 'preparar', 'preparar.txt'), preparar); }
     const r = correrPasso('Abrir, comentar ou fechar a issue «Publicação parada»', d, {
       PATH: `${join(d, 'bin')}:${process.env.PATH}`, GH_TOKEN: 'x', GH_REPO: 'renatovalente5/ArmazemDosPneus',
       CONSTRUIR: c, PUBLICAR: p, ENSAIO: ensaio, CORRIDA: 'https://github.com/renatovalente5/ArmazemDosPneus/actions/runs/1',
@@ -983,6 +984,17 @@ esac
     certo(linhas.filter((l) => l.startsWith('~~~')).length === 2 && dentro.length === 1 && dentro[0].startsWith('- NA LOJA · Jante ~~~~ @renatovalente5'), 'um nome hostil fica dentro do bloco ~~~~, numa linha só (não fecha o bloco nem vira menção)', JSON.stringify(dentro));
     const g = avisarEm({ construir: 'failure', publicar: 'skipped', relatorio: { problemas: [{ classe: 'bloqueia', ecra: 'Loja online › Pagamentos', mensagem: 'O interruptor dos pagamentos online não está gravado.' }, { classe: 'avisa', ecra: 'X', mensagem: 'só aviso' }], neutralizados: [] } });
     certo(/- PÁRA · Loja online › Pagamentos — O interruptor/.test(g.aviso) && !/só aviso/.test(g.aviso), 'a guarda parou: a issue diz o quê e onde se corrige');
+    /* Achado L8-03: a guarda passou e o injector parou depois. A issue dizia
+       «O que a guarda encontrou» com o bloco vazio; agora diz o que parou. */
+    const so = { versao: 1, bloqueia: 0, neutraliza: 0, avisa: 1, problemas: [{ classe: 'avisa', lembrete: true, ecra: 'Produtos › Michelin', mensagem: 'Pneu à espera da etiqueta.' }], neutralizados: [] };
+    const prep = '--- contactos, textos e dados da empresa ---\n::error title=Serviços::Um texto tem um * sem par.\nERRO: Um texto tem um * sem par (o **negrito** e o *itálico* abrem e fecham). Corrige-se no painel, em «Serviços».\n';
+    const i = avisarEm({ construir: 'failure', publicar: 'skipped', relatorio: so, preparar: prep });
+    const li = i.aviso.split('\n');
+    certo(i.status === 0 && /O que parou a publicação/.test(i.aviso) && li.includes('- ERRO: Um texto tem um * sem par (o **negrito** e o *itálico* abrem e fecham). Corrige-se no painel, em «Serviços».')
+      && !/O que a guarda encontrou/.test(i.aviso) && !i.aviso.includes('~~~~\n~~~~'),
+    'a guarda passou e o injector parou: a issue diz o ERRO (e o ecrã), sem o bloco vazio da guarda', i.aviso);
+    const j = avisarEm({ relatorio: so, preparar: prep });
+    certo(j.accoes.length === 0, '   numa corrida verde, a saída do «Preparar…» não abre issue nenhuma', j.accoes.join('|'));
     const h = avisarEm({ ensaio: 'true' });
     certo(h.accoes.length === 2 && /^issue create --title Publicação parada — ensaio do aviso --body-file ensaio\.md$/.test(h.accoes[0]) && /^issue close 42 --comment Ensaio terminado/.test(h.accoes[1]), 'ensaiar_aviso: abre e fecha uma issue de ensaio, à parte', h.accoes.join('|'));
   }
@@ -1021,6 +1033,23 @@ esac
         certo(rel.neutralizados.length === 1 && rel.neutralizados[0].sku === 'jante-liga-leve-16-5x112-et45', 'o relatório (que vai para a issue) diz qual');
         certo(!existsSync(join(pub, '_site', 'relatorio.json')) && !existsSync(join(pub, '_site', '.github')), 'o relatório não foi publicado');
       }
+
+      /* Achado L8-03: a guarda passa e a publicação pára depois (aqui, a
+         fotografia do topo existe mas não se abre). A mensagem tem de chegar
+         ao painel (::error) e à issue (o ficheiro que o job «avisar» lê). */
+      const copia2 = join(TMP, 'repo-foto'); mkdirSync(copia2);
+      for (const f of ficheiros) { mkdirSync(dirname(join(copia2, f)), { recursive: true }); copyFileSync(join(RAIZ, f), join(copia2, f)); }
+      for (const f of ['.github/preparar-site.sh', '.github/preparar-cloudflare.sh']) execFileSync('chmod', ['+x', join(copia2, f)]);
+      writeFileSync(join(copia2, HOJE.content.hero.image.replace(/^\/+/, '')), 'isto não é uma fotografia');
+      const rt2 = join(TMP, 'runner-temp-2'); mkdirSync(rt2);
+      const env2 = { RUNNER_TEMP: rt2, PATH: `${bin}:${process.env.PATH}` };
+      const conf = correrPasso('Conferir o conteúdo', copia2, env2);
+      const prepara = correrPasso('Preparar o que vai ser publicado', copia2, env2);
+      const ficheiroPrep = join(rt2, 'preparar.txt');
+      const textoPrep = existsSync(ficheiroPrep) ? readFileSync(ficheiroPrep, 'utf8') : '';
+      certo(conf.status === 0 && prepara.status !== 0, 'uma fotografia estragada: a guarda passa e o «Preparar…» pára (o pipe não esconde a falha)', `${conf.status}/${prepara.status}`);
+      certo(/^::error title=Fotografias do site::A fotografia do topo .* não se consegue abrir/m.test(prepara.out) && /^ERRO: A fotografia do topo/m.test(textoPrep),
+        '   a mensagem sai como ::error (para o painel) e fica no ficheiro que vai para a issue', prepara.out.slice(-400));
     }
   }
 } finally {

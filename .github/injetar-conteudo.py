@@ -140,7 +140,11 @@ TOKEN = re.compile(r'<!--\s*(/?)ap:([^\s>]*?)(\s[^>]*?)?\s*-->')
 
 
 class Falha(Exception):
-    pass
+    """Pára a publicação. `ecra` é o ecrã do painel onde se corrige (vai para
+    o título da anotação ::error, que o painel e a issue mostram)."""
+    def __init__(self, mensagem, ecra=None):
+        super().__init__(mensagem)
+        self.ecra = ecra
 
 
 class MarcaSemPar(ValueError):
@@ -151,11 +155,11 @@ class MarcaSemPar(ValueError):
 def falha(mensagem, ecra=None):
     if ecra:
         mensagem += f' Corrige-se no painel, em «{ecra}».'
-    raise Falha(mensagem)
+    raise Falha(mensagem, ecra)
 
 
 def falha_da_pagina(ficheiro, linha, mensagem):
-    raise Falha(f'{ficheiro}, linha {linha}: {mensagem} Só o Renato o pode corrigir.')
+    raise Falha(f'{ficheiro}, linha {linha}: {mensagem} Só o Renato o pode corrigir.', 'Publicação')
 
 
 # ---------------------------------------------------------------------------
@@ -855,6 +859,17 @@ def conferir_casos(raiz, ficheiro):
     return 0
 
 
+def anotacao_de_erro(mensagem, ecra):
+    """A linha ::error do GitHub (escapada como no guardas.mjs). Sem ela, a
+    mensagem só ficava no registo do passo: o painel lê as anotações do job
+    que falhou e mostrava, no lugar dela, os avisos dos pneus de um passo que
+    tinha passado (achado L8-03)."""
+    def esc(t):
+        return str(t).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+    titulo = esc(ecra or 'Publicação').replace(':', '%3A').replace(',', '%2C')
+    return f'::error title={titulo}::{esc(mensagem)}'
+
+
 def ler_json(caminho, ecra):
     p = Path(caminho)
     if not p.is_file():
@@ -897,6 +912,7 @@ def main(args):
                 total[k] = total.get(k, 0) + v
         print(f'    {sum(total.values())} trocas em {len(paginas)} páginas; verificado ✓')
     except Falha as e:
+        print(anotacao_de_erro(e, e.ecra), flush=True)
         print(f'ERRO: {e}', file=sys.stderr)
         return 1
     return 0

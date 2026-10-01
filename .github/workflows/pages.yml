@@ -79,8 +79,14 @@ jobs:
       - name: Conferir o conteúdo
         run: node .github/guardas.mjs --relatorio-em "$RUNNER_TEMP/relatorio.json"
 
+      # A saída fica também num ficheiro: se o injector parar, as linhas
+      # «ERRO: …» (o que parou e em que ecrã do painel se corrige) vão para a
+      # issue «Publicação parada» — o injector também as escreve como ::error,
+      # para o painel. Sem isto, só ficavam no registo do passo.
       - name: Preparar o que vai ser publicado
-        run: .github/preparar-site.sh _site
+        run: |
+          set -o pipefail
+          .github/preparar-site.sh _site 2>&1 | tee "$RUNNER_TEMP/preparar.txt"
 
       - name: Preparar para a Cloudflare
         run: .github/preparar-cloudflare.sh _site
@@ -103,6 +109,16 @@ jobs:
         with:
           name: relatorio
           path: ${{ runner.temp }}/relatorio.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # A saída do «Preparar…», para o job «avisar» pôr na issue as linhas
+      # «ERRO:» quando o injector parou depois de a guarda passar.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: preparar
+          path: ${{ runner.temp }}/preparar.txt
           if-no-files-found: ignore
           retention-days: 7
 
@@ -204,6 +220,12 @@ jobs:
           name: relatorio
           path: relatorio
 
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: preparar
+          path: preparar
+
       # Os valores do GitHub entram por env:, nunca por ${{ }} dentro do run:.
       # O texto da issue vai por ficheiro, e as mensagens da guarda dentro de
       # um bloco ~~~~ (sem formatação nem menções @): o repositório é público.
@@ -220,6 +242,7 @@ jobs:
         run: |
           TITULO='Publicação parada'
           REL=relatorio/relatorio.json
+          PREP=preparar/preparar.txt
           FALHOU=false
           if [ "$CONSTRUIR" != success ] || [ "$PUBLICAR" != success ]; then FALHOU=true; fi
           TIRADOS=0
@@ -235,16 +258,34 @@ jobs:
             echo "- Corrida: $CORRIDA"
             echo "- Commit: $COMMIT (de $QUEM)"
             echo "- Construir: $CONSTRUIR · Publicar: $PUBLICAR"
+            GUARDA=''
             if [ -f "$REL" ]; then
+              GUARDA=$(jq -r '
+                def linha: gsub("[[:cntrl:]]+"; " ") | .[0:600];
+                ((.problemas // []) | map(select(.classe == "bloqueia")) | .[] | ("- PÁRA · " + (.ecra // "") + " — " + (.mensagem // "")) | linha),
+                ((.neutralizados // []) | .[] | ("- NA LOJA · " + (.nome // .sku // "?") + ": " + (.descricao // "") + " — " + ((.motivos // []) | join(" "))) | linha)
+              ' "$REL" | sed -n '1,80p')
+            fi
+            if [ -n "$GUARDA" ]; then
               echo
               echo "O que a guarda encontrou (a lista inteira está no resumo da corrida):"
               echo
               echo '~~~~'
-              jq -r '
-                def linha: gsub("[[:cntrl:]]+"; " ") | .[0:600];
-                ((.problemas // []) | map(select(.classe == "bloqueia")) | .[] | ("- PÁRA · " + (.ecra // "") + " — " + (.mensagem // "")) | linha),
-                ((.neutralizados // []) | .[] | ("- NA LOJA · " + (.nome // .sku // "?") + ": " + (.descricao // "") + " — " + ((.motivos // []) | join(" "))) | linha)
-              ' "$REL" | sed -n '1,80p'
+              printf '%s\n' "$GUARDA"
+              echo '~~~~'
+            fi
+            # A guarda passou mas a publicação parou depois (o injector, as
+            # fotografias): o «ERRO:» diz o quê e em que ecrã se corrige.
+            ERROS=''
+            if [ "$FALHOU" = true ] && [ -f "$PREP" ]; then
+              ERROS=$(jq -Rr 'select(startswith("ERRO")) | "- " + (gsub("[[:cntrl:]]+"; " ") | .[0:600])' "$PREP" | sed -n '1,20p' || true)
+            fi
+            if [ -n "$ERROS" ]; then
+              echo
+              echo "O que parou a publicação:"
+              echo
+              echo '~~~~'
+              printf '%s\n' "$ERROS"
               echo '~~~~'
             fi
           } > aviso.md
