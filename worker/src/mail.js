@@ -19,8 +19,10 @@
    os valores de sempre.
 
    Se RESEND_API_KEY não estiver definida, as funções não falham: registam e
-   seguem. Um email que não sai nunca pode impedir o webhook de responder 200
-   (senão a Stripe reenvia o evento indefinidamente).
+   seguem (conta como enviado — insistir não muda nada). Um envio que o Resend
+   recusa (429, 5xx) devolve { ok: false }, e o webhook responde 500 DE
+   PROPÓSITO: a Stripe reentrega o evento (até 3 dias) e o envio repete-se.
+   Com o 200 dado, a confirmação ao cliente nunca chegava a sair.
    ============================================================= */
 
 import { documento, tabelaArtigos, caixaMultibanco, botao, separador, bloco, h2, p, link, esc } from './email-html.js';
@@ -57,7 +59,7 @@ async function send(env, { to, subject, text, html, replyTo }) {
     body: JSON.stringify({ from: env.MAIL_FROM, to: [to], subject, text, html: html || undefined, reply_to: replyTo || undefined }),
   });
   if (!res.ok) {
-    // Não relançamos: ver nota no topo.
+    // Não relançamos: quem decide é o webhook (ver nota no topo).
     console.error('Resend falhou', res.status, await res.text().catch(() => ''));
     return { ok: false };
   }

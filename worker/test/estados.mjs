@@ -124,6 +124,28 @@ export async function correr({ ok }) {
       /\[\[ratelimits\]\]\s*\nname = "TRAVAO_CHECKOUT"\s*\nnamespace_id = "1101"\s*\nsimple = \{ limit = 5, period = 60 \}/.test(toml));
   }
 
+  /* ---------------------------------------------------------- L7-06 */
+  console.log('\nEstados — se o Resend falhar, a Stripe volta a tentar (L7-06)');
+  {
+    const m = await montar();
+    const real = m.rede.fetch;
+    let resendEmBaixo = true;
+    m.rede.fetch = async (u, init = {}) => (String(u) === 'https://api.resend.com/emails' && resendEmBaixo ? new Response('{"message":"rate limited"}', { status: 429 }) : real(u, init));
+    const ev = EV.sessao(m.e);
+    const r1 = await m.webhook(ev);
+    const r2 = await m.webhook(EV.pago(m.e));
+    const o = m.encomenda();
+    ok('o Resend em baixo nos dois eventos do pagamento: a encomenda fica paga, sem a marca, e a Stripe recebe 500 (vai reentregar)',
+      r1.status === 500 && r2.status === 500 && o.status === 'paga' && !o.notified_paid && m.rede.resend.length === 0, [r1.status, r2.status, o.status, o.notified_paid]);
+    ok('   e nenhuma marca evt:/seen: ficou (a reentrega não é tomada por «duplicado»)', ![...m.kv.mapa.keys()].some((k) => /^(evt|seen):/.test(k)), [...m.kv.mapa.keys()]);
+    resendEmBaixo = false;
+    const r3 = await m.webhook(ev);   // a Stripe reentrega o MESMO evento
+    ok('   a reentrega, com o Resend de volta: 200, saem a confirmação e o aviso, e fica a marca',
+      r3.status === 200 && m.encomenda().notified_paid === true && m.emails().some((s) => /confirmada/.test(s)) && m.emails().some((s) => /^\[Loja\] Pagamento confirmado/.test(s)), [r3.status, m.emails()]);
+    const r4 = await m.webhook(ev);
+    ok('   e outra reentrega já não manda nada (duplicado)', r4.status === 200 && m.emails().length === 2, [r4, m.emails()]);
+  }
+
   /* ---------------------------------------------------------- L7-05 */
   console.log('\nEstados — os reembolsos só somam, e não apagam uma contestação (L7-05)');
   {

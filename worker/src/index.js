@@ -425,19 +425,33 @@ async function handleWebhook(request, env, ctx) {
     result = null;
   }
 
-  // As marcas só servem a quem tem efeitos que não se podem repetir: os emails.
-  // Um evento sem emails (sessão expirada, reembolso, falha…) aplicado duas
-  // vezes dá o mesmo — e cada marca é uma escrita na quota do KV.
+  // Os emails saem ANTES de responder, e não em waitUntil. Se o Resend falhar
+  // (429, 5xx), a Stripe tem de reentregar: era o único «próximo evento» que
+  // voltava a tentar, e com o 200 já dado ele não vinha — a confirmação ao
+  // cliente (art. 6.º do DL 24/2014) e o aviso para faturar nunca saíam, e
+  // ninguém sabia (achado L7-06). Reaplicar o evento é seguro: o markPaid e o
+  // requires_action são idempotentes, e o envio vê a marca notified_*.
   if (result && result.notify && result.notify.length) {
+    let porEnviar;
+    try {
+      porEnviar = await enviarEMarcar(env, result.order, result.notify);
+    } catch (e) {
+      console.error('envio de emails falhou', e.message);
+      porEnviar = result.notify.map((n) => n.flag);
+    }
+    if (porEnviar.length) {
+      console.error('EMAILS NÃO ENVIADOS —', porEnviar.join(', '), result.order.order_id, '— 500 para a Stripe reentregar');
+      return new Response('emails por enviar', { status: 500 });
+    }
+    // As marcas só servem a quem tem efeitos que não se podem repetir: os
+    // emails. Um evento sem emails (sessão expirada, reembolso, falha…)
+    // aplicado duas vezes dá o mesmo — e cada marca é uma escrita na quota do
+    // KV. Gravam-se DEPOIS dos emails: com elas antes, a reentrega encontrava
+    // a marca e respondia «duplicado» sem enviar nada.
     await Promise.all([
       env.ORDERS.put(evtKey, '1', { expirationTtl: EVENT_TTL_SECONDS }),
       twinKey ? env.ORDERS.put(twinKey, '1', { expirationTtl: EVENT_TTL_SECONDS }) : Promise.resolve(),
     ]);
-  }
-
-  if (result && result.notify && result.notify.length) {
-    ctx.waitUntil(enviarEMarcar(env, result.order, result.notify)
-      .catch((e) => console.error('envio de emails falhou', e.message)));
   }
   return new Response('ok');
 }
@@ -451,9 +465,13 @@ async function handleWebhook(request, env, ctx) {
  * ou D1. Assumida com olhos abertos, porque as duas falhas não são simétricas:
  * um email repetido traz o mesmo número de encomenda e é evidente a quem o
  * recebe, enquanto um email que nunca sai é invisível.
+ *
+ * Devolve as marcas que ficaram por enviar (o webhook responde 500 e a Stripe
+ * reentrega).
  */
 async function enviarEMarcar(env, order, notify) {
   const orderId = order.order_id;
+  const porEnviar = [];
   for (const n of notify) {
     const antes = await getOrder(env, orderId);
     if (antes && antes[n.flag]) continue;    // um evento gémeo já tratou disto
@@ -472,12 +490,14 @@ async function enviarEMarcar(env, order, notify) {
     }
 
     if (!ok) {
-      console.error('EMAIL NÃO ENVIADO —', n.flag, orderId, '— fica sem marca, o próximo evento volta a tentar');
+      console.error('EMAIL NÃO ENVIADO —', n.flag, orderId, '— fica sem marca; a Stripe reentrega o evento');
+      porEnviar.push(n.flag);
       continue;
     }
     const atual = await getOrder(env, orderId);
     if (atual && !atual[n.flag]) { atual[n.flag] = true; await putOrder(env, atual); }
   }
+  return porEnviar;
 }
 
 /** Resolve a encomenda a partir do objeto do evento. */
