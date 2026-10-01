@@ -289,10 +289,19 @@ function caminhoDeImagem(c) {
    sobre pára a publicação. É uma simulação das mesmas duas expressões, e não
    uma contagem: «****» tem os asteriscos em número par e sobra um («**» sem
    nada dentro não é negrito). O «.» daqui não apanha o \r, o U+2028 nem o
-   U+2029, que o do Python apanha: aqui fica mais apertado, nunca mais largo. */
-function marcasEquilibradas(s) {
-  return !s.replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(.+?)\*/g, '$1').includes('*');
+   U+2029, que o do Python apanha: aqui fica mais apertado, nunca mais largo.
+   O painel usa esta mesma (o erro debaixo dos campos dos textos). */
+export function marcasEquilibradas(s) {
+  return typeof s === 'string' && !s.replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(.+?)\*/g, '$1').includes('*');
 }
+
+/* O WhatsApp do site: só algarismos, com o indicativo do país à frente — 10 a
+   15 algarismos, nenhum 0 no início —, a regra do injector
+   (.github/injetar-conteudo.py). O wa.me lê o número como internacional: um
+   número português sem o 351 («912345678») é a Índia (+91), e «00351…» não é
+   a forma dele. O painel usa esta mesma no campo (depois de juntar o 351 a um
+   número português de 9 algarismos). */
+export const whatsappValido = (v) => typeof v === 'string' && RE_WHATSAPP.test(v) && v.length !== 9 && !v.startsWith('0');
 
 /* O caminho (ex.: 'servicos.0.titulo') do primeiro texto partido (RE_PARTIDO)
    dentro de um ficheiro, ou null. */
@@ -554,7 +563,9 @@ function problemasDosProdutos(lido, lista, { imagemExiste }) {
     }
   }
 
-  // Tectos: acima deles o Worker do painel não grava; aqui só se avisa.
+  /* Tectos: acima deles o Worker do painel não grava; aqui só se avisa. O
+     que o dono pode fazer é dele (apagar o que já não vende, encurtar
+     descrições): não é uma avaria, e não se manda falar com o Renato. */
   const bytes = lido.texto !== null ? bytesDe(lido.texto) : bytesDe(serializar(doc));
   const pBytes = bytes / TECTOS.produtosBytes;
   const pN = produtos.length / TECTOS.produtos;
@@ -563,8 +574,8 @@ function problemasDosProdutos(lido, lista, { imagemExiste }) {
     lista.push({
       classe: 'avisa', chave: 'products:tecto', ficheiro, ecra, lembrete: true,
       mensagem: acima
-        ? `A lista de produtos passou do limite do painel (${produtos.length} produtos, ${Math.round(bytes / 1024)} KB; o limite é ${TECTOS.produtos} produtos e ${TECTOS.produtosBytes / 1024} KB). Fale com o Renato.`
-        : `A lista de produtos está a chegar ao limite do painel (${produtos.length} de ${TECTOS.produtos} produtos, ${Math.round(bytes / 1024)} de ${TECTOS.produtosBytes / 1024} KB). Fale com o Renato.`,
+        ? `A lista de produtos passou do limite do painel (${produtos.length} produtos, ${Math.round(bytes / 1024)} KB; o limite é ${TECTOS.produtos} produtos e ${TECTOS.produtosBytes / 1024} KB): o painel só volta a gravar os produtos quando ela couber. Apague os produtos que já não vende, ou encurte as descrições mais compridas.`
+        : `A lista de produtos está a chegar ao limite do painel (${produtos.length} de ${TECTOS.produtos} produtos, ${Math.round(bytes / 1024)} de ${TECTOS.produtosBytes / 1024} KB). Para continuar a acrescentar, apague os produtos que já não vende.`,
     });
   }
 }
@@ -762,15 +773,18 @@ function problemasDoSite(lido, lista) {
       const digitos = typeof v === 'string' ? v.replace(/[^0-9]/g, '').length : 0;
       if (typeof v !== 'string' || !RE_TELEFONE.test(v.trim()) || digitos < 9 || digitos > 15) bloqueia(`contactos.${campo}`, E_CONT, `contactos.${campo}`, `${nome} não está bem escrito (só algarismos e espaços, ex.: 935 218 857).`);
     }
-    if (!vazio(c.whatsapp) && !(typeof c.whatsapp === 'string' && RE_WHATSAPP.test(c.whatsapp))) {
-      bloqueia('contactos.whatsapp', E_CONT, 'contactos.whatsapp', 'O WhatsApp não está bem escrito (só algarismos, com o indicativo, sem espaços nem +; ex.: 351935218857).');
-    } else if (typeof c.whatsapp === 'string' && (c.whatsapp.length === 9 || c.whatsapp.startsWith('0'))) {
-      /* O wa.me lê o número como internacional: «912345678» é a Índia (+91), e
-         todos os botões «Pedir orçamento» iam para lá sem ninguém dar por isso
-         (o telefone não tem o problema: a publicação junta-lhe o +351). Um
-         número começado por 0 (00351…) também não é o formato do wa.me. */
-      const pt = c.whatsapp.length === 9 && /^[29]/.test(c.whatsapp) ? ` Para um número português, escreva 351${c.whatsapp}.` : '';
-      bloqueia('contactos.whatsapp', E_CONT, 'contactos.whatsapp', `O WhatsApp tem de levar o indicativo do país à frente, sem 00 nem +.${pt}`);
+    if (!vazio(c.whatsapp) && !whatsappValido(c.whatsapp)) {
+      if (!(typeof c.whatsapp === 'string' && RE_WHATSAPP.test(c.whatsapp))) {
+        bloqueia('contactos.whatsapp', E_CONT, 'contactos.whatsapp', 'O WhatsApp não está bem escrito (só algarismos, com o indicativo, sem espaços nem +; ex.: 351935218857).');
+      } else {
+        /* O wa.me lê o número como internacional: «912345678» é a Índia (+91),
+           e todos os botões «Pedir orçamento» iam para lá sem ninguém dar por
+           isso (o telefone não tem o problema: a publicação junta-lhe o
+           +351). Um número começado por 0 (00351…) também não é o formato do
+           wa.me. */
+        const pt = c.whatsapp.length === 9 && /^[29]/.test(c.whatsapp) ? ` Para um número português, escreva 351${c.whatsapp}.` : '';
+        bloqueia('contactos.whatsapp', E_CONT, 'contactos.whatsapp', `O WhatsApp tem de levar o indicativo do país à frente, sem 00 nem +.${pt}`);
+      }
     }
     if (!vazio(c.facebook) && !urlHttps(c.facebook)) bloqueia('contactos.facebook', E_CONT, 'contactos.facebook', 'O endereço do Facebook tem de começar por https:// (e não pode ter espaços nem caracteres invisíveis).');
     /* DL 59/2021: um número de telefone publicado leva a indicação do preço da
@@ -814,8 +828,11 @@ function problemasDoSite(lido, lista) {
       const n = `${i + 1}.º serviço`;
       if (!eObjecto(x)) { bloqueia(`servicos.${i + 1}`, E_SERV, `servicos.${i}`, `O ${n} não está preenchido.`); return; }
       const nome = temTexto(x.titulo) ? `Serviço «${x.titulo.trim()}»` : `O ${n}`;
-      if (!(typeof x.id === 'string' && RE_ID_SERVICO.test(x.id))) bloqueia(`servicos.${i + 1}.id`, E_SERV, `servicos.${i}.id`, `${nome}: a referência interna não é válida. Só o Renato a pode corrigir.`);
-      else if (vistos.has(x.id)) bloqueia(`servicos.${x.id}.repetido`, E_SERV, `servicos.${i}.id`, `${nome}: a referência «${x.id}» está repetida. Só o Renato a pode corrigir.`);
+      /* A referência só se estraga fora do painel (que a gera ao criar e não
+         a muda), mas o dono resolve-o sozinho: um serviço criado de novo
+         ganha uma referência nova. */
+      if (!(typeof x.id === 'string' && RE_ID_SERVICO.test(x.id))) bloqueia(`servicos.${i + 1}.id`, E_SERV, `servicos.${i}.id`, `${nome}: a referência interna não é válida (foi mudada fora do painel). Apague este serviço e crie-o outra vez com «+ Novo serviço».`);
+      else if (vistos.has(x.id)) bloqueia(`servicos.${x.id}.repetido`, E_SERV, `servicos.${i}.id`, `${nome}: a referência «${x.id}» está repetida (foi mudada fora do painel). Apague um dos serviços repetidos e crie-o outra vez com «+ Novo serviço».`);
       else vistos.add(x.id);
       const id = typeof x.id === 'string' && x.id ? x.id : String(i + 1);
       textoDoSite(x.titulo, `servicos.${id}.titulo`, E_SERV, `servicos.${i}.titulo`, `O título do ${n}`, TAMANHOS.servicoTitulo);
@@ -898,7 +915,7 @@ function problemasDaEmpresa(lido, lista) {
   obrigatorio(e.nome, 'nome', 'nome', 'O nome da loja', { emails: { min: 2, max: TAMANHOS.nomeLoja } });
   obrigatorio(e.denominacao, 'denominacao', 'denominacao', 'A denominação da empresa', { emails: { min: 2, max: TAMANHOS.denominacao } });
   if (vazio(e.nif)) bloqueia('nif', 'nif', 'O NIF está vazio (a lei obriga a mostrá-lo no site).');
-  else if (typeof e.nif !== 'string') bloqueia('nif', 'nif', 'O NIF está gravado como número e não como texto. Só o Renato o pode corrigir.');
+  else if (typeof e.nif !== 'string') bloqueia('nif', 'nif', 'O NIF está gravado como número, e não como texto (foi mudado fora do painel): apague-o e escreva-o outra vez.');
   else if (!nifValido(e.nif)) bloqueia('nif', 'nif', 'O NIF não é válido (9 algarismos, o primeiro não é 0, e o último tem de bater certo com os outros). Confira-o.');
   const m = e.morada;
   if (!eObjecto(m)) bloqueia('morada', 'morada', 'A morada da empresa está vazia (a lei obriga a mostrá-la no site).');

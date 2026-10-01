@@ -29,7 +29,8 @@
  *     testar-o-caminho-do-cliente), mudar cada categoria, ligar e desligar
  *     cada produto;
  *   · o dono é autónomo: uma secção da Loja online que o settings.json perdeu
- *     volta pelo painel (L2-04);
+ *     volta pelo painel (L2-04), e as mensagens das regras só nomeiam o Renato
+ *     nas avarias técnicas;
  *   · o pages.yml: os passos corridos TAL COMO ESTÃO ESCRITOS no YAML
  *     (extraídos, nunca reescritos — memória correr-a-guarda-verdadeira): as
  *     verificações de fuga, a config do wrangler contra o wrangler.jsonc, o
@@ -749,7 +750,7 @@ try {
      settings.json sem uma secção da Loja online (o Pages CMS omite as vazias)
      travava no painel o custo de devolução — qualquer chave de topo nova era
      «bloqueada» — e mandava o dono falar com o Renato por conteúdo. */
-  secao('o dono é autónomo: as secções da Loja online');
+  secao('o dono é autónomo: as secções da Loja online, e o Renato só nas avarias');
   {
     const semReturns = clonar(HOJE.settings); delete semReturns.returns;
     certo(JSON.stringify(R.mudancasBloqueadas(semReturns, { ...clonar(semReturns), returns: { return_cost_eur: 6.5 } })) === '[]',
@@ -776,6 +777,47 @@ try {
     /* O conteúdo de uma secção que volta passa pelas regras de sempre. */
     const r1 = R.problemas({ ...TEXTO, settings: { ...clonar(semReturns), returns: { return_cost_eur: 5000 } } });
     certo(tem(r1, 'bloqueia', 'settings:returns.return_cost_eur'), '   e o que vai dentro dela passa pelas regras (5000 € de devolução: pára)');
+  }
+  {
+    const casos = [['351935218857', true], ['34612345678', true], ['447700900123', true], ['351 935 218 857', false], ['+351935218857', false], ['912345678', false],
+      ['00351935218857', false], ['0351935218857', false], ['3519352188570000', false], ['', false], [351935218857, false], [null, false], ['35193521885a', false]];
+    const mal = casos.filter(([v, ok]) => R.whatsappValido(v) !== ok).map(([v]) => String(v));
+    certo(mal.length === 0, 'whatsappValido(): 10 a 15 algarismos, com o indicativo, sem 0 à frente (o painel usa esta no campo)', mal.join(', '));
+    const desacordo = casos.filter(([v]) => typeof v === 'string' && v !== '').filter(([v]) => {
+      const s = clonar(SITE_OK); s.contactos.whatsapp = v;
+      return R.whatsappValido(v) === comA2(s, EMPRESA_OK).some((p) => p.chave === 'site:contactos.whatsapp');
+    }).map(([v]) => v);
+    certo(desacordo.length === 0, '   e é a mesma regra que pára a publicação', desacordo.join(', '));
+    const marcas = [['**Armazém** e *pneus*', true], ['sem marcas', true], ['****', false], ['a****b', false], ['**a*', false], ['*a', false], ['**', false], [5, false]];
+    const malM = marcas.filter(([v, ok]) => R.marcasEquilibradas(v) !== ok).map(([v]) => String(v));
+    certo(malM.length === 0, 'marcasEquilibradas(): exportada, a mesma do injector («****» não é nada; o painel usa esta nos textos)', malM.join(', '));
+  }
+  {
+    /* As mensagens que o dono lê no painel: o que ele próprio resolve diz-lhe
+       como, e não «fale com o Renato». */
+    const muitos = dadosDeHoje(); const p0 = muitos.products.products[JANTE];
+    for (let i = 0; i < 330; i++) muitos.products.products.push({ ...clonar(p0), sku: `x-${i}` });
+    const quase = R.problemas(muitos).find((p) => p.chave === 'products:tecto');
+    for (let i = 330; i < 400; i++) muitos.products.products.push({ ...clonar(p0), sku: `x-${i}` });
+    const acima = R.problemas(muitos).find((p) => p.chave === 'products:tecto');
+    certo(quase && /a chegar ao limite/.test(quase.mensagem) && /apague os produtos que já não vende/.test(quase.mensagem) && !/Renato/.test(quase.mensagem), 'a lista de produtos a chegar ao limite: «apague os que já não vende», sem o Renato', quase && quase.mensagem);
+    certo(acima && /passou do limite/.test(acima.mensagem) && /Apague os produtos que já não vende/.test(acima.mensagem) && !/Renato/.test(acima.mensagem), '   e acima do limite também', acima && acima.mensagem);
+    const sv = clonar(SITE_OK); sv.servicos[0].id = 'Montagem Já';
+    const pId = comA2(sv, EMPRESA_OK).find((p) => p.chave === 'site:servicos.1.id');
+    const sr = clonar(SITE_OK); sr.servicos[1].id = sr.servicos[0].id;
+    const pRep = comA2(sr, EMPRESA_OK).find((p) => /repetido$/.test(p.chave));
+    certo(pId && pRep && [pId, pRep].every((p) => /«\+ Novo serviço»/.test(p.mensagem) && !/Renato/.test(p.mensagem)), 'um serviço com a referência estragada ou repetida: «apague e crie outra vez com «+ Novo serviço»», sem o Renato', `${pId?.mensagem} | ${pRep?.mensagem}`);
+    const en = clonar(EMPRESA_OK); en.nif = 516324950;
+    const pNif = comA2(SITE_OK, en).find((p) => p.chave === 'empresa:nif');
+    certo(pNif && /apague-o e escreva-o outra vez/.test(pNif.mensagem) && !/Renato/.test(pNif.mensagem), 'o NIF gravado como número: «apague-o e escreva-o outra vez», sem o Renato', pNif && pNif.mensagem);
+    /* Na fonte: cada mensagem que ainda nomeia o Renato é de uma avaria
+       técnica — um ficheiro que não se lê, que falta ou não tem a forma, ou
+       a referência de um produto (que o painel não muda). */
+    const AVARIAS = /não se consegue ler|Falta o ficheiro|forma certa|não é um produto|referência válida|está em \$\{indices\.length\} produtos|passou dos \$\{TECTOS\.outrosBytes/;
+    const codigoR = readFileSync(join(RAIZ, '.github', 'regras.mjs'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const comRenato = codigoR.split('\n').filter((l) => /Renato/.test(l));
+    const deConteudo = comRenato.filter((l) => !AVARIAS.test(l)).map((l) => l.trim().slice(0, 120));
+    certo(comRenato.length >= 8 && deConteudo.length === 0, `as ${comRenato.length} mensagens das regras que nomeiam o Renato são todas de avarias técnicas`, deConteudo.join(' | '));
   }
 
   /* ================================================================== */
