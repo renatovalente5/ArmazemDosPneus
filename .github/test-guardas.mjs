@@ -1085,6 +1085,13 @@ try {
   /* ================================================================== */
   secao('o pages.yml: quem tem o quê');
   const construir = jobDoYaml('construir'); const publicar = jobDoYaml('publicar'); const avisar = jobDoYaml('avisar');
+  /* Achado L8-07: as actions iam por etiquetas móveis (v3, v4) — a do job
+     publicar corre com o token da Cloudflare. */
+  {
+    const usos = [...YAML.matchAll(/^\s*(?:-\s*)?uses:\s*(\S+)(.*)$/gm)].map((m) => [m[1], m[2]]);
+    const soltas = usos.filter(([u, resto]) => !/@[0-9a-f]{40}$/.test(u) || !/#\s*v\d/.test(resto)).map(([u]) => u);
+    certo(usos.length >= 8 && soltas.length === 0, `as ${usos.length} actions do pages.yml estão fixadas pelo commit (SHA de 40), com a etiqueta em comentário`, soltas.join(', '));
+  }
   /* Achado L8-01: o comentário dizia «nenhuma App tem a permissão Workflows»,
      e a do Pages CMS tem-na (e Administration, e Actions). A promessa errada
      levava a manter a App instalada até à fase G, com a barreira aberta. */

@@ -59,13 +59,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Obter o repositório
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # O GITHUB_TOKEN (só leitura) não fica em .git/config ao alcance dos
           # scripts que correm a seguir.
           persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
 
@@ -102,7 +102,7 @@ jobs:
       - name: Embrulhar
         run: tar -czf "$RUNNER_TEMP/site.tgz" -C _site .
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: site
           path: ${{ runner.temp }}/site.tgz
@@ -110,7 +110,7 @@ jobs:
           retention-days: 7
 
       # Também quando a guarda parou: é o que o job «avisar» põe na issue.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: relatorio
@@ -120,7 +120,7 @@ jobs:
 
       # A saída do «Preparar…», para o job «avisar» pôr na issue as linhas
       # «ERRO:» quando o injector parou depois de a guarda passar.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: preparar
@@ -135,7 +135,7 @@ jobs:
     needs: construir
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: site
           path: publicar
@@ -195,6 +195,9 @@ jobs:
           cat wrangler.json
           echo "ok: $(find _site -type f | wc -l | tr -d ' ') ficheiros"
 
+      # As actions vão fixadas pelo commit (o comentário diz a etiqueta): uma
+      # etiqueta pode mudar de sítio, e esta corre com o token. Para as subir,
+      # trocar o SHA pelo da etiqueta nova (gh api repos/<dono>/<action>/git/ref/tags/<etiqueta>).
       # Precisa do segredo CLOUDFLARE_API_TOKEN e da variável
       # CLOUDFLARE_ACCOUNT_ID. O token é PERSONALIZADO: Account › Workers
       # Scripts: Edit; Account › Account Settings: Read; Zone
@@ -202,7 +205,7 @@ jobs:
       # publicação FALHA, de propósito: melhor um CI vermelho do que edições
       # que nunca chegam ao site.
       - name: Publicar na Cloudflare
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
@@ -220,13 +223,13 @@ jobs:
     permissions:
       issues: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         continue-on-error: true
         with:
           name: relatorio
           path: relatorio
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         continue-on-error: true
         with:
           name: preparar
