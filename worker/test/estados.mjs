@@ -179,7 +179,7 @@ export async function correr({ ok }) {
     const falhou = J({ status: 'aguarda_pagamento' }, { status: 'falhou' }, { status: 'paga', paid_at: 'T1', notified_paid: true });
     eq('juntar: um payment_failed que leu antes do pagamento não o desfaz', [falhou.status, falhou.paid_at, falhou.notified_paid], ['paga', 'T1', true]);
     const mb = J({ status: 'criada' }, { status: 'aguarda_pagamento' }, { status: 'aguarda_multibanco', multibanco: { reference: '1' } });
-    eq('juntar: a sessão não paga não tira a encomenda de «aguarda_multibanco»', [mb.status, mb.multibanco.reference], ['aguarda_multibanco', '1']);
+    eq('juntar: a sessão não paga não tira a encomenda de «aguarda_multibanco»', [mb.status, mb.multibanco && mb.multibanco.reference], ['aguarda_multibanco', '1']);
     const ree = J({ status: 'paga' }, { status: 'parcialmente_reembolsada', refunded_cents: 1000 }, { status: 'reembolsada', refunded_cents: 5000 });
     eq('juntar: o reembolsado só cresce, e o estado mais firme fica', [ree.status, ree.refunded_cents], ['reembolsada', 5000]);
   }
@@ -207,6 +207,19 @@ export async function correr({ ok }) {
     const m = await montar({ pedido: PEDIDOS.ctt });
     await emParalelo(m, [[EV.multibanco(m.e), 0], [EV.sessao(m.e, { pago: false }), 0]]);
     eq('a referência Multibanco e a sessão (não paga) ao mesmo tempo: fica à espera da referência', m.encomenda().status, 'aguarda_multibanco');
+  }
+
+  /* ---------------------------------------------------------- L7-09 */
+  console.log('\nEstados — Multibanco: a referência antes da sessão (L7-09)');
+  {
+    const m = await montar({ pedido: PEDIDOS.ctt });
+    await m.webhook(EV.multibanco(m.e));
+    await m.webhook(EV.sessao(m.e, { pago: false }));
+    const o = m.encomenda();
+    eq('requires_action e depois checkout.session.completed (não paga): continua à espera da referência', [o.status, o.multibanco && o.multibanco.reference], ['aguarda_multibanco', '123 456 789']);
+    eq('   e o email da referência saiu uma vez', m.emails().filter((x) => /Referência Multibanco/.test(x)).length, 1);
+    await m.webhook(EV.sessaoPagaDepois(m.e));
+    eq('   paga a referência: paga', m.encomenda().status, 'paga');
   }
 
   /* ---------------------------------------------------------- L7-06 */

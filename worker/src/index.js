@@ -598,7 +598,11 @@ async function applyEvent(event, env) {
       }
       order.amount_total_cents = obj.amount_total;
       if (obj.payment_status && obj.payment_status !== 'unpaid') notify.push(...markPaid(order, env));
-      else if (podeRegredir(order)) order.status = 'aguarda_pagamento';
+      // Não paga (Multibanco): só sai de «criada». O requires_action da
+      // referência nasce quase ao mesmo tempo e pode chegar ANTES: voltar de
+      // «aguarda_multibanco» a «aguarda_pagamento» tirava a encomenda do «Por
+      // tratar» do painel, e a referência do «até dd/mm» (achado L7-09).
+      else if (order.status === 'criada') order.status = 'aguarda_pagamento';
       break;
     }
 
