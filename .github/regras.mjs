@@ -281,7 +281,8 @@ function marcasEquilibradas(s) {
 function caminhoPartido(o, pre = '') {
   const junta = (k) => (pre ? `${pre}.${k}` : String(k));
   if (typeof o === 'string') return RE_PARTIDO.test(o) ? pre : null;
-  const filhos = Array.isArray(o) ? o.map((v, i) => [i, v]) : eObjecto(o) ? Object.entries(o) : [];
+  // Array.from e não map: uma lista com buracos (um objecto, não um JSON lido) não pode rebentar aqui.
+  const filhos = Array.isArray(o) ? Array.from(o, (v, i) => [i, v]) : eObjecto(o) ? Object.entries(o) : [];
   for (const [k, v] of filhos) {
     const c = caminhoPartido(v, junta(k));
     if (c !== null) return c;

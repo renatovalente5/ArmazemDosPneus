@@ -473,6 +473,13 @@ try {
     const lista = comA2(s, e);
     certo(lista.length === 0, `${desc} → sem problema`, lista.map((p) => `${p.classe} ${p.chave}`).join(', '));
   }
+  {
+    // O painel também passa objectos (os rascunhos), e um objecto pode ter uma
+    // lista com buracos: as regras não podem rebentar com ela.
+    const comBuraco = clonar(SITE_OK); delete comBuraco.servicos[0];
+    let lancou = null; try { R.problemas({ ...TEXTO, site: comBuraco, empresa: EMPRESA_OK }); } catch (e) { lancou = e; }
+    certo(lancou === null, 'uma lista com um buraco (objecto do painel) não faz rebentar as regras', String(lancou));
+  }
   certo(R.nifValido('516324950') && R.nifValido(516324950) && !R.nifValido('516324951') && !R.nifValido('abc') && !R.nifValido('000000000') && T.nifValido('516324950') && !T.nifValido('000000000'),
     'nifValido(): o NIF da loja passa, um algarismo trocado não, e o 000000000 também não (como no Worker dos pagamentos: os emails ficavam com o NIF anterior)');
 
