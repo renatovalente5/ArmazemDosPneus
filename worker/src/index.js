@@ -219,6 +219,20 @@ async function handleCheckout(request, env, cors) {
     return json({ error: e.message }, 400, cors);
   }
 
+  // O site.json e o empresa.json que EXISTEM e não se leram (5xx, rede, JSON
+  // partido, grande de mais): o retrato caía em silêncio para o recurso — a
+  // empresa, a morada e os contactos escritos no código, que o dono já mudou no
+  // painel —, e era isso que ia para a página da Stripe e para os emails
+  // (achados L6-05 e L7-07). Agora pára aqui, como quando o settings.json não
+  // se lê. O recurso só vale enquanto um ficheiro não existe (404). E fica
+  // sempre registado.
+  for (const [f, estado] of Object.entries(fontes.estado)) {
+    if (estado !== 'ok') console.error(`termos: ${f}.json não se leu (${estado})${estado === 'HTTP 404' || estado === 'sem URL' ? ' — vale o recurso' : ''}`);
+  }
+  if (Object.values(fontes.estado).some((e) => e !== 'ok' && e !== 'HTTP 404' && e !== 'sem URL')) {
+    return json({ error: 'Não foi possível confirmar os dados da loja para este pagamento. Tente daqui a um minuto.' }, 503, cors);
+  }
+
   // O retrato do que se promete a ESTE cliente, agora: prazos, custo da
   // devolução, contactos e dados da empresa. Vai para a página da Stripe e fica
   // na encomenda para os emails (termos.js explica porquê).

@@ -243,13 +243,23 @@ export async function correr({ ok }) {
       // Válido, mas grande de mais para ser dele: não se lê (o JSON.parse gasta CPU).
       'ficheiro de 200 KB': () => new Response(JSON.stringify({ contactos: { telefone: '912 345 678' }, lixo: 'x'.repeat(200_000) }), { status: 200 }),
     };
+    /* Um ficheiro que EXISTE e não se lê já não vale o recurso em silêncio
+       (achados L6-05 e L7-07): o recurso é a empresa e os contactos de 30 set,
+       que o dono já mudou no painel. O /checkout pára com 503, sem gravar nada
+       nem criar a sessão, e fica registado; o 404 (o ficheiro ainda não existe)
+       continua a valer o recurso, igual a antes. */
     for (const [nome, resposta] of Object.entries(FALHAS)) {
-      for (const chave of ['ctt', 'loja']) {
-        const N = await correrCenario(NOVO, CEN[chave], { site: resposta, empresa: resposta });
-        eq(`${nome} (${chave}): o checkout continua a funcionar`, N.checkout.status, 200);
-        eq(`${nome} (${chave}): página da Stripe e emails iguais aos de antes`,
-          semAcaso([N.stripe, N.emails]), semAcaso([base[chave].stripe, base[chave].emails]));
+      for (const qual of ['site', 'empresa']) {
+        const N = await correrCenario(NOVO, CEN.loja, { site: qual === 'site' ? resposta : SITE_A2, empresa: qual === 'empresa' ? resposta : EMPRESA_A2 });
+        ok(`${nome} no ${qual}.json: o checkout pára com 503 (e não promete a empresa de recurso), sem sessão nem escrita no KV`,
+          N.checkout.status === 503 && /dados da loja/.test(JSON.parse(N.checkout.corpo).error) && N.stripe.length === 0 && !N.kvOps.some((o) => o.startsWith('put ')), N.checkout);
+        ok(`${nome} no ${qual}.json: fica registado`, N.erros.some((l) => l.includes(`termos: ${qual}.json não se leu`)), N.erros);
       }
+    }
+    {
+      const N = await correrCenario(NOVO, CEN.loja);
+      ok('o site.json e o empresa.json ainda não existem (404): vale o recurso, e fica registado', N.checkout.status === 200
+        && N.erros.some((l) => l.includes('termos: site.json não se leu (HTTP 404) — vale o recurso')), N.erros);
     }
 
     // O dia em que a fase A2 publicar os dois ficheiros com os valores de hoje
@@ -503,7 +513,6 @@ export async function correr({ ok }) {
       ['nota gigante', { settings: { ...SETTINGS_HOJE, returns: { return_cost_eur: null, note: 'x'.repeat(600) } } }, { 'devolucao.nota': '' }, 'nota_devolucao'],
       ['nota número', { settings: { ...SETTINGS_HOJE, returns: { return_cost_eur: null, note: 42 } } }, { 'devolucao.nota': '' }, 'nota_devolucao'],
       // site.json
-      ['site.json é um texto', { site: '"olá"' }, { contactos: R.contactos }, null],
       ['contactos é um texto', { site: { contactos: '935 218 857' } }, { contactos: R.contactos }, null],
       ['telefone em número', C({ telefone: 912345678, email: 'geral@rodas-ensaio.pt' }), { 'contactos.telefone': R.contactos.telefone, 'contactos.email': 'geral@rodas-ensaio.pt' }, 'telefone'],
       // 30 000 e não mais: acima de 64 KiB o ficheiro inteiro nem se lê (ver «ficheiro de 200 KB»).
@@ -544,7 +553,6 @@ export async function correr({ ok }) {
       // 190 caracteres de aspas: passa o tecto à entrada, e passava de 200 depois de normalizado.
       ['Livro de Reclamações que cresce ao normalizar', E({ livro_reclamacoes: 'https://exemplo.pt/' + '"'.repeat(171) }),
         { 'empresa.livro_reclamacoes': R.empresa.livro_reclamacoes }, 'livro_reclamacoes'],
-      ['empresa.json é uma lista', { empresa: '[]' }, { empresa: R.empresa }, null],
     ];
 
     for (const [nome, fontes, espera, recusa] of CASOS) {

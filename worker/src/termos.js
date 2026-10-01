@@ -15,8 +15,8 @@
    que foi prometido antes dele, não o que o dono mudou a seguir.
 
    RECURSO. Um grupo que não se consegue ler — ficheiro que não existe (404),
-   que não responde, que não é JSON, ou valor fora da regra — usa os valores de
-   sempre: DELIVERY_*, STORE_PHONE/STORE_EMAIL do wrangler.toml, e a empresa
+   ou valor fora da regra — usa os valores de sempre (um ficheiro que existe e
+   não responde, ou não é JSON, pára o /checkout com 503: index.js): DELIVERY_*, STORE_PHONE/STORE_EMAIL do wrangler.toml, e a empresa
    escrita abaixo. São os mesmos que o Worker usava antes deste módulo, por isso,
    enquanto site.json e empresa.json não existirem, os emails e a página da
    Stripe ficam iguais byte a byte (provado em test.mjs contra o código de
