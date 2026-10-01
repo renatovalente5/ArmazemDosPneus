@@ -18,15 +18,17 @@
 #                 estão escritas AQUI (só muda isto quem tem a permissão
 #                 Workflows);
 #   · avisar    — abre, comenta ou fecha a issue «Publicação parada». O GitHub
-#                 só avisa quem disparou a corrida, e as corridas dos bots do
-#                 Pages CMS e do painel não avisam ninguém.
+#                 só avisa quem disparou a corrida, e as corridas do bot do
+#                 painel não avisam ninguém.
 #
 # A BARREIRA SÓ EXISTE SEM A APP DO PAGES CMS. A App pública do Pages CMS
 # (alojada por terceiros, que guardam a chave dela) declara «workflows: write»,
-# «administration: write» e «actions: write». Enquanto estiver instalada neste
-# repositório, quem tiver a chave dela muda este ficheiro e leva o token. Tem de
-# ser desinstalada (github.com/settings/installations) ANTES do merge desta
-# separação, ou no mesmo momento — o Renato já autorizou tirá-la.
+# «administration: write» e «actions: write». Enquanto este repositório
+# estiver no acesso dela, quem tiver a chave dela muda este ficheiro e leva o
+# token. O site deixou de a usar (out 2026, saiu o .pages.yml), mas isso não
+# lhe tira o acesso: este repositório tem de sair da instalação dela
+# (github.com/settings/installations → Pages CMS → Configure; não desinstalar
+# a App, que serve outros sites) e não voltar a entrar.
 #
 # Aqui escolhe-se O QUE é publicado: nunca o repositório inteiro (ver
 # .github/preparar-site.sh e o passo «Abrir e conferir…»).

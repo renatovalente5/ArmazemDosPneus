@@ -16,6 +16,16 @@ SITE="${1:?uso: preparar-site.sh <pasta>}"
 PYTHON="${PYTHON:-python3}"
 RAIZ="$(cd "$(dirname "$0")/.." && pwd)"
 
+# O Pages CMS (o editor antigo) saiu em outubro de 2026: o dono edita no painel
+# (backoffice.armazemdospneus.pt), e é o único editor. Um .pages.yml que volte
+# ao repositório trazia de volta um segundo editor sobre os mesmos ficheiros —
+# o Pages CMS reescreve o JSON inteiro e apaga as chaves que não conhece —, e
+# os dois atropelavam-se. Pára antes de fazer seja o que for.
+if [ -e "$RAIZ/.pages.yml" ]; then
+  echo "ERRO: o .pages.yml voltou ao repositório, mas o Pages CMS saiu e o painel é o único editor: tire o ficheiro do repositório. É uma avaria técnica, e não um problema do conteúdo." >&2
+  exit 1
+fi
+
 # Uma pasta que já traga ficheiros misturava-os com os desta publicação.
 if [ -e "$SITE" ] && [ -n "$(ls -A "$SITE" 2>/dev/null)" ]; then
   echo "A pasta $SITE já tem ficheiros: apague-a primeiro." >&2; exit 1
@@ -30,8 +40,7 @@ DENTRO=()
 case "$SITE/" in "$RAIZ"/*) DENTRO=(--exclude "/${SITE#"$RAIZ"/}") ;; esac
 
 # --- copiar tudo menos o que não deve ser servido ao público -------------
-# worker/ (ids do KV, origens permitidas), os .md internos, a configuração do
-# backoffice (.pages.yml: o Pages CMS lê-a do repositório, não do site) e a
+# worker/ (ids do KV, origens permitidas), os .md internos e a configuração
 # do wrangler. Nada disso são segredos, mas também não têm razão para estar
 # públicos, e um Disallow no robots.txt esconde do Google e não do público.
 rsync -a ./ "$SITE"/ \
@@ -42,7 +51,6 @@ rsync -a ./ "$SITE"/ \
   --exclude '_source' \
   --exclude '*.md' \
   --exclude '.gitignore' \
-  --exclude '.pages.yml' \
   --exclude 'wrangler.jsonc' \
   --exclude '/wrangler.toml' \
   --exclude '/scripts' \

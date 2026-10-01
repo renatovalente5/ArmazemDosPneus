@@ -69,8 +69,9 @@ def parar(mensagem, ecra='Publicação'):
 
 
 def relativo(p):
-    """Mesma normalização do main.js: o Pages CMS grava com barra à frente
-    (media.output = /assets/uploads) e o HTML usa caminhos relativos."""
+    """Mesma normalização do main.js: o painel grava com barra à frente
+    (/assets/uploads/…, como o Pages CMS gravava) e o HTML usa caminhos
+    relativos."""
     return re.sub(r'^/+', '', (p or '').strip())
 
 

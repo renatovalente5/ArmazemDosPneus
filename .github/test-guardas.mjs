@@ -16,7 +16,8 @@
  *     worker/src/garantia.js, obrigatória, e no pedido só quando aparece;
  *   · re-jogar os commits de data/ desde o e37161a: nenhum teria parado a
  *     publicação (os de antes listam-se, com a razão);
- *   · o settings.json regravado pelo Pages CMS (sem as chaves vazias) passa;
+ *   · os ficheiros como o Pages CMS os gravava (sem as chaves vazias) passam:
+ *     ele saiu na fase G, mas os dados antigos ficaram assim;
  *   · cada regra com um caso e a classe certa — um produto partido nunca dá
  *     exit 1, e sai de venda na cópia publicada sem mexer no ficheiro;
  *   · 30 problemas → 9 anotações + «e mais 21», e os 30 no resumo;
@@ -31,6 +32,8 @@
  *   · o dono é autónomo: uma secção da Loja online que o settings.json perdeu
  *     volta pelo painel (L2-04), e as mensagens das regras só nomeiam o Renato
  *     nas avarias técnicas;
+ *   · a fase G (saiu o Pages CMS): o /admin reencaminha para o painel e uma
+ *     pasta admin/ na _site pára a publicação; um .pages.yml que volte também;
  *   · o pages.yml: os passos corridos TAL COMO ESTÃO ESCRITOS no YAML
  *     (extraídos, nunca reescritos — memória correr-a-guarda-verdadeira): as
  *     verificações de fuga, a config do wrangler contra o wrangler.jsonc, o
@@ -189,7 +192,7 @@ try {
   certo(deClasse(hoje, 'neutraliza').length === 0, 'nenhum produto a neutralizar', deClasse(hoje, 'neutraliza').map((p) => p.chave).join(', '));
   const nHoje = R.neutralizar(TEXTO, hoje);
   certo(!nHoje.mudou && nHoje.efeitos.length === 0, 'neutralizar() não muda nada');
-  certo(R.serializar(nHoje.products, R.terminacaoDe(TEXTO.products)) === TEXTO.products, 'e a cópia serializada é o ficheiro, byte a byte (sem \\n no fim, como o Pages CMS grava)');
+  certo(R.serializar(nHoje.products, R.terminacaoDe(TEXTO.products)) === TEXTO.products, 'e a cópia serializada é o ficheiro, byte a byte (sem \\n no fim, como o Pages CMS o deixou)');
   certo(R.serializar(HOJE.settings, R.terminacaoDe(TEXTO.settings)) === TEXTO.settings && R.serializar(HOJE.content, R.terminacaoDe(TEXTO.content)) === TEXTO.content, 'serializar() reproduz settings.json e content.json byte a byte');
   certo(hoje.filter((p) => p.lembrete && /:a-espera$/.test(p.chave)).length === 13, 'lembrete: 13 pneus com preço à vista à espera da etiqueta (11 novos, 2 seminovos)');
   certo(tem(hoje, 'avisa', 'produto:teste-pagamento:escondido-a-venda'), 'lembrete: o artigo de teste está escondido mas à venda');
@@ -274,8 +277,9 @@ try {
   certo(antesComBloqueio > 0, 'e a mesma máquina diz «pára» quando é caso disso (os commits antes da loja online não tinham prazos)');
 
   /* ================================================================== */
-  secao('o Pages CMS a regravar os ficheiros');
-  /* O Pages CMS omite os campos vazios ao gravar (memória pages-cms-apaga-chaves). */
+  secao('os ficheiros como o Pages CMS os gravava');
+  /* O Pages CMS omitia os campos vazios ao gravar (memória pages-cms-apaga-chaves).
+     Saiu na fase G, mas os ficheiros que gravou continuam sem essas chaves. */
   const semVazios = (v) => {
     if (Array.isArray(v)) return v.map(semVazios);
     if (v && typeof v === 'object') {
@@ -747,7 +751,7 @@ try {
 
   /* ================================================================== */
   /* REVISÃO DE 1 OUT, L2-04, e o ajuste do Renato (o dono é autónomo): um
-     settings.json sem uma secção da Loja online (o Pages CMS omite as vazias)
+     settings.json sem uma secção da Loja online (o Pages CMS omitia as vazias)
      travava no painel o custo de devolução — qualquer chave de topo nova era
      «bloqueada» — e mandava o dono falar com o Renato por conteúdo. */
   secao('o dono é autónomo: as secções da Loja online, e o Renato só nas avarias');
@@ -1306,9 +1310,11 @@ try {
   }
   /* Achado L8-01: o comentário dizia «nenhuma App tem a permissão Workflows»,
      e a do Pages CMS tem-na (e Administration, e Actions). A promessa errada
-     levava a manter a App instalada até à fase G, com a barreira aberta. */
-  certo(!/nenhuma App a tem/.test(YAML) && /Pages CMS[^]{0,200}workflows: write/.test(YAML) && /desinstalada/.test(YAML),
-    'o pages.yml não promete que nenhuma App tem «workflows», e diz que a do Pages CMS tem e tem de sair antes do merge');
+     levava a manter a App instalada até à fase G, com a barreira aberta. Na
+     fase G saiu o .pages.yml, mas isso não tira o acesso à App: o comentário
+     continua a dizer que este repositório tem de sair da instalação dela. */
+  certo(!/nenhuma App a tem/.test(YAML) && /Pages CMS[^]{0,200}workflows: write/.test(YAML) && /este repositório tem de sair da instalação dela/.test(YAML),
+    'o pages.yml não promete que nenhuma App tem «workflows», e diz que a do Pages CMS tem e que este repositório tem de sair do acesso dela (sair o .pages.yml não chega)');
   certo(!/secrets\./.test(construir) && /persist-credentials: false/.test(construir), 'construir: sem segredos, e o checkout não deixa credenciais');
   certo(/fetch-depth: 0/.test(construir), 'construir: o checkout traz o histórico todo (a «Última atualização» das páginas legais sai dele — achado L6-11)');
   certo(!/actions\/checkout/.test(publicar) && !/\.github\//.test(publicar.replace(/^\s*#.*$/gm, '')), 'publicar: sem checkout, e não corre nenhum script do repositório');
@@ -1407,7 +1413,7 @@ esac
     const r = correrPasso('Abrir, comentar ou fechar a issue «Publicação parada»', d, {
       PATH: `${join(d, 'bin')}:${process.env.PATH}`, GH_TOKEN: 'x', GH_REPO: 'renatovalente5/ArmazemDosPneus',
       CONSTRUIR: c, PUBLICAR: p, ENSAIO: ensaio, CORRIDA: 'https://github.com/renatovalente5/ArmazemDosPneus/actions/runs/1',
-      COMMIT: 'abc123', QUEM: 'pages-cms[bot]', FALSO_ABERTAS: JSON.stringify(abertas), FALSO_FALHA: falha,
+      COMMIT: 'abc123', QUEM: 'armazem-dos-pneus-painel[bot]', FALSO_ABERTAS: JSON.stringify(abertas), FALSO_FALHA: falha,
     });
     const log = existsSync(join(d, 'gh.log')) ? readFileSync(join(d, 'gh.log'), 'utf8').trim().split('\n') : [];
     const aviso = existsSync(join(d, 'aviso.md')) ? readFileSync(join(d, 'aviso.md'), 'utf8') : '';
@@ -1496,6 +1502,22 @@ esac
       const r = cloudflare(montar);
       certo(r.status !== 0 && /nada lá seria servido/.test(r.err) && r.regras === null, `${desc} na _site: pára com a razão (nunca seria servida), antes de escrever o _redirects`, `saiu ${r.status}: ${r.err}`);
     }
+  }
+
+  /* ================================================================== */
+  /* Dois editores sobre os mesmos ficheiros atropelam-se: o Pages CMS
+     reescreve o JSON inteiro e apaga as chaves que não conhece. */
+  secao('o Pages CMS saiu (fase G): o .pages.yml não volta');
+  {
+    certo(!existsSync(join(RAIZ, '.pages.yml')), 'o .pages.yml já não está no repositório');
+    const t = mkdtempSync(join(TMP, 'pagescms-'));
+    mkdirSync(join(t, '.github'));
+    copyFileSync(join(RAIZ, '.github', 'preparar-site.sh'), join(t, '.github', 'preparar-site.sh'));
+    writeFileSync(join(t, '.pages.yml'), 'content: []\n');
+    const r = correr('bash', [join(t, '.github', 'preparar-site.sh'), join(t, '_site')]);
+    certo(r.status !== 0 && /^ERRO: o \.pages\.yml voltou ao repositório/m.test(r.err) && !existsSync(join(t, '_site')),
+      'um .pages.yml que volte: o preparar-site.sh pára logo, com a razão numa linha «ERRO:» (vai para a issue), sem criar a _site', `saiu ${r.status}: ${r.err}`);
+    rmSync(t, { recursive: true, force: true });
   }
 
   /* ================================================================== */

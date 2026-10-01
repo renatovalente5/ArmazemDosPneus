@@ -187,7 +187,7 @@ certo(visivel(injetar(DV, dados(settings=s_dev))) == 'cliente 6,50 €', 'devolu
 s_zero = copy.deepcopy(SETTINGS); s_zero['returns']['return_cost_eur'] = 0
 certo(visivel(injetar(DV, dados(settings=s_zero))) == 'loja', 'devolução a zero: a loja paga (o mesmo que o checkout diz)')
 s_semr = copy.deepcopy(SETTINGS); del s_semr['returns']
-certo(visivel(injetar(DV, dados(settings=s_semr))) == 'loja', 'sem o bloco returns (o Pages CMS apaga as chaves vazias): a loja paga')
+certo(visivel(injetar(DV, dados(settings=s_semr))) == 'loja', 'sem o bloco returns (o Pages CMS apagava as chaves vazias, e os dados antigos ficaram assim): a loja paga')
 FB = '<!--ap:facebook se=existe--><a href="x" data-ap-href="facebook">f</a><!--/ap:facebook-->'
 certo('href="https://www.facebook.com/armazem.dospeneus/"' in injetar(FB), 'Facebook preenchido: a ligação fica, com o endereço do painel')
 sem_fb = copy.deepcopy(SITE); sem_fb['contactos']['facebook'] = ''
