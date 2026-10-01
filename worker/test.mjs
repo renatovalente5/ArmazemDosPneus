@@ -254,6 +254,7 @@ if (servidor) await servidor.fechar();
 
 await import('./test/w-dados.mjs').then((m) => m.correr({ ok }));
 await import('./test/estados.mjs').then((m) => m.correr({ ok }));
+await import('./test/garantia.mjs').then((m) => m.correr({ ok }));
 
 console.log(`\n${pass} passaram, ${fail} falharam\n`);
 process.exit(fail ? 1 : 0);

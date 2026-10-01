@@ -18,6 +18,9 @@
      · Prazos, custo da devolução, contactos e dados da empresa não estão
        escritos aqui: lêem-se dos JSON do site e ficam na encomenda, como
        retrato do que se prometeu (termos.js).
+     · Um pneu seminovo com a garantia reduzida (menos de 3 anos) só se vende
+       com o acordo do cliente, conferido aqui e guardado no retrato
+       (garantia.js).
 
    SEGREDOS (wrangler secret put — NUNCA no repositório)
      STRIPE_RESTRICTED_KEY   rk_live_… (chave restrita, não a sk_live)
@@ -29,6 +32,7 @@ import { stripeFetch, verifyStripeSignature } from './stripe.js';
 import { priceOrder } from './pricing.js';
 import { avisoLoja, confirmacaoCliente, referenciaMultibanco, avisoPagamentoTardio, avisoDisputaSemEncomenda } from './mail.js';
 import { termosDasFontes, lerFontesDoSite, lerJsonOpcional, moradaLinha, prazoEntregaTexto, condicoesMostradas, condicoesDoRetrato, condicoesPiores, custoDevolucaoCentimos } from './termos.js';
+import { garantiaDoCarrinho, registoDaGarantia, aceitacaoConfere, mensagemDaGarantia, fraseDaGarantiaNaStripe, CODIGO_GARANTIA } from './garantia.js';
 
 const MAX_BODY_BYTES = 8 * 1024;
 const SESSION_TTL_SECONDS = 3600;        // 1 h para concluir o pagamento
@@ -233,10 +237,17 @@ async function handleCheckout(request, env, cors) {
     return json({ error: 'Não foi possível confirmar os dados da loja para este pagamento. Tente daqui a um minuto.' }, 503, cors);
   }
 
+  // Os pneus seminovos com a garantia reduzida (DL 84/2021, art. 12.º): o
+  // acordo que ESTE carrinho pede, do products.json publicado — null sem eles
+  // (garantia.js).
+  const garantia = garantiaDoCarrinho(calc.seminovos);
+
   // O retrato do que se promete a ESTE cliente, agora: prazos, custo da
-  // devolução, contactos e dados da empresa. Vai para a página da Stripe e fica
-  // na encomenda para os emails (termos.js explica porquê).
-  const { termos, invalidos } = termosDasFontes({ settings: calc.settings, site: fontes.site, empresa: fontes.empresa, montagem: cliente.montagem }, env);
+  // devolução, contactos e dados da empresa — e o acordo da garantia dos
+  // seminovos, se os houver. Vai para a página da Stripe e fica na encomenda
+  // para os emails (termos.js explica porquê).
+  const { termos, invalidos } = termosDasFontes({ settings: calc.settings, site: fontes.site, empresa: fontes.empresa, montagem: cliente.montagem,
+    garantia_usados: garantia ? registoDaGarantia(garantia) : undefined }, env);
   if (invalidos.length) console.error('termos: valores recusados, vale o recurso em', invalidos.join(', '));
 
   // Interruptor de emergência do backoffice. Imposto AQUI e não só no browser:
@@ -247,6 +258,16 @@ async function handleCheckout(request, env, cors) {
   if (modo !== 'online') {
     console.log('checkout recusado: payment.mode =', modo);
     return json({ error: 'O pagamento online está temporariamente indisponível. Ligue-nos para concluir a encomenda.' }, 503, cors);
+  }
+
+  // A garantia reduzida de um bem usado só vale POR ACORDO: sem a caixa do
+  // checkout marcada para ESTES artigos e ESTES meses, não há pagamento. Vale
+  // também para um pedido forjado e para uma página antiga em cache (que não
+  // tem a caixa: a mensagem manda recarregar). O 400 traz o texto e a versão
+  // deste Worker, e o checkout.js mostra-os na caixa antes de o cliente
+  // confirmar outra vez.
+  if (garantia && !aceitacaoConfere(body.garantia_usados, garantia)) {
+    return json({ error: mensagemDaGarantia(garantia), codigo: CODIGO_GARANTIA, garantia_usados: registoDaGarantia(garantia) }, 400, cors);
   }
 
   // O que a página mostrou antes do «Pagar agora» tem de ser o que fica no
@@ -318,9 +339,12 @@ async function handleCheckout(request, env, cors) {
     },
     custom_text: {
       submit: {
-        message: delivery === 'ctt'
+        // Com pneus seminovos de garantia reduzida, mais uma frase curta (só
+        // texto fixo e números: a Stripe desenha isto em Markdown).
+        message: (delivery === 'ctt'
           ? `Ao concluir o pagamento celebra um contrato de compra e venda com obrigação de pagar. Entrega em ${prazoEntregaTexto(termos.prazos)}, para Portugal continental.`
-          : `Ao concluir o pagamento celebra um contrato de compra e venda com obrigação de pagar. Levantamento em ${moradaLinha(termos)}.`,
+          : `Ao concluir o pagamento celebra um contrato de compra e venda com obrigação de pagar. Levantamento em ${moradaLinha(termos)}.`)
+          + (garantia ? ` ${fraseDaGarantiaNaStripe(garantia)}` : ''),
       },
       after_submit: {
         message: 'Se escolher Referência Multibanco, a entidade e a referência aparecem no ecrã seguinte e também lhe são enviadas por email. Tem 7 dias para pagar; a encomenda só é preparada depois de recebermos o pagamento.',

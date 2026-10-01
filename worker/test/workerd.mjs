@@ -106,8 +106,8 @@ const CENARIOS = {
   'Madeira (recusado)': { pedido: PEDIDOS.madeira, settings: SETTINGS_HOJE, emails: 0, eventos: () => [] },
 };
 
-async function correr(raiz, cen, { site, empresa, settings = cen.settings } = {}) {
-  const dados = { 'products.json': PRODUTOS, 'settings.json': settings };
+async function correr(raiz, cen, { site, empresa, settings = cen.settings, produtos = PRODUTOS } = {}) {
+  const dados = { 'products.json': produtos, 'settings.json': settings };
   if (site !== undefined) dados['site.json'] = site;
   if (empresa !== undefined) dados['empresa.json'] = empresa;
   const rede = redeFalsa(dados);
@@ -171,6 +171,26 @@ try {
   ok('valores novos: a denominação com HTML chega escapada ao html', conf.html.includes('<strong>&lt;img src=x onerror=alert(1)&gt; &amp; Filhos, Lda.</strong>') && !conf.html.includes('<img src=x'));
   ok('telefone com quebra de linha recusado: vale o de recurso, e nenhuma linha injectada',
     !conf.text.split('\n').some((l) => l.startsWith('PAGAMENTO')) && conf.reply_to === 'geral@rodas-ensaio.pt');
+
+  // A garantia dos pneus seminovos (garantia.js), no runtime verdadeiro: sem a
+  // aceitação, 400 e nada gravado; com ela, o acordo no retrato do KV e nos emails.
+  {
+    const S = { name: 'Pneu Seminovo Continental 205/55 R16', category: 'Pneus Seminovos', price_eur: 32.9, stock: 1, weight_kg: 9, condition: 'Seminovo',
+      available: true, featured: false, hidden: false, dot: '3221', tread_mm: 6, warranty_months: 18, sku: 'semi-ensaio-18' };
+    const produtos = { products: [...PRODUTOS.products, S] };
+    const pedido = { ...PEDIDOS.loja, montagem: false, montagem_imediata: false, matricula: '', items: [{ sku: S.sku, qty: 1 }] };
+    const sem = await correr(PASTA_WORKER, { pedido, settings: SETTINGS_HOJE, emails: 0, eventos: () => [] }, { produtos });
+    const d = JSON.parse(sem.checkout.corpo);
+    ok('seminovo de 18 meses sem a aceitação: 400 com o código, sem sessão da Stripe nem encomenda',
+      sem.checkout.status === 400 && d.codigo === 'garantia_usados_por_aceitar' && sem.stripe.length === 0 && sem.encomenda === null, sem.checkout);
+    const aceite = { aceita: true, versao: d.garantia_usados.versao, artigos: d.garantia_usados.artigos.map(({ sku, meses }) => ({ sku, meses })) };
+    const com = await correr(PASTA_WORKER, { pedido: { ...pedido, garantia_usados: aceite }, settings: SETTINGS_HOJE, emails: 2, eventos: (e) => [eventos.sessaoConcluida(e)] }, { produtos });
+    eq('com a aceitação: o acordo guardado no retrato do KV (versão, texto, sku, nome e meses)', com.encomenda && com.encomenda.termos.garantia_usados, d.garantia_usados);
+    const conf = com.emails.find((m) => /confirmada/.test(m.subject));
+    const dono = com.emails.find((m) => /^\[Loja\]/.test(m.subject));
+    ok('   e os emails dizem a garantia do artigo (confirmação em texto e html, e o aviso ao dono)',
+      conf && conf.text.includes(`    ${S.name} — 18 meses`) && conf.html.includes(`${S.name} — <strong>18 meses</strong>`) && dono && dono.text.includes(`  ${S.name} — 18 meses`));
+  }
 
   // Origens: o localhost já não entra em produção.
   const rede = redeFalsa({});

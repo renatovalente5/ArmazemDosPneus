@@ -35,6 +35,11 @@ async function loadJson(url) {
    Stripe a dizer «Envio CTT (5 kg)» (achado L7-11). O checkout.js faz o mesmo. */
 const centesimosDeKg = (kg) => Math.round((Number(kg) || 0) * 100);
 
+/* Um pneu seminovo (um bem usado): a regra do ePneu do .github/regras.mjs e do
+   assets/js/catalog.js. A garantia dele — e o acordo que ela pede — é do
+   garantia.js. */
+const ePneuSeminovo = (p) => /pneu/i.test(p.category || '') && p.condition === 'Seminovo';
+
 /** Escalão de portes por peso total, a partir de data/settings.json. */
 export function shippingTierCents(weightKg, settings) {
   return escalaoDePortes(centesimosDeKg(weightKg), settings);
@@ -79,6 +84,10 @@ export async function priceOrder(env, rawItems, delivery) {
   }
 
   const lines = [];
+  // Os pneus seminovos do carrinho, com a garantia que o products.json
+  // PUBLICADO lhes dá (e não a que o browser diz). Não entram nas linhas: a
+  // encomenda sem seminovos fica byte a byte como era.
+  const seminovos = [];
   let subtotalCents = 0;
   let pesoCg = 0;
   const seen = new Set();
@@ -117,6 +126,7 @@ export async function priceOrder(env, rawItems, delivery) {
       weight_kg: Number(p.weight_kg) || 0,
       condition: p.condition || 'Novo',
     });
+    if (ePneuSeminovo(p)) seminovos.push({ sku, nome: p.name, meses: p.warranty_months, qty });
   }
 
   // Portes a combinar: enquanto a loja não souber quanto custa cada envio, não
@@ -138,5 +148,6 @@ export async function priceOrder(env, rawItems, delivery) {
     total_cents: subtotalCents + shippingCents,
     weight_kg: pesoCg / 100,
     settings,
+    seminovos,
   };
 }

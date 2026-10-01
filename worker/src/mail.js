@@ -16,7 +16,9 @@
    Prazos, custo da devolução, contactos e dados da empresa vêm do RETRATO
    guardado na encomenda no momento do checkout (termos.js): o email repete o
    que se prometeu antes do pagamento. Uma encomenda antiga, sem retrato, usa
-   os valores de sempre.
+   os valores de sempre. Com pneus seminovos de garantia reduzida, o retrato
+   traz também a garantia que o cliente aceitou, artigo a artigo, e a
+   confirmação e o aviso ao dono dizem-na (garantia.js).
 
    Se RESEND_API_KEY não estiver definida, as funções não falham: registam e
    seguem (conta como enviado — insistir não muda nada). Um envio que o Resend
@@ -76,6 +78,22 @@ function linhas(order) {
   return order.lines.map((l) => `  ${l.qty}× ${l.name} — ${eur(l.unit_cents * l.qty)}`).join('\n');
 }
 
+/* A garantia acordada dos pneus seminovos (DL 84/2021, art. 12.º), do retrato:
+   o que o cliente aceitou na caixa do checkout (garantia.js). Só nas
+   encomendas que os têm — as outras ficam com os emails de sempre. Texto e
+   html dizem o mesmo. */
+const GARANTIA_ACORDADA = 'Pneus seminovos (bens usados), com a garantia reduzida por acordo que aceitou antes de pagar (art. 12.º do DL 84/2021):';
+function garantiaTexto(g) {
+  return [
+    '  Pneus seminovos (bens usados), com a garantia reduzida por acordo que',
+    '  aceitou antes de pagar (art. 12.º do DL 84/2021):',
+    ...g.artigos.map((a) => `    ${a.nome} — ${a.meses} meses`),
+  ];
+}
+function garantiaHtml(g) {
+  return p(`${esc(GARANTIA_ACORDADA)}<br>${g.artigos.map((a) => `${esc(a.nome)} — <strong>${esc(a.meses)} meses</strong>`).join('<br>')}`);
+}
+
 function entregaTexto(order) {
   if (order.entrega !== 'ctt') return 'Levantar e montar na loja (grátis)';
 
@@ -116,6 +134,9 @@ export function avisoLoja(env, order) {
   // — este email é o gatilho da fatura, e faturar o valor errado é um problema
   // fiscal, não um detalhe. Vai a abrir, não enterrado no fim.
   const mm = order.amount_mismatch;
+  // A garantia que o cliente aceitou nos pneus seminovos: o dono tem de a
+  // conhecer (e este email fica-lhe como prova do acordo).
+  const g = termosDaEncomenda(order, env).garantia_usados;
   const text = [
     mm ? '*** ATENÇÃO: O VALOR COBRADO NÃO É O ESPERADO ***' : null,
     mm ? `    Esperávamos ${eur(mm.esperado)} e foram cobrados ${eur(mm.cobrado)}.` : null,
@@ -129,6 +150,8 @@ export function avisoLoja(env, order) {
     `  Subtotal: ${eur(order.subtotal_cents)}`,
     `  Portes: ${order.shipping_quote_later ? 'A COMBINAR — não cobrados' : (order.shipping_cents ? eur(order.shipping_cents) : 'grátis')}`,
     `  TOTAL: ${eur(order.total_cents)}`,
+    ...(g ? ['', 'GARANTIA DOS PNEUS SEMINOVOS (reduzida por acordo: o cliente aceitou-a antes de pagar)',
+      ...g.artigos.map((a) => `  ${a.nome} — ${a.meses} meses`)] : []),
     '',
     'ENTREGA',
     '  ' + entregaTexto(order),
@@ -231,6 +254,7 @@ export function confirmacaoCliente(env, order) {
     '',
     'GARANTIA',
     '  Garantia legal de conformidade nos termos do DL 84/2021.',
+    ...(t.garantia_usados ? garantiaTexto(t.garantia_usados) : []),
     '',
     'VENDEDOR',
     `  ${t.empresa.denominacao} ("${t.empresa.nome}")`,
@@ -289,6 +313,7 @@ export function confirmacaoCliente(env, order) {
           : '',
         h2('Garantia'),
         p('Garantia legal de conformidade nos termos do DL 84/2021.'),
+        t.garantia_usados ? garantiaHtml(t.garantia_usados) : '',
         h2('Vendedor'),
         p(`<strong>${esc(t.empresa.denominacao)}</strong> ("${esc(t.empresa.nome)}")<br>NIF ${esc(t.empresa.nif)} · ${esc(moradaLinha(t))}<br>${esc(contacto)}`),
         h2('Reclamações'),

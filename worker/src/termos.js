@@ -12,7 +12,9 @@
    cliente nesse momento. Os emails que saem depois — pelo webhook, às vezes
    dias depois, com Multibanco — repetem o retrato, e não o que o site disser
    entretanto: a confirmação do contrato (art. 6.º do DL 24/2014) tem de dizer o
-   que foi prometido antes dele, não o que o dono mudou a seguir.
+   que foi prometido antes dele, não o que o dono mudou a seguir. Numa
+   encomenda com pneus seminovos de garantia reduzida, o retrato guarda também
+   o acordo que o cliente aceitou (garantia_usados — ver garantia.js).
 
    RECURSO. Um grupo que não se consegue ler — ficheiro que não existe (404),
    ou valor fora da regra — usa os valores de sempre (um ficheiro que existe e
@@ -186,6 +188,52 @@ function urlHttps(v) {
   }
 }
 
+/* ---------- a garantia dos pneus seminovos, por acordo ---------- */
+
+/* DL n.º 84/2021, art. 12.º: a garantia de conformidade é de 3 anos (36
+   meses); num bem móvel usado pode ser reduzida, POR ACORDO das partes, até 18
+   meses. Uma redução é um número inteiro de meses, 18 ≤ m < 36 — a mesma regra
+   do checkout.js. (O .github/regras.mjs aceita 18 a 36 no seminovo à venda: os
+   36 são a garantia inteira, sem acordo nenhum.) O acordo e o texto aceite são
+   do garantia.js; aqui fica a regra do retrato. */
+export const GARANTIA_LEGAL_MESES = 36;
+export const GARANTIA_MINIMA_USADOS = 18;
+export const garantiaReduzida = (m) => typeof m === 'number' && Number.isInteger(m) && m >= GARANTIA_MINIMA_USADOS && m < GARANTIA_LEGAL_MESES;
+
+/* O SKU do .github/regras.mjs; 20 artigos é o MAX_LINES do pricing.js. */
+const RE_SKU = /^[a-z0-9][a-z0-9-]{0,79}$/;
+const RE_VERSAO_GARANTIA = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
+const MAX_ARTIGOS_GARANTIA = 20;
+const TECTO_NOME_ARTIGO = 200;      // o painel deixa 120 (regras.mjs)
+const TECTO_TEXTO_GARANTIA = 6000;  // 20 nomes de 200 e a frase cabem
+
+/** O nome de um artigo numa linha (sem quebras nem invisíveis), até 200 caracteres — ou null. */
+export const nomeDeArtigo = (v) => texto(v, 1, TECTO_NOME_ARTIGO);
+
+/**
+ * O acordo guardado no retrato (termos.garantia_usados), passado pelas regras:
+ * { versao, texto, artigos: [{ sku, nome, meses }] }, ou null. Um acordo
+ * estragado (à mão no KV, ou por um bug) não chega aos emails: vale a garantia
+ * legal de 3 anos, que é a que a lei dá a quem não acordou outra. Idempotente.
+ */
+export function garantiaUsadosValida(g) {
+  if (!eObjeto(g)) return null;
+  const versao = proprio(g, 'versao');
+  const aceite = texto(proprio(g, 'texto'), 1, TECTO_TEXTO_GARANTIA);
+  const artigos = proprio(g, 'artigos');
+  if (typeof versao !== 'string' || !RE_VERSAO_GARANTIA.test(versao) || !aceite) return null;
+  if (!Array.isArray(artigos) || artigos.length < 1 || artigos.length > MAX_ARTIGOS_GARANTIA) return null;
+  const out = [];
+  for (const a of artigos) {
+    const sku = proprio(a, 'sku');
+    const nome = nomeDeArtigo(proprio(a, 'nome'));
+    const meses = proprio(a, 'meses');
+    if (typeof sku !== 'string' || !RE_SKU.test(sku) || !nome || !garantiaReduzida(meses)) return null;
+    out.push({ sku, nome, meses });
+  }
+  return { versao, texto: aceite, artigos: out };
+}
+
 /* ---------- o retrato ---------- */
 
 function prazosDoEnv(env) {
@@ -271,6 +319,13 @@ export function normalizarTermos(bruto, env) {
   // acordado se o dono o mudasse a seguir (achado L7-12).
   const precoMontagem = precoMontagemValido(proprio(proprio(bruto, 'montagem'), 'preco_eur'));
 
+  // A garantia acordada dos pneus seminovos (só nas encomendas que os têm): o
+  // que o cliente aceitou na caixa do checkout — a prova do acordo. Sem ela
+  // (ou estragada), a garantia é a legal, e o retrato fica como sempre foi.
+  const brutoGarantia = proprio(bruto, 'garantia_usados');
+  const garantia = garantiaUsadosValida(brutoGarantia);
+  if (!naoDito(brutoGarantia) && !garantia) invalidos.push('garantia_usados');
+
   return {
     termos: {
       versao: TERMOS_VERSAO,
@@ -279,6 +334,7 @@ export function normalizarTermos(bruto, env) {
       contactos: { telefone, email },
       empresa: { nome, denominacao: identidade.denominacao, nif: identidade.nif, morada, livro_reclamacoes: livro },
       ...(precoMontagem !== null ? { montagem: { preco_eur: precoMontagem } } : {}),
+      ...(garantia ? { garantia_usados: garantia } : {}),
     },
     origem,
     invalidos,
@@ -287,9 +343,11 @@ export function normalizarTermos(bruto, env) {
 
 /**
  * O retrato a partir dos ficheiros do site. Qualquer um pode ser null (não
- * existe, ou não se leu): os grupos dele caem para o recurso.
+ * existe, ou não se leu): os grupos dele caem para o recurso. `garantia_usados`
+ * é o acordo da garantia dos pneus seminovos que o /checkout conferiu
+ * (garantia.js) — só nas encomendas que os têm.
  */
-export function termosDasFontes({ settings, site, empresa, montagem = false } = {}, env) {
+export function termosDasFontes({ settings, site, empresa, montagem = false, garantia_usados } = {}, env) {
   const del = proprio(settings, 'delivery');
   const dev = proprio(settings, 'returns');
   const con = proprio(site, 'contactos');
@@ -310,6 +368,8 @@ export function termosDasFontes({ settings, site, empresa, montagem = false } = 
     },
     // Só numa encomenda com montagem: é o preço que o checkout lhe mostrou.
     ...(montagem ? { montagem: { preco_eur: proprio(proprio(settings, 'mounting'), 'price_eur') } } : {}),
+    // Só numa encomenda com pneus seminovos de garantia reduzida.
+    ...(garantia_usados ? { garantia_usados } : {}),
   }, env);
 }
 

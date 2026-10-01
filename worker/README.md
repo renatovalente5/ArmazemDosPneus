@@ -50,8 +50,9 @@ corre o prazo suplementar"** — não significa que o cliente pagou.
 | `src/stripe.js` | Cliente REST mínimo + verificação HMAC do webhook |
 | `src/mail.js` | Emails: aviso ao dono, confirmação legal ao cliente, referência MB |
 | `src/termos.js` | O que se promete ao cliente (prazos, devolução, contactos, empresa): lê-o dos JSON do site, valida-o e guarda o retrato na encomenda |
+| `src/garantia.js` | A garantia dos pneus seminovos (menos de 3 anos só por acordo): o texto aceite, a conferência no `/checkout` e o que fica no retrato |
 | `src/email-html.js` | O HTML dos emails (tabelas, estilos em linha, modo escuro) |
-| `test.mjs`, `test/` | A bateria (`npm test`) e a mesma prova no workerd (`npm run test:workerd`) |
+| `test.mjs`, `test/` | A bateria (`npm test`; a garantia dos seminovos em `test/garantia.mjs`) e a mesma prova no workerd (`npm run test:workerd`) |
 
 Zero dependências de runtime — fala com a API por `fetch()`. O `wrangler` é só
 ferramenta de desenvolvimento.
@@ -102,6 +103,31 @@ postal `0000-000`; Livro de Reclamações só `https://`.
 
 Depois de publicar, `/health?probe=1` diz de onde vem cada grupo:
 `termos.origem` (`dados` ou `recurso`), `termos.ficheiros` e `termos.recusados`.
+
+## A garantia dos pneus seminovos
+
+A garantia legal é de 3 anos; num bem usado pode descer até 18 meses, mas **só
+por acordo** (DL 84/2021, art. 12.º). Um pneu seminovo com `warranty_months` de
+18 a 35 no `products.json` publicado tem a garantia reduzida — e então:
+
+- o checkout mostra uma caixa **obrigatória** com o texto do acordo e manda-a no
+  pedido: `garantia_usados: { aceita: true, versao, artigos: [{ sku, meses }] }`;
+- o `/checkout` confere-a sobre o carrinho **já preçado** (os meses do
+  products.json, não os do browser). Sem ela, noutra versão ou com outros meses:
+  **400** com `codigo: "garantia_usados_por_aceitar"`, a mensagem para o
+  cliente e `garantia_usados: { versao, texto, artigos: [{ sku, nome, meses }] }`
+  (a página mostra-os e o cliente aceita outra vez), sem sessão nem escrita no KV;
+- com ela, o retrato guarda `termos.garantia_usados` (versão, texto aceite e, por
+  artigo, sku, nome e meses), a página da Stripe leva uma frase curta, e a
+  confirmação ao cliente (texto e html) e o aviso ao dono dizem a garantia de
+  cada artigo.
+
+Sem pneus seminovos de garantia reduzida nada disto acontece: o pedido, a
+encomenda, a Stripe e os emails ficam byte a byte como eram (`test/garantia.mjs`
+prova-o contra o Worker de antes). Mudar o texto é uma **versão nova**
+(`GARANTIA_VERSAO`, aqui e no `assets/js/checkout.js`), e este Worker publica-se
+**antes** do site. A prova do acordo dura o que dura a encomenda no KV (400 dias
+depois da última escrita); a que fica para sempre é o aviso ao dono, por email.
 
 ## Deploy (pela primeira vez)
 
