@@ -13,12 +13,18 @@
      3. referenciaMultibanco — entidade/referência por email, para o cliente
                            não depender de ter deixado o separador aberto.
 
+   Prazos, custo da devolução, contactos e dados da empresa vêm do RETRATO
+   guardado na encomenda no momento do checkout (termos.js): o email repete o
+   que se prometeu antes do pagamento. Uma encomenda antiga, sem retrato, usa
+   os valores de sempre.
+
    Se RESEND_API_KEY não estiver definida, as funções não falham: registam e
    seguem. Um email que não sai nunca pode impedir o webhook de responder 200
    (senão a Stripe reenvia o evento indefinidamente).
    ============================================================= */
 
 import { documento, tabelaArtigos, caixaMultibanco, botao, separador, bloco, h2, p, link, esc } from './email-html.js';
+import { termosDaEncomenda, moradaLinha, contactoLinha, custoDevolucaoCentimos, dominioDe } from './termos.js';
 
 const RESEND = 'https://api.resend.com/emails';
 
@@ -34,10 +40,11 @@ function seguro(fn, assunto) {
 function eur(cents) { return (cents / 100).toFixed(2).replace('.', ',') + ' €'; }
 
 /* MAIL_TO é para onde vai o aviso INTERNO de encomenda paga.
-   STORE_EMAIL é o contacto PÚBLICO da loja: aparece no email ao cliente e é o
-   reply-to das mensagens que ele recebe. São coisas diferentes — o aviso
-   interno pode ir para quem gere as encomendas, mas o cliente tem de ver (e
-   responder para) o email oficial da loja. */
+   O email PÚBLICO da loja (contactos.email do site.json, que o dono muda no
+   painel; STORE_EMAIL de recurso) aparece no email ao cliente e é o reply-to
+   das mensagens que ele recebe. São coisas diferentes — o aviso interno pode ir
+   para quem gere as encomendas, mas o cliente tem de ver (e responder para) o
+   email oficial da loja. */
 async function send(env, { to, subject, text, html, replyTo }) {
   if (!env.RESEND_API_KEY) { console.log('email não enviado (sem RESEND_API_KEY):', subject); return { skipped: true }; }
   // O `text` NUNCA é omitido. Se só se enviasse `html`, o Resend geraria a
@@ -170,6 +177,10 @@ export function confirmacaoCliente(env, order) {
   // Ao cliente diz-se o que ele efetivamente pagou, não o que esperávamos
   // cobrar. Se divergir, o dono já foi alertado para conferir antes de faturar.
   const pago = order.amount_mismatch ? order.amount_mismatch.cobrado : order.total_cents;
+  const t = termosDaEncomenda(order, env);
+  // O custo da devolução segue o que o checkout mostrou (returns.return_cost_eur):
+  // 0 = a loja paga, que era o que este email dizia sempre.
+  const devolucao = custoDevolucaoCentimos(t);
   const text = [
     `Olá${c.nome ? ' ' + String(c.nome).split(' ')[0] : ''},`,
     '',
@@ -183,7 +194,7 @@ export function confirmacaoCliente(env, order) {
     '',
     'ENTREGA',
     '  ' + entregaTexto(order),
-    `  Prazo máximo de entrega: ${env.DELIVERY_MAX_DAYS || 30} dias a contar de hoje.`,
+    `  Prazo máximo de entrega: ${t.prazos.max_dias} dias a contar de hoje.`,
     order.shipping_quote_later ? '' : null,
     order.shipping_quote_later ? '  PORTES AINDA NÃO COBRADOS' : null,
     order.shipping_quote_later ? '  O valor que pagou cobre apenas os artigos. Contactamo-lo com o custo do' : null,
@@ -198,7 +209,8 @@ export function confirmacaoCliente(env, order) {
     `  ${env.SITE_URL}/legal/livre-resolucao.html`,
     '  Reembolsamos em 14 dias, pelo mesmo meio de pagamento, incluindo os',
     '  portes de entrega standard.',
-    '  Os custos de devolução dos bens são suportados pela loja.',
+    devolucao ? '  Em caso de devolução, os custos de envio de retorno são suportados' : '  Os custos de devolução dos bens são suportados pela loja.',
+    devolucao ? `  por si, no valor de ${eur(devolucao)}.` : null,
     // Só se ele pediu EXPRESSAMENTE a montagem imediata. Dizer isto a quem
     // apenas pediu montagem seria afirmar uma renúncia que não existiu.
     c.montagem_imediata
@@ -209,12 +221,12 @@ export function confirmacaoCliente(env, order) {
     '  Garantia legal de conformidade nos termos do DL 84/2021.',
     '',
     'VENDEDOR',
-    '  Motivar & Lucrar, Unipessoal, Lda. ("Armazém dos Pneus")',
-    '  NIF 516324950 · Travessa do Navega, 436 F, 3885-183 Arada, Ovar',
-    `  ${env.STORE_PHONE || '935 218 857'} · ${env.STORE_EMAIL || env.MAIL_TO}`,
+    `  ${t.empresa.denominacao} ("${t.empresa.nome}")`,
+    `  NIF ${t.empresa.nif} · ${moradaLinha(t)}`,
+    `  ${contactoLinha(t)}`,
     '',
     'RECLAMAÇÕES',
-    '  Livro de Reclamações eletrónico: https://www.livroreclamacoes.pt/inicio',
+    `  Livro de Reclamações eletrónico: ${t.empresa.livro_reclamacoes}`,
     '  Em caso de litígio de consumo pode recorrer a uma entidade de resolução',
     `  alternativa de litígios. Ver ${env.SITE_URL}/legal/termos.html`,
     '',
@@ -227,7 +239,7 @@ export function confirmacaoCliente(env, order) {
 
   const assunto = `Encomenda ${order.order_id} confirmada — Armazém dos Pneus`;
   const site = (env.SITE_URL || 'https://armazemdospneus.pt').replace(/\/+$/, '');
-  const contacto = `${env.STORE_PHONE || '935 218 857'} · ${env.STORE_EMAIL || env.MAIL_TO}`;
+  const contacto = contactoLinha(t);
 
   // O bloco legal vem ANTES do rodapé, de propósito: se o email for cortado por
   // tamanho, o que desaparece é a marca, nunca a informação obrigatória. E é
@@ -243,7 +255,7 @@ export function confirmacaoCliente(env, order) {
       bloco([
         h2('Entrega'),
         p(esc(entregaTexto(order)).replace(/\n\s*/g, '<br>')),
-        p(`Prazo máximo de entrega: <strong>${esc(env.DELIVERY_MAX_DAYS || 30)} dias</strong> a contar de hoje.`,
+        p(`Prazo máximo de entrega: <strong>${esc(t.prazos.max_dias)} dias</strong> a contar de hoje.`,
           order.shipping_quote_later ? '' : 'last'),
         order.shipping_quote_later
           ? p('<strong>Portes ainda não cobrados.</strong> O valor que pagou cobre apenas os artigos. '
@@ -256,22 +268,24 @@ export function confirmacaoCliente(env, order) {
       separador(),
       bloco([
         h2('Direito de livre resolução'),
-        p(`Tem <strong>14 dias</strong>, a contar da data em que recebe os bens, para resolver este contrato sem indicar qualquer motivo. Para o exercer, basta comunicar-nos a sua decisão — por email, telefone, ou usando o formulário em ${link(site + '/legal/livre-resolucao.html', 'armazemdospneus.pt/legal/livre-resolucao.html')}. Reembolsamos em 14 dias, pelo mesmo meio de pagamento, incluindo os portes de entrega standard, e <strong>os custos de devolução dos bens são suportados pela loja</strong>.`),
+        p(`Tem <strong>14 dias</strong>, a contar da data em que recebe os bens, para resolver este contrato sem indicar qualquer motivo. Para o exercer, basta comunicar-nos a sua decisão — por email, telefone, ou usando o formulário em ${link(site + '/legal/livre-resolucao.html', 'armazemdospneus.pt/legal/livre-resolucao.html')}. Reembolsamos em 14 dias, pelo mesmo meio de pagamento, incluindo os portes de entrega standard${devolucao
+          ? `. Em caso de devolução, <strong>os custos de envio de retorno são suportados por si, no valor de ${esc(eur(devolucao))}</strong>.`
+          : ', e <strong>os custos de devolução dos bens são suportados pela loja</strong>.'}`),
         c.montagem_imediata
           ? p('Pediu expressamente a montagem imediata. Uma vez prestado esse serviço, perde o direito de livre resolução <strong>quanto a ele</strong> — mantendo-o integralmente quanto aos bens.')
           : '',
         h2('Garantia'),
         p('Garantia legal de conformidade nos termos do DL 84/2021.'),
         h2('Vendedor'),
-        p(`<strong>Motivar &amp; Lucrar, Unipessoal, Lda.</strong> ("Armazém dos Pneus")<br>NIF 516324950 · Travessa do Navega, 436 F, 3885-183 Arada, Ovar<br>${esc(contacto)}`),
+        p(`<strong>${esc(t.empresa.denominacao)}</strong> ("${esc(t.empresa.nome)}")<br>NIF ${esc(t.empresa.nif)} · ${esc(moradaLinha(t))}<br>${esc(contacto)}`),
         h2('Reclamações'),
-        p(`Livro de Reclamações eletrónico: ${link('https://www.livroreclamacoes.pt/inicio', 'livroreclamacoes.pt')}. Em caso de litígio de consumo pode recorrer a uma entidade de resolução alternativa de litígios — ver os ${link(site + '/legal/termos.html', 'Termos e Condições')}.`),
+        p(`Livro de Reclamações eletrónico: ${link(t.empresa.livro_reclamacoes, dominioDe(t.empresa.livro_reclamacoes))}. Em caso de litígio de consumo pode recorrer a uma entidade de resolução alternativa de litígios — ver os ${link(site + '/legal/termos.html', 'Termos e Condições')}.`),
         p(`${link(site + '/legal/termos.html', 'Termos e Condições')} · ${link(site + '/legal/privacidade.html', 'Política de Privacidade')}`, 'last'),
       ].join(''), '24px 40px 32px 40px'),
     ].join('\n'),
   }), assunto);
 
-  return send(env, { to: c.email, subject: assunto, text, html, replyTo: env.STORE_EMAIL || env.MAIL_TO });
+  return send(env, { to: c.email, subject: assunto, text, html, replyTo: t.contactos.email });
 }
 
 /* ---------- 3. Referência Multibanco ---------- */
@@ -280,6 +294,7 @@ export function referenciaMultibanco(env, order) {
   const mb = order.multibanco || {};
   if (!c.email || !mb.reference) return Promise.resolve({ skipped: true });
   const validade = mb.expires_at ? new Date(mb.expires_at * 1000).toLocaleDateString('pt-PT') : null;
+  const t = termosDaEncomenda(order, env);
   const text = [
     `Olá${c.nome ? ' ' + String(c.nome).split(' ')[0] : ''},`,
     '',
@@ -299,7 +314,7 @@ export function referenciaMultibanco(env, order) {
     '  reservamos stock até lá. Assim que o pagamento entrar, enviamos a',
     '  confirmação e a fatura.',
     '',
-    '  Dúvidas? ' + (env.STORE_PHONE || '935 218 857'),
+    '  Dúvidas? ' + t.contactos.telefone,
     '',
     'Armazém dos Pneus',
   ].filter((l) => l !== null).join('\n');
@@ -323,7 +338,7 @@ export function referenciaMultibanco(env, order) {
         p('Pode pagar no <strong>Multibanco</strong>, no <strong>homebanking</strong> ou na <strong>app do seu banco</strong>.'),
         h2('Importante'),
         p('A encomenda só é preparada depois de recebermos o pagamento, e <strong>não reservamos stock</strong> até lá. Assim que o pagamento entrar, enviamos a confirmação e a fatura.'),
-        p(`Dúvidas? ${esc(env.STORE_PHONE || '935 218 857')}`, 'last'),
+        p(`Dúvidas? ${esc(t.contactos.telefone)}`, 'last'),
       ].join(''), '8px 40px 24px 40px'),
       // O link do voucher é COMPLEMENTO, nunca o único sítio onde a referência
       // existe: é alojado pela Stripe e pode expirar.
@@ -336,6 +351,6 @@ export function referenciaMultibanco(env, order) {
     subject: assunto,
     text,
     html,
-    replyTo: env.STORE_EMAIL || env.MAIL_TO,
+    replyTo: t.contactos.email,
   });
 }

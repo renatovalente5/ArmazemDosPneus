@@ -18,7 +18,9 @@ preview_id = "0870815be1eb4fc19ea338ca0e376686"
 # O renatovalente5.github.io NÃO consta de propósito: com o domínio próprio
 # configurado, o GitHub Pages responde 301 para armazemdospneus.pt e nenhum
 # browser fica nessa origem. Menos superfície.
-ALLOWED_ORIGINS = "https://armazemdospneus.pt,https://www.armazemdospneus.pt,http://localhost:8096"
+# O http://localhost:8096 do ensaio também NÃO consta (estava aqui e respondia em
+# produção): em local, `npm run dev` junta-o com --var.
+ALLOWED_ORIGINS = "https://armazemdospneus.pt,https://www.armazemdospneus.pt"
 
 # Base pública do site (usada nos links dos emails legais).
 SITE_URL = "https://armazemdospneus.pt"
@@ -26,6 +28,17 @@ SITE_URL = "https://armazemdospneus.pt"
 # Catálogo e definições — lidos pelo servidor para revalidar preços e portes.
 PRODUCTS_URL = "https://armazemdospneus.pt/data/products.json"
 SETTINGS_URL = "https://armazemdospneus.pt/data/settings.json"
+
+# O que se promete ao cliente e que o dono muda no painel (src/termos.js):
+#   settings.json  delivery.* (prazos), returns.return_cost_eur (devolução)
+#   site.json      contactos.telefone, contactos.email
+#   empresa.json   denominação, NIF, morada, Livro de Reclamações
+# Lidos no /checkout com a mesma cache de 60 s, e guardados na encomenda (o
+# «retrato» que os emails repetem). Enquanto um ficheiro não existir (404) ou
+# trouxer um valor fora da regra, vale o RECURSO: STORE_PHONE, STORE_EMAIL e
+# DELIVERY_* abaixo, e a empresa escrita em src/termos.js.
+SITE_DATA_URL = "https://armazemdospneus.pt/data/site.json"
+EMPRESA_URL = "https://armazemdospneus.pt/data/empresa.json"
 
 SUCCESS_URL = "https://armazemdospneus.pt/obrigado.html"
 CANCEL_URL = "https://armazemdospneus.pt/checkout.html?cancelado=1"
@@ -45,18 +58,21 @@ MAIL_FROM = "Armazém dos Pneus <encomendas@armazemdospneus.pt>"
 # recolhedores de spam. Definir com:
 #   npx wrangler secret put MAIL_TO
 
-# STORE_EMAIL — contacto PÚBLICO da loja. Aparece no email ao cliente e é o
-# reply-to das mensagens que ele recebe. Não confundir com o MAIL_TO: o cliente
-# tem de ver e responder ao email oficial da loja, não ao de quem a gere.
+# STORE_EMAIL — contacto PÚBLICO da loja (RECURSO: vale o contactos.email do
+# site.json quando existir). Aparece no email ao cliente e é o reply-to das
+# mensagens que ele recebe. Não confundir com o MAIL_TO: o cliente tem de ver e
+# responder ao email oficial da loja, não ao de quem a gere.
 STORE_EMAIL = "armazemdospneus2019@gmail.com"
 
+# RECURSO: vale o contactos.telefone do site.json quando existir.
 STORE_PHONE = "935 218 857"
 
 # Versão da API fixada. Não subir sem ler o changelog: foi em 2026-03-25.dahlia
 # que os valores de ui_mode passaram a hosted_page/embedded_form/elements.
 STRIPE_API_VERSION = "2026-07-29.dahlia"
 
-# Prazos mostrados ao cliente.
+# Prazos mostrados ao cliente — RECURSO: valem os de settings.json (delivery.*),
+# que o dono muda no painel, sempre que estiverem dentro da regra.
 DELIVERY_MIN_DAYS = "2"
 DELIVERY_MAX_BUSINESS_DAYS = "5"
 DELIVERY_MAX_DAYS = "30"

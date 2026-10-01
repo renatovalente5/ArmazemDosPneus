@@ -49,9 +49,48 @@ corre o prazo suplementar"** — não significa que o cliente pagou.
 | `src/pricing.js` | Recalcula preços, peso e portes a partir dos JSON do site |
 | `src/stripe.js` | Cliente REST mínimo + verificação HMAC do webhook |
 | `src/mail.js` | Emails: aviso ao dono, confirmação legal ao cliente, referência MB |
+| `src/termos.js` | O que se promete ao cliente (prazos, devolução, contactos, empresa): lê-o dos JSON do site, valida-o e guarda o retrato na encomenda |
+| `src/email-html.js` | O HTML dos emails (tabelas, estilos em linha, modo escuro) |
+| `test.mjs`, `test/` | A bateria (`npm test`) e a mesma prova no workerd (`npm run test:workerd`) |
 
 Zero dependências de runtime — fala com a API por `fetch()`. O `wrangler` é só
 ferramenta de desenvolvimento.
+
+## O que se promete ao cliente
+
+Prazos de entrega, custo da devolução, contactos e dados da empresa **não estão
+escritos neste Worker**: o dono muda-os no painel e o Worker lê-os do site, no
+`/checkout`, com a mesma cache de 60 s do catálogo:
+
+| Ficheiro do site | Campos | Onde aparecem |
+|---|---|---|
+| `data/settings.json` | `delivery.estimate_min_days`, `estimate_max_days`, `max_days` | página da Stripe (envio), confirmação ao cliente |
+| `data/settings.json` | `returns.return_cost_eur` | confirmação ao cliente: número > 0 = o cliente paga esse valor; `null`/ausente/0 = a loja paga (a mesma regra do checkout) |
+| `data/site.json` | `contactos.telefone`, `contactos.email` | confirmação, referência Multibanco, reply-to, mensagem da Madeira/Açores |
+| `data/empresa.json` | `nome`, `denominacao`, `nif`, `morada`, `livro_reclamacoes` | página da Stripe (levantamento), confirmação ao cliente |
+
+**Retrato.** O `/checkout` guarda na encomenda (`order.termos`) o que disse ao
+cliente nesse momento. Os emails que saem depois (webhook — com Multibanco, dias
+depois) repetem o retrato, e não o que o site disser entretanto.
+
+**Recurso.** Um ficheiro que não existe (404), não responde, não é JSON, passa
+de 64 KiB, ou traz um valor fora da regra, não chega aos emails: esse grupo usa
+os valores de sempre (`DELIVERY_*`, `STORE_PHONE`, `STORE_EMAIL` e a empresa
+escrita em `src/termos.js`). Cada grupo cai inteiro (prazos; denominação + NIF;
+morada). Encomendas criadas antes desta versão não têm retrato e usam o recurso
+— foi isso que se lhes prometeu. Os valores recusados ficam no registo
+(`termos: valores recusados…`).
+
+**Regras** (o painel tem de ser igual ou mais apertado, senão o que o dono grava
+não chega aos emails): prazos inteiros, 1 ≤ mínimo ≤ máximo estimado ≤ 30,
+prazo máximo 1–30; custo da devolução número 0–1000 (ou `null`); telefone com
+9–15 algarismos e só `+ ( ) . -` e espaços; email sem espaços nem `< > ,`; NIF
+com 9 algarismos, o primeiro ≠ 0, e o de controlo certo; rua 3–120, localidade
+2–60, concelho opcional, sem `[ ] : < > * _` (a Stripe desenha Markdown), código
+postal `0000-000`; Livro de Reclamações só `https://`.
+
+Depois de publicar, `/health?probe=1` diz de onde vem cada grupo:
+`termos.origem` (`dados` ou `recurso`), `termos.ficheiros` e `termos.recusados`.
 
 ## Deploy (pela primeira vez)
 
@@ -132,15 +171,24 @@ npx wrangler tail                # ver os eventos a chegar em tempo real
 
 ```bash
 cp .dev.vars.example .dev.vars      # preencher com chaves de TESTE
-npx wrangler dev                    # :8787
+npm run dev                         # :8787 (junta http://localhost:8096 às origens, com --var)
 stripe listen --forward-to http://localhost:8787/stripe/webhook
 python3 ../_source/dev-server.py 8096
-node ../_source/test-worker.mjs     # testes das partes puras (46 asserções)
+npm test                            # a bateria: sem rede, sem Stripe, sem servidor à parte
+npm run test:workerd                # a mesma prova no runtime verdadeiro (precisa do npm install)
 ```
 
+O `http://localhost:8096` **não** está no `ALLOWED_ORIGINS` do `wrangler.toml`:
+em produção, uma página em localhost não pode chamar o `/checkout`.
+
+A bateria conduz o Worker inteiro (`/checkout`, webhooks assinados, emails) e
+compara-o com o Worker de antes da fase W-dados, tirado do git (commit
+`7683ab4`): precisa do histórico (num clone raso, `git fetch --unshallow`).
+
 O `stripe listen` imprime um `whsec_` **local**, diferente do do dashboard — é
-esse que vai para o `.dev.vars`. Em local, apontar `PRODUCTS_URL` e
-`SETTINGS_URL` para `http://localhost:8096/data/…`.
+esse que vai para o `.dev.vars`. Em local, apontar `PRODUCTS_URL`,
+`SETTINGS_URL`, `SITE_DATA_URL` e `EMPRESA_URL` para `http://localhost:8096/data/…`
+(já está no `.dev.vars.example`).
 
 ## Consultar encomendas sem backoffice
 
@@ -173,4 +221,4 @@ encomendas.
 - O **NIF, a matrícula e as notas nunca são enviados para a Stripe.** Ficam no KV
   e no email ao dono. A Stripe recebe só o número da encomenda e o modo de entrega.
 - O valor cobrado é sempre recalculado no servidor. Preços, portes e totais que
-  venham no corpo do pedido são ignorados (testado em `_source/test-worker.mjs`).
+  venham no corpo do pedido são ignorados (testado em `test.mjs`).

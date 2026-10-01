@@ -18,10 +18,13 @@ function eurToCents(v) {
   return Math.round(n * 100);
 }
 
+// cacheTtl curto: o cliente muda preços no backoffice e o deploy do
+// GitHub Pages é quase imediato; 60 s evita martelar o Pages a cada compra.
+// Exportado: o site.json e o empresa.json (termos.js) lêem-se com a MESMA cache.
+export const CACHE_DADOS = Object.freeze({ cf: Object.freeze({ cacheTtl: 60, cacheEverything: true }) });
+
 async function loadJson(url) {
-  // cacheTtl curto: o cliente muda preços no backoffice e o deploy do
-  // GitHub Pages é quase imediato; 60 s evita martelar o Pages a cada compra.
-  const res = await fetch(url, { cf: { cacheTtl: 60, cacheEverything: true } });
+  const res = await fetch(url, CACHE_DADOS);
   if (!res.ok) throw new Error(`não foi possível ler ${url} (HTTP ${res.status})`);
   return res.json();
 }

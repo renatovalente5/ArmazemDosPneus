@@ -4,11 +4,12 @@
   "type": "module",
   "description": "Cloudflare Worker de pagamentos (Stripe) do Armazém dos Pneus. Zero dependências de runtime: fala com a REST API da Stripe por fetch().",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --var ALLOWED_ORIGINS:http://localhost:8096",
     "deploy": "wrangler deploy",
     "tail": "wrangler tail",
     "secrets": "wrangler secret list",
-    "test": "node test.mjs"
+    "test": "node test.mjs",
+    "test:workerd": "node test/workerd.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.36.0"
