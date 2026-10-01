@@ -268,6 +268,25 @@ export async function correr({ ok }) {
     ok('   e outra reentrega já não manda nada (duplicado)', r4.status === 200 && m.emails().length === 2, [r4, m.emails()]);
   }
 
+  /* ---------------------------------------------------------- L7-12 */
+  console.log('\nEstados — o preço da montagem que o checkout mostrou fica na encomenda e nos emails (L7-12)');
+  {
+    const comPreco = (p) => ({ ...SETTINGS_HOJE, mounting: { ...SETTINGS_HOJE.mounting, price_eur: p } });
+    const m = await montar({ settings: comPreco(25) });                         // PEDIDOS.loja pede montagem
+    eq('o retrato da encomenda guarda o preço da montagem (25 €)', m.encomenda().termos.montagem, { preco_eur: 25 });
+    m.rede.dados['settings.json'] = comPreco(40);                              // o dono sobe o preço a seguir
+    await m.webhook(EV.sessao(m.e));
+    const conf = m.rede.resend.find((x) => /confirmada/.test(x.subject));
+    const dono = m.rede.resend.find((x) => /^\[Loja\]/.test(x.subject));
+    ok('   a confirmação diz «Montagem na loja: 25,00 €» no texto e no html, e não os 40 €',
+      conf.text.includes('  Montagem na loja: 25,00 € — paga na oficina, não incluída no total pago.') && conf.html.includes('Montagem na loja: <strong>25,00 €</strong>') && !/40,00/.test(conf.text + conf.html));
+    ok('   e o aviso ao dono também', dono.text.includes('QUER MONTAGEM na loja — combinar dia/hora por telefone (25,00 €, a cobrar na oficina'));
+    const sem = await montar({ settings: comPreco(25), pedido: { ...PEDIDOS.loja, montagem: false, montagem_imediata: false } });
+    ok('sem montagem pedida, o retrato não tem montagem', !('montagem' in sem.encomenda().termos));
+    const nulo = await montar();
+    ok('com o preço da montagem vazio (hoje), o retrato fica como antes', !('montagem' in nulo.encomenda().termos));
+  }
+
   /* ---------------------------------------------------------- L5-11 */
   console.log('\nEstados — «3 dias úteis», e não «3 a 3» (L5-11)');
   for (const [a, b, texto] of [[3, 3, 'Entrega em 3 dias úteis'], [1, 1, 'Entrega em 1 dia útil'], [2, 5, 'Entrega em 2 a 5 dias úteis']]) {

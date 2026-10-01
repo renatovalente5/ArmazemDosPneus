@@ -66,6 +66,12 @@ async function send(env, { to, subject, text, html, replyTo }) {
   return { ok: true };
 }
 
+/** Cêntimos da montagem prometidos no checkout (o retrato), ou 0. */
+function precoMontagemDe(order, env) {
+  const m = termosDaEncomenda(order, env).montagem;
+  return m && typeof m.preco_eur === 'number' ? Math.round(m.preco_eur * 100) : 0;
+}
+
 function linhas(order) {
   return order.lines.map((l) => `  ${l.qty}× ${l.name} — ${eur(l.unit_cents * l.qty)}`).join('\n');
 }
@@ -138,7 +144,8 @@ export function avisoLoja(env, order) {
     `  Telemóvel: ${c.telefone || '—'}`,
     `  Email: ${c.email || '—'}`,
     c.matricula ? `  Matrícula (montagem): ${c.matricula}` : null,
-    c.montagem ? '  QUER MONTAGEM na loja — combinar dia/hora por telefone' : null,
+    c.montagem ? `  QUER MONTAGEM na loja — combinar dia/hora por telefone${precoMontagemDe(order, env)
+      ? ` (${eur(precoMontagemDe(order, env))}, a cobrar na oficina: o preço mostrado no checkout)` : ''}` : null,
     c.montagem_imediata ? '  Pediu montagem IMEDIATA: renunciou à livre resolução quanto ao serviço' : null,
     c.notas ? `  Notas: ${c.notas}` : null,
     '',
@@ -183,6 +190,8 @@ export function confirmacaoCliente(env, order) {
   // O custo da devolução segue o que o checkout mostrou (returns.return_cost_eur):
   // 0 = a loja paga, que era o que este email dizia sempre.
   const devolucao = custoDevolucaoCentimos(t);
+  // O preço da montagem que o checkout mostrou, se o cliente a pediu.
+  const montagemCents = c.montagem ? precoMontagemDe(order, env) : 0;
   const text = [
     `Olá${c.nome ? ' ' + String(c.nome).split(' ')[0] : ''},`,
     '',
@@ -196,6 +205,7 @@ export function confirmacaoCliente(env, order) {
     '',
     'ENTREGA',
     '  ' + entregaTexto(order),
+    montagemCents ? `  Montagem na loja: ${eur(montagemCents)} — paga na oficina, não incluída no total pago.` : null,
     `  Prazo máximo de entrega: ${t.prazos.max_dias} dias a contar de hoje.`,
     order.shipping_quote_later ? '' : null,
     order.shipping_quote_later ? '  PORTES AINDA NÃO COBRADOS' : null,
@@ -257,6 +267,7 @@ export function confirmacaoCliente(env, order) {
       bloco([
         h2('Entrega'),
         p(esc(entregaTexto(order)).replace(/\n\s*/g, '<br>')),
+        montagemCents ? p(`Montagem na loja: <strong>${esc(eur(montagemCents))}</strong> — paga na oficina, não incluída no total pago.`) : '',
         p(`Prazo máximo de entrega: <strong>${esc(t.prazos.max_dias)} dias</strong> a contar de hoje.`,
           order.shipping_quote_later ? '' : 'last'),
         order.shipping_quote_later

@@ -52,6 +52,7 @@ const RECURSO_EMPRESA = {
    não é deles e não se lê (o JSON.parse gasta CPU, e o Worker tem 10 ms). */
 const TECTO_JSON_BYTES = 64 * 1024;
 const CUSTO_DEVOLUCAO_MAX_EUR = 1000;
+const PRECO_MONTAGEM_MAX_EUR = 10000;
 
 /* ---------- ajudantes ---------- */
 
@@ -104,6 +105,15 @@ function prazosValidos(p) {
 function custoValido(v) {
   if (naoDito(v)) return null;
   if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > CUSTO_DEVOLUCAO_MAX_EUR) return undefined;
+  return Math.round(v * 100) / 100;
+}
+
+/**
+ * O preço da montagem que o checkout mostrou («25,00 € — pago na oficina»):
+ * um número > 0, arredondado ao cêntimo, ou null (não se mostrou preço).
+ */
+export function precoMontagemValido(v) {
+  if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0 || v > PRECO_MONTAGEM_MAX_EUR) return null;
   return Math.round(v * 100) / 100;
 }
 
@@ -254,6 +264,13 @@ export function normalizarTermos(bruto, env) {
   const livro = escolhe('livro_reclamacoes', !naoDito(proprio(e, 'livro_reclamacoes')),
     urlHttps(proprio(e, 'livro_reclamacoes')), r.empresa.livro_reclamacoes);
 
+  // O preço da montagem prometido (só nas encomendas com montagem, e se o
+  // checkout o mostrou): o cliente marcou «Quero montagem» — e talvez a
+  // montagem imediata, que lhe tira a livre resolução sobre ela — depois de
+  // ler «X € — pago na oficina». Sem isto, ninguém conseguia provar o preço
+  // acordado se o dono o mudasse a seguir (achado L7-12).
+  const precoMontagem = precoMontagemValido(proprio(proprio(bruto, 'montagem'), 'preco_eur'));
+
   return {
     termos: {
       versao: TERMOS_VERSAO,
@@ -261,6 +278,7 @@ export function normalizarTermos(bruto, env) {
       devolucao: { custo_eur, nota },
       contactos: { telefone, email },
       empresa: { nome, denominacao: identidade.denominacao, nif: identidade.nif, morada, livro_reclamacoes: livro },
+      ...(precoMontagem !== null ? { montagem: { preco_eur: precoMontagem } } : {}),
     },
     origem,
     invalidos,
@@ -271,7 +289,7 @@ export function normalizarTermos(bruto, env) {
  * O retrato a partir dos ficheiros do site. Qualquer um pode ser null (não
  * existe, ou não se leu): os grupos dele caem para o recurso.
  */
-export function termosDasFontes({ settings, site, empresa } = {}, env) {
+export function termosDasFontes({ settings, site, empresa, montagem = false } = {}, env) {
   const del = proprio(settings, 'delivery');
   const dev = proprio(settings, 'returns');
   const con = proprio(site, 'contactos');
@@ -290,6 +308,8 @@ export function termosDasFontes({ settings, site, empresa } = {}, env) {
       morada: proprio(empresa, 'morada'),
       livro_reclamacoes: proprio(empresa, 'livro_reclamacoes'),
     },
+    // Só numa encomenda com montagem: é o preço que o checkout lhe mostrou.
+    ...(montagem ? { montagem: { preco_eur: proprio(proprio(settings, 'mounting'), 'price_eur') } } : {}),
   }, env);
 }
 

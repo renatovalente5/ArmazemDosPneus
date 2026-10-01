@@ -222,7 +222,7 @@ async function handleCheckout(request, env, cors) {
   // O retrato do que se promete a ESTE cliente, agora: prazos, custo da
   // devolução, contactos e dados da empresa. Vai para a página da Stripe e fica
   // na encomenda para os emails (termos.js explica porquê).
-  const { termos, invalidos } = termosDasFontes({ settings: calc.settings, site: fontes.site, empresa: fontes.empresa }, env);
+  const { termos, invalidos } = termosDasFontes({ settings: calc.settings, site: fontes.site, empresa: fontes.empresa, montagem: cliente.montagem }, env);
   if (invalidos.length) console.error('termos: valores recusados, vale o recurso em', invalidos.join(', '));
 
   // Interruptor de emergência do backoffice. Imposto AQUI e não só no browser:
