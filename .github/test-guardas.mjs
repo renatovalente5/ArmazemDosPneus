@@ -402,6 +402,18 @@ try {
     ['sem os textos do topo', (s) => { delete s.textos.topo; }, null, 'bloqueia', 'site:textos.topo'],
     ['Sobre sem parágrafos', (s) => { s.textos.sobre.paragrafos = []; }, null, 'bloqueia', 'site:textos.sobre.paragrafos'],
     ['sem a lista das marcas', (s) => { delete s.marcas; }, null, 'bloqueia', 'site:marcas'],
+    /* O que a publicação (injetar-conteudo.py) recusa, as regras recusam antes:
+       senão o painel grava, o CI pára no injector e o interruptor dos
+       pagamentos deixa de chegar ao site (achado L3-01). */
+    ['«****» num título de serviço (sobra um * no injector)', (s) => { s.servicos[0].titulo = 'Montagem em Ovar ****'; }, null, 'bloqueia', 'site:servicos.montagem.titulo'],
+    ['«a****b» na frase do rodapé', (s) => { s.textos.rodape.frase = 'a****b'; }, null, 'bloqueia', 'site:textos.rodape.frase'],
+    ['«**» sem nada dentro, na nota do horário', (s) => { s.horario.nota = 'Fechado ** em agosto'; }, null, 'bloqueia', 'site:horario.nota'],
+    ['texto de serviço que é só U+0085 (o «…» do Windows-1252 mal lido)', (s) => { s.servicos[0].texto = '\u0085'; }, null, 'bloqueia', 'site:servicos.montagem.texto'],
+    ['título que é só um espaço de largura zero', (s) => { s.textos.topo.titulo1 = '\u200b'; }, null, 'bloqueia', 'site:textos.topo.titulo1'],
+    ['Facebook com U+001F lá dentro', (s) => { s.contactos.facebook = 'https://www.facebook.com/a\u001fb'; }, null, 'bloqueia', 'site:contactos.facebook'],
+    ['Facebook com U+0085 lá dentro', (s) => { s.contactos.facebook = 'https://www.facebook.com/a\u0085b'; }, null, 'bloqueia', 'site:contactos.facebook'],
+    ['metade de um emoji na frase do topo', (s) => { s.textos.topo.frase = 'Pneus \ud83d baratos'; }, null, 'bloqueia', 'site:texto-partido'],
+    ['U+0085 no meio de um texto', (s) => { s.textos.rodape.frase = 'Venda\u0085 de pneus'; }, null, 'avisa', 'site:textos.rodape.frase:controlo'],
     ['título de serviço comprido', (s) => { s.servicos[0].titulo = 'x'.repeat(61); }, null, 'avisa', 'site:servicos.montagem.titulo:tamanho'],
     ['lista das marcas vazia', (s) => { s.marcas = []; }, null, 'avisa', 'site:marcas:vazia'],
     ['empresa ilegível', null, () => '{', 'bloqueia', 'empresa:ilegivel'],
@@ -426,6 +438,10 @@ try {
     ['RAL sem https', null, (e) => { e.ral.url = 'http://www.cniacc.pt'; }, 'bloqueia', 'empresa:ral.url'],
     ['sem Livro de Reclamações', null, (e) => { delete e.livro_reclamacoes; }, 'bloqueia', 'empresa:livro_reclamacoes'],
     ['capital social como texto', null, (e) => { e.capital_social = '5000'; }, 'bloqueia', 'empresa:capital_social'],
+    ['entidade de RAL que é só um espaço de largura zero', null, (e) => { e.ral.nome = '\u200b'; }, 'bloqueia', 'empresa:ral.nome'],
+    ['endereço da RAL com U+001F', null, (e) => { e.ral.url = 'https://www.cniacc.pt/\u001f'; }, 'bloqueia', 'empresa:ral.url'],
+    ['conservatória que é só invisíveis', null, (e) => { e.conservatoria = '\u2060\u200b'; }, 'bloqueia', 'empresa:conservatoria'],
+    ['metade de um emoji na rua', null, (e) => { e.morada.rua = 'Rua \udc00, 3'; }, 'bloqueia', 'empresa:texto-partido'],
     ['coordenadas partidas', null, (e) => { e.geo = { lat: 'norte' }; }, 'avisa', 'empresa:geo'],
     ['mapa sem https', null, (e) => { e.mapa = 'maps.app.goo.gl/x'; }, 'avisa', 'empresa:mapa'],
     ['sem concelho', null, (e) => { delete e.morada.concelho; }, 'avisa', 'empresa:morada.concelho'],
@@ -443,6 +459,8 @@ try {
     ['capital social de 5000 € e conservatória', null, (e) => { e.capital_social = 5000; e.conservatoria = 'Conservatória do Registo Comercial de Ovar'; }],
     ['sem mapa nem coordenadas', null, (e) => { delete e.mapa; delete e.geo; }],
     ['morada com º, ª, apóstrofo curvo, barra e parênteses', null, (e) => { e.morada.rua = 'Rua D\u2019Ávila, n.º 3 (1.ª cave) 2/B - Lote & Co.'; }],
+    ['negrito e itálico seguidos', (s) => { s.textos.rodape.frase = '**Pneus** e *jantes*, **revisões**'; }, null],
+    ['um emoji inteiro num título (não está partido)', (s) => { s.servicos[0].titulo = 'Montagem 🚗'; }, null],
   ];
   for (const [desc, mSite, mEmpresa] of SEM_PROBLEMA_A2) {
     const s = clonar(SITE_OK); const e = clonar(EMPRESA_OK);

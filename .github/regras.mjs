@@ -197,8 +197,10 @@ const temTexto = (v) => typeof v === 'string' && v.trim() !== '';
 const inteiroEntre = (v, a, b) => typeof v === 'number' && Number.isInteger(v) && v >= a && v <= b;
 const bytesDe = (s) => new TextEncoder().encode(s).length;
 
+/* Um endereço https. Sem invisíveis: o \s daqui deixa passar o U+001F e o
+   U+0085, que o do injector recusa (e que no endereço não fazem nada de bom). */
 function urlHttps(v) {
-  if (typeof v !== 'string' || !/^https:\/\/[^\s"'<>\\]+$/.test(v)) return false;
+  if (typeof v !== 'string' || !/^https:\/\/[^\s"'<>\\]+$/.test(v) || TEM_INVISIVEL.test(v)) return false;
   try { return new URL(v).protocol === 'https:'; } catch { return false; }
 }
 
@@ -208,12 +210,36 @@ function urlHttps(v) {
    controlo, os separadores de linha do Unicode, os de largura zero e os de
    direcção. Construída a partir dos números, e não escrita com escapes: um
    U+2028 literal dentro da expressão é um fim de linha e parte o ficheiro. */
-const INVISIVEIS = new RegExp(`[${[
+const FAIXAS_INVISIVEIS = [
   [0x00, 0x1f], [0x7f, 0x9f], [0xad, 0xad], [0x200b, 0x200f], [0x2028, 0x202e],
   [0x2060, 0x2064], [0x2066, 0x2069], [0xfeff, 0xfeff],
-].map(([a, b]) => `\\u${a.toString(16).padStart(4, '0')}-\\u${b.toString(16).padStart(4, '0')}`).join('')}]`, 'g');
+];
+const classeDe = (faixas) => `[${faixas.map(([a, b]) => `\\u${a.toString(16).padStart(4, '0')}-\\u${b.toString(16).padStart(4, '0')}`).join('')}]`;
+const INVISIVEIS = new RegExp(classeDe(FAIXAS_INVISIVEIS), 'g');
 /* O texto como ele o mede: invisíveis trocados, espaços juntos, sem pontas. */
 const limpo = (v) => v.replace(INVISIVEIS, ' ').replace(/\s+/g, ' ').trim();
+
+/* --- O que a publicação aceita (.github/injetar-conteudo.py) ---
+   O injector escreve o site.json e o empresa.json nas páginas, e PÁRA a
+   publicação inteira num valor que não percebe — e com ela tudo o que vier
+   depois, o interruptor dos pagamentos incluído. Estas regras têm de ser iguais
+   ou mais apertadas do que as dele (o .github/test-guardas.mjs prova-o campo a
+   campo, contra o injector verdadeiro). Duas línguas, duas ideias de «espaço»:
+   o trim() e o \s daqui não tiram o U+0085 nem o U+001C–U+001F, que o strip()
+   e o \s do Python tiram; e tiram o U+FEFF, que o Python não tira. Por isso,
+   nos textos que vão para as páginas, um invisível é sempre um problema: só
+   invisíveis = vazio (pára); no meio do texto = aviso (o painel não grava). */
+const TEM_INVISIVEL = new RegExp(classeDe(FAIXAS_INVISIVEIS));
+/* O mesmo, sem a tabulação e as mudanças de linha (os textos de vários
+   parágrafos podem tê-las). */
+const TEM_INVISIVEL_NO_TEXTO = new RegExp(classeDe([[0x00, 0x08], [0x0b, 0x0c], [0x0e, 0x1f], ...FAIXAS_INVISIVEIS.slice(1)]));
+/* Um texto só de invisíveis e espaços: aqui não está vazio (o trim() não tira
+   o U+200B), e na página não se vê nada. */
+const soInvisiveis = (v) => typeof v === 'string' && v.trim() !== '' && limpo(v) === '';
+/* Metades de um par de surrogates sozinhas (um texto cortado a meio de um
+   emoji): o JSON lê-as, mas o Python não as consegue escrever em UTF-8 e a
+   publicação parava. */
+const RE_PARTIDO = /\p{Cs}/u;
 /* Um texto de uma linha entre min e max caracteres, medido como ele mede. */
 const tamanhoParaOsEmails = (v, min, max) => typeof v === 'string' && v.length <= max * 4 && limpo(v).length >= min && limpo(v).length <= max;
 
@@ -239,10 +265,28 @@ function caminhoDeImagem(c) {
   return typeof c === 'string' && RE_IMAGEM.test(c) && !/(?:^|\/)\.\.?(?:\/|$)/.test(c) && !c.includes('//');
 }
 
+/* As marcas **negrito** e *itálico* lidas como o injector as lê (com_marcas,
+   em .github/injetar-conteudo.py): primeiro os pares de «**», depois os de «*»,
+   sempre o par mais curto com pelo menos um carácter dentro — e um «*» que
+   sobre pára a publicação. É uma simulação das mesmas duas expressões, e não
+   uma contagem: «****» tem os asteriscos em número par e sobra um («**» sem
+   nada dentro não é negrito). O «.» daqui não apanha o \r, o U+2028 nem o
+   U+2029, que o do Python apanha: aqui fica mais apertado, nunca mais largo. */
 function marcasEquilibradas(s) {
-  const partes = s.split('**');
-  if ((partes.length - 1) % 2) return false;
-  return ((partes.join('').match(/\*/g) || []).length % 2) === 0;
+  return !s.replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(.+?)\*/g, '$1').includes('*');
+}
+
+/* O caminho (ex.: 'servicos.0.titulo') do primeiro texto partido (RE_PARTIDO)
+   dentro de um ficheiro, ou null. */
+function caminhoPartido(o, pre = '') {
+  const junta = (k) => (pre ? `${pre}.${k}` : String(k));
+  if (typeof o === 'string') return RE_PARTIDO.test(o) ? pre : null;
+  const filhos = Array.isArray(o) ? o.map((v, i) => [i, v]) : eObjecto(o) ? Object.entries(o) : [];
+  for (const [k, v] of filhos) {
+    const c = caminhoPartido(v, junta(k));
+    if (c !== null) return c;
+  }
+  return null;
 }
 
 function valorEm(obj, caminho) {
@@ -625,6 +669,11 @@ function problemasDoSite(lido, lista) {
   const bloqueia = (chave, ecra, campo, mensagem) => lista.push({ classe: 'bloqueia', chave: `site:${chave}`, ficheiro, ecra, campo, mensagem });
   const avisa = (chave, ecra, campo, mensagem) => lista.push({ classe: 'avisa', chave: `site:${chave}`, ficheiro, ecra, campo, mensagem });
   if (!eObjecto(s)) { bloqueia('forma', E_CONT, undefined, 'Os contactos e textos do site não têm a forma certa. Só o Renato os pode corrigir.'); return; }
+  const partido = caminhoPartido(s);
+  if (partido !== null) {
+    const ecraPartido = /^servicos(\.|$)/.test(partido) ? E_SERV : /^(textos|marcas)(\.|$)/.test(partido) ? E_TEXT : E_CONT;
+    bloqueia('texto-partido', ecraPartido, partido, 'Um texto tem um carácter partido (metade de um emoji ou de um símbolo, de um copiar e colar). Apague-o e escreva outra vez.');
+  }
 
   /* Um texto que o injector escreve no HTML: presente, sem < nem >, com as
      marcas de **negrito** e *itálico* fechadas. Devolve true se estiver bom. */
@@ -634,9 +683,10 @@ function problemasDoSite(lido, lista) {
       return true;
     }
     if (typeof valor !== 'string') { bloqueia(chave, ecra, campo, `${nome}: tem de ser texto.`); return false; }
+    if (soInvisiveis(valor)) { bloqueia(chave, ecra, campo, `${nome}: está vazio (só tem caracteres invisíveis). Escreva-o outra vez.`); return false; }
     if (/[<>]/.test(valor)) { bloqueia(chave, ecra, campo, `${nome}: não pode ter os sinais < nem >.`); return false; }
-    if (!marcasEquilibradas(valor)) { bloqueia(chave, ecra, campo, `${nome}: há um * sem par (o **negrito** e o *itálico* abrem e fecham).`); return false; }
-    if ((linha ? RE_CONTROLO_LINHA : RE_CONTROLO_TEXTO).test(valor)) avisa(`${chave}:controlo`, ecra, campo, `${nome}: tem caracteres invisíveis. Escreva-o outra vez.`);
+    if (!marcasEquilibradas(valor)) { bloqueia(chave, ecra, campo, `${nome}: há um * sem par (o **negrito** e o *itálico* abrem e fecham, cada um com texto dentro: «****» não é nada).`); return false; }
+    if ((linha ? TEM_INVISIVEL : TEM_INVISIVEL_NO_TEXTO).test(valor)) avisa(`${chave}:controlo`, ecra, campo, `${nome}: tem caracteres invisíveis. Escreva-o outra vez.`);
     if (max && valor.length > max) avisa(`${chave}:tamanho`, ecra, campo, `${nome}: tem mais de ${max} caracteres.`);
     return true;
   };
@@ -669,7 +719,7 @@ function problemasDoSite(lido, lista) {
     if (!vazio(c.whatsapp) && !(typeof c.whatsapp === 'string' && RE_WHATSAPP.test(c.whatsapp))) {
       bloqueia('contactos.whatsapp', E_CONT, 'contactos.whatsapp', 'O WhatsApp não está bem escrito (só algarismos, com o indicativo, sem espaços nem +; ex.: 351935218857).');
     }
-    if (!vazio(c.facebook) && !urlHttps(c.facebook)) bloqueia('contactos.facebook', E_CONT, 'contactos.facebook', 'O endereço do Facebook tem de começar por https://');
+    if (!vazio(c.facebook) && !urlHttps(c.facebook)) bloqueia('contactos.facebook', E_CONT, 'contactos.facebook', 'O endereço do Facebook tem de começar por https:// (e não pode ter espaços nem caracteres invisíveis).');
     /* DL 59/2021: um número de telefone publicado leva a indicação do preço da
        chamada («Chamada para a rede móvel nacional»). */
     if ((!vazio(c.telefone) || !vazio(c.telefone2)) && vazio(c.nota_chamada)) {
@@ -770,6 +820,8 @@ function problemasDaEmpresa(lido, lista) {
   const bloqueia = (chave, campo, mensagem) => lista.push({ classe: 'bloqueia', chave: `empresa:${chave}`, ficheiro, ecra, campo, mensagem });
   const avisa = (chave, campo, mensagem) => lista.push({ classe: 'avisa', chave: `empresa:${chave}`, ficheiro, ecra, campo, mensagem });
   if (!eObjecto(e)) { bloqueia('forma', undefined, 'Os dados da empresa não têm a forma certa. Só o Renato os pode corrigir.'); return; }
+  const partido = caminhoPartido(e);
+  if (partido !== null) bloqueia('texto-partido', partido, 'Um texto tem um carácter partido (metade de um emoji ou de um símbolo, de um copiar e colar). Apague-o e escreva outra vez.');
 
   /* Os campos que a lei obriga (DL 7/2004 art. 10.º; DL 24/2014; Lei 144/2015
      para a RAL; DL 156/2005 para o Livro de Reclamações). Vale mais o site
@@ -780,7 +832,8 @@ function problemasDaEmpresa(lido, lista) {
   const obrigatorio = (v, chave, campo, nome, { emails = null } = {}) => {
     if (vazio(v)) { bloqueia(chave, campo, `${nome} está vazio (a lei obriga a mostrá-lo no site).`); return false; }
     if (typeof v !== 'string') { bloqueia(chave, campo, `${nome} tem de ser texto.`); return false; }
-    if (RE_CONTROLO_LINHA.test(v)) avisa(`${chave}:controlo`, campo, `${nome} tem caracteres invisíveis. Escreva-o outra vez.`);
+    if (soInvisiveis(v)) { bloqueia(chave, campo, `${nome} está vazio (só tem caracteres invisíveis). Escreva-o outra vez.`); return false; }
+    if (TEM_INVISIVEL.test(v)) avisa(`${chave}:controlo`, campo, `${nome} tem caracteres invisíveis. Escreva-o outra vez.`);
     if (emails) {
       if (!tamanhoParaOsEmails(v, emails.min, emails.max)) { bloqueia(`${chave}:tamanho`, campo, `${nome} tem de ter entre ${emails.min} e ${emails.max} caracteres (vai também para os emails das encomendas).`); return false; }
     } else if (v.length > TAMANHOS.textoEmpresa) avisa(`${chave}:tamanho`, campo, `${nome} tem mais de ${TAMANHOS.textoEmpresa} caracteres.`);
@@ -816,10 +869,10 @@ function problemasDaEmpresa(lido, lista) {
   else {
     obrigatorio(ral.nome, 'ral.nome', 'ral.nome', 'O nome da entidade de resolução de litígios');
     if (vazio(ral.url)) bloqueia('ral.url', 'ral.url', 'Falta o endereço da entidade de resolução de litígios.');
-    else if (!urlHttps(ral.url)) bloqueia('ral.url', 'ral.url', 'O endereço da entidade de resolução de litígios tem de começar por https://');
+    else if (!urlHttps(ral.url)) bloqueia('ral.url', 'ral.url', 'O endereço da entidade de resolução de litígios tem de começar por https:// (e não pode ter espaços nem caracteres invisíveis).');
   }
   if (vazio(e.livro_reclamacoes)) bloqueia('livro_reclamacoes', 'livro_reclamacoes', 'Falta o endereço do Livro de Reclamações (a lei obriga a mostrá-lo).');
-  else if (!urlHttps(e.livro_reclamacoes)) bloqueia('livro_reclamacoes', 'livro_reclamacoes', 'O endereço do Livro de Reclamações tem de começar por https://');
+  else if (!urlHttps(e.livro_reclamacoes)) bloqueia('livro_reclamacoes', 'livro_reclamacoes', 'O endereço do Livro de Reclamações tem de começar por https:// (e não pode ter espaços nem caracteres invisíveis).');
   else if (!urlParaOsEmails(e.livro_reclamacoes)) bloqueia('livro_reclamacoes', 'livro_reclamacoes', `O endereço do Livro de Reclamações tem de ter até ${TAMANHOS.enderecoLivro} caracteres e não pode levar nome de utilizador (vai também para os emails das encomendas).`);
 
   /* Capital social e conservatória (CSC art. 171.º): opcionais até o
@@ -828,7 +881,7 @@ function problemasDaEmpresa(lido, lista) {
   if (!ausente(e.capital_social) && !(typeof e.capital_social === 'number' && e.capital_social > 0 && duasCasas(e.capital_social))) {
     bloqueia('capital_social', 'capital_social', 'O capital social tem de ser um valor em euros (ex.: 5000), ou ficar vazio.');
   }
-  if (!ausente(e.conservatoria) && !temTexto(e.conservatoria)) {
+  if (!ausente(e.conservatoria) && (!temTexto(e.conservatoria) || soInvisiveis(e.conservatoria))) {
     bloqueia('conservatoria', 'conservatoria', 'A conservatória tem de ser texto, ou ficar vazia.');
   }
   /* O mapa e as coordenadas não são obrigatórios: se estiverem errados, a
