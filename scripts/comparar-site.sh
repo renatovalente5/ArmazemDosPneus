@@ -105,6 +105,10 @@ HTML = [
      'a nota do preço da chamada passa a ser a do painel, igual em todas as páginas'),
     ('legal/livre-resolucao.html', '(chamada para a rede móvel nacional)', '(Chamada para a rede móvel nacional)',
      'a nota do preço da chamada passa a ser a do painel, igual em todas as páginas'),
+    ('checkout.html', '<span id="recap-max">30</span> dias.', '<span id="recap-max">30 dias</span>.',
+     'o resumo do checkout ganha os marcadores dos prazos (o texto que se vê é o mesmo): o «dias» entra no marcador prazo-maximo (revisão L6-06/L7-02)'),
+    ('legal/termos.html', 'Estando o estabelecimento sediado em <strong>Ovar</strong>', 'A entidade competente, em razão da sede do estabelecimento, é o',
+     'Termos §7: sai a justificação da RAL escrita à mão («sediado em Ovar»), que ficava falsa se o dono mudasse a sede no painel (revisão L6-04)'),
 ]
 # (ficheiro, caminho no JSON-LD (expressão regular), razão)
 JSONLD = [
@@ -117,9 +121,9 @@ JSONLD = [
 FICHEIROS = [
     (r'^data/site\.json$', 'novo', 'os contactos, horário, serviços e textos (painel: Contactos e horário, Serviços, Textos)', True),
     (r'^data/empresa\.json$', 'novo', 'os dados da empresa (painel: Dados da empresa)', True),
-    (r'^assets/js/(catalog|main|checkout|obrigado)\.js$', 'mudou', 'o WhatsApp e o telefone passam a vir das metas ap:* (com o valor de hoje como recurso)', True),
+    (r'^assets/js/(catalog|main|checkout|obrigado)\.js$', 'mudou', 'o WhatsApp e o telefone passam a vir das metas ap:* (com o valor de hoje como recurso); e, da revisão de 1 out, o catálogo sem preço para os pneus novos sem etiqueta UE e sem garantias abaixo de 18 meses, e o checkout com o peso em inteiros, «3 dias úteis» e as condições mostradas no pedido', True),
     (r'^assets/js/cart\.js$', 'mudou', 'A3: o carrinho actualiza o nome e a fotografia com o catálogo, e uma fotografia que falhe mostra o logótipo', False),
-    (r'^assets/css/styles\.css$', 'mudou', 'A3: .citem__img--ph, o logótipo no lugar da fotografia que falta no carrinho', False),
+    (r'^assets/css/styles\.css$', 'mudou', 'A3: .citem__img--ph, o logótipo no lugar da fotografia que falta no carrinho; e a ligação para a etiqueta UE no EPREL no cartão do pneu (revisão L6-02)', True),
 ]
 # ---------------------------------------------------------------------------
 
