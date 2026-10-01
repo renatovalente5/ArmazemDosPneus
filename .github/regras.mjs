@@ -349,7 +349,7 @@ const NOMES_CAMPOS = {
   condition: 'estado (Novo ou Seminovo)', available: '«À venda online»', category: 'categoria',
   label_fuel: 'combustível (A a E)', label_grip: 'piso molhado (A a E)', label_noise_class: 'classe de ruído (A a C)',
   label_noise_db: 'ruído em dB (50 a 99)', eprel_id: 'n.º EPREL', dot: 'DOT (4 algarismos)',
-  tread_mm: 'sulco (1,6 a 20 mm)', warranty_months: 'garantia (12 a 36 meses)',
+  tread_mm: 'sulco (1,6 a 20 mm)', warranty_months: 'garantia (18 a 36 meses)',
   featured: '«Destaque na página inicial»', hidden: '«Escondido (artigo de teste)»',
   snow_3pmsf: '«Neve (3PMSF)»', ice_grip: '«Gelo»',
 };
@@ -377,12 +377,17 @@ export function faltasDaEtiqueta(p) {
   if (!(typeof eprel === 'string' && RE_EPREL.test(eprel))) f.push('eprel_id');
   return f;
 }
-/* O que falta a um pneu seminovo para poder estar à venda (decisão de 5 ago). */
+/* O que falta a um pneu seminovo para poder estar à venda (decisão de 5 ago).
+   A garantia: o DL 84/2021 (art. 12.º, n.º 3) só deixa reduzir os 3 anos de
+   um bem usado até 18 meses, e por acordo — os 12 meses eram do regime
+   antigo (DL 67/2003). Abaixo de 18, o cartão anunciava ao cliente menos
+   direitos do que a lei lhe dá. */
+export const GARANTIA_MINIMA_USADOS = 18;
 export function faltasDoSeminovo(p) {
   const f = [];
   if (!(typeof p.dot === 'string' && RE_DOT.test(p.dot))) f.push('dot');
   if (!(typeof p.tread_mm === 'number' && p.tread_mm >= 1.6 && p.tread_mm <= 20)) f.push('tread_mm');
-  if (!inteiroEntre(p.warranty_months, 12, 36)) f.push('warranty_months');
+  if (!inteiroEntre(p.warranty_months, GARANTIA_MINIMA_USADOS, 36)) f.push('warranty_months');
   return f;
 }
 const listaDeCampos = (campos) => campos.map((c) => NOMES_CAMPOS[c] || c).join(', ');

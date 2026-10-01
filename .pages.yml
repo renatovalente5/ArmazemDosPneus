@@ -241,9 +241,9 @@ content:
             label: "Seminovo · Garantia (meses)"
             type: number
             options:
-              min: 12
+              min: 18
               max: 36
-            description: "Em bens usados a garantia não pode ser inferior a 12 meses (DL 84/2021)."
+            description: "Em bens usados a garantia só pode ser reduzida até 18 meses, e por acordo com o cliente (DL 84/2021, art. 12.º)."
 
           # ---- plumbing: último, porque quase nunca se toca ----
           - name: sku

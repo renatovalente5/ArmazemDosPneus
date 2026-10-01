@@ -38,7 +38,9 @@
     if (p.condition === 'Seminovo') {
       if (p.dot) it.push('<span title="Semana/ano de fabrico">DOT ' + esc(p.dot) + '</span>');
       if (Number(p.tread_mm) > 0) it.push('<span title="Profundidade de sulco medida">Sulco ' + esc(p.tread_mm) + ' mm</span>');
-      if (Number(p.warranty_months) > 0) it.push('<span title="Garantia aplicada">Garantia ' + esc(p.warranty_months) + ' meses</span>');
+      // Abaixo de 18 meses não é uma garantia que a lei deixe dar a um bem
+      // usado (DL 84/2021, art. 12.º): não se anuncia (vale a legal).
+      if (Number(p.warranty_months) >= 18) it.push('<span title="Garantia aplicada">Garantia ' + esc(p.warranty_months) + ' meses</span>');
       if (!it.length) return '';
       return '<div class="pcard__label pcard__label--used" aria-label="Informação do pneu seminovo">' + it.join('') + '</div>';
     }

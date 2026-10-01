@@ -34,6 +34,7 @@ import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { spawnSync, execFileSync } from 'node:child_process';
+import vm from 'node:vm';
 import * as R from './regras.mjs';
 import * as G from './guardas.mjs';
 import * as T from '../worker/src/termos.js';
@@ -288,6 +289,10 @@ try {
     ['estado «Usado»', prod(JANTE, (p) => { p.condition = 'Usado'; }), 'neutraliza', 'produto:jante-liga-leve-16-5x112-et45:estado', 'fora_de_venda'],
     ['pneu novo à venda sem a etiqueta', prod(MICHELIN, (p) => { p.available = true; }), 'neutraliza', 'produto:michelin-primacy-4:etiqueta', 'fora_de_venda'],
     ['pneu seminovo à venda sem DOT nem sulco', prod(SEMINOVO, (p) => { p.available = true; }), 'neutraliza', 'produto:pneu-seminovo-continental-205-55-r16:seminovo', 'fora_de_venda'],
+    /* Achado L6-01: o DL 84/2021 (art. 12.º) só deixa reduzir a garantia de um
+       bem usado até 18 meses; 12 era o regime antigo. */
+    ['seminovo à venda com 12 meses de garantia', prod(SEMINOVO, (p) => { Object.assign(p, { available: true, dot: '3221', tread_mm: 6, warranty_months: 12 }); }), 'neutraliza', 'produto:pneu-seminovo-continental-205-55-r16:seminovo', 'fora_de_venda'],
+    ['seminovo à venda com 17 meses de garantia', prod(SEMINOVO, (p) => { Object.assign(p, { available: true, dot: '3221', tread_mm: 6, warranty_months: 17 }); }), 'neutraliza', 'produto:pneu-seminovo-continental-205-55-r16:seminovo', 'fora_de_venda'],
     ['fotografia fora da pasta', prod(JANTE, (p) => { p.image = '/assets/img/hero.jpg'; }), 'neutraliza', 'produto:jante-liga-leve-16-5x112-et45:imagem', 'sem_imagem'],
     ['fotografia com espaço no nome', prod(JANTE, (p) => { p.image = '/assets/uploads/a b.jpg'; }), 'neutraliza', 'produto:jante-liga-leve-16-5x112-et45:imagem', 'sem_imagem'],
     ['fotografia com «..»', prod(JANTE, (p) => { p.image = '/assets/uploads/../../index.jpg'; }), 'neutraliza', 'produto:jante-liga-leve-16-5x112-et45:imagem', 'sem_imagem'],
@@ -330,7 +335,7 @@ try {
   ];
   const SEM_PROBLEMA = [
     ['pneu novo à venda com a etiqueta completa', prod(MICHELIN, (p) => { Object.assign(p, { available: true, label_noise_class: 'B', eprel_id: '123456' }); })],
-    ['pneu seminovo à venda com os dados todos', prod(SEMINOVO, (p) => { Object.assign(p, { available: true, dot: '3221', tread_mm: 6, warranty_months: 12 }); })],
+    ['pneu seminovo à venda com os dados todos (18 meses de garantia)', prod(SEMINOVO, (p) => { Object.assign(p, { available: true, dot: '3221', tread_mm: 6, warranty_months: 18 }); })],
     ['EPREL escrito como número', prod(MICHELIN, (p) => { Object.assign(p, { available: true, label_noise_class: 'B', eprel_id: 123456 }); })],
     ['fotografia que existe', prod(JANTE, (p) => { p.image = '/assets/uploads/prod-jante-17.jpg'; })],
     ['custo de devolução de 6,50 €', (d) => { d.settings.returns.return_cost_eur = 6.5; }],
@@ -858,6 +863,31 @@ try {
     certo(escritosAMao(fontes).length === 0, '   nenhum telefone, NIF, código postal, rua, denominação ou Livro de Reclamações escrito à mão fora do RECURSO do termos.js, e só ele lê DELIVERY_*/STORE_*', escritosAMao(fontes).join(' | '));
     const mexido = { ...fontes, 'mail.js': fontes['mail.js'] + "\nconst TEL = '935 218 857';\n", 'index.js': fontes['index.js'] + '\nconst x = env.DELIVERY_MAX_DAYS;\n' };
     certo(escritosAMao(mexido).length === 2, '   guarda da guarda: um telefone escrito no mail.js e um DELIVERY_* lido no index.js são apanhados', escritosAMao(mexido).join(' | '));
+  }
+
+  /* ================================================================== */
+  secao('o catálogo (assets/js/catalog.js): o que o cartão anuncia');
+  /* O catalog.js verdadeiro, num vm, com um document e um fetch de
+     faz-de-conta: devolve o HTML dos cartões. */
+  const cartoes = async (produtos) => {
+    const els = {};
+    const el = (id) => (els[id] ||= { id, innerHTML: '', value: '', getAttribute: () => null, addEventListener() {}, querySelectorAll: () => [] });
+    const ctx = {
+      document: { getElementById: (id) => (['catalog-grid', 'catalog-filters', 'catalog-search'].includes(id) ? el(id) : null), querySelector: () => null },
+      window: { addEventListener() {} }, location: { search: '', hash: '' }, URLSearchParams,
+      fetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve({ products: produtos }) }),
+    };
+    vm.runInNewContext(ler('assets/js/catalog.js'), ctx);
+    for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0));
+    return els['catalog-grid'].innerHTML;
+  };
+  const cartaoDe = (html, sku) => (html.split('<article').find((a) => a.includes(`data-sku="${sku}"`) || a.includes(`Olá! Tenho interesse em: ${sku}`)) || '');
+  {
+    const p = clonar(HOJE.products.products[SEMINOVO]);
+    const doze = await cartoes([{ ...p, warranty_months: 12 }]);
+    const vinte = await cartoes([{ ...p, warranty_months: 24 }]);
+    certo(/pcard__title/.test(doze) && !/Garantia 12 meses/.test(doze) && /Garantia 24 meses/.test(vinte),
+      'seminovo: «Garantia 12 meses» já não se anuncia (o DL 84/2021 só deixa reduzir até 18); 24 meses sim (achado L6-01)', doze.slice(0, 200));
   }
 
   /* ================================================================== */
