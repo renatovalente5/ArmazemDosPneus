@@ -274,6 +274,50 @@ for desc, mudar in [('coordenadas como texto', lambda e: e.update(geo={'lat': 'n
     certo(msg is None and chave not in n, f'{desc}: publica, e «{chave}» sai do JSON-LD', msg or '')
 
 # =============================================================================
+secao('o «vazio» e o «espaço» são os do JavaScript (o regras.mjs decide com eles)')
+# Achado L3-01: o painel e a guarda (trim() e \s do JavaScript) aceitavam
+# valores que aqui (strip() e \s do Python) paravam a publicação inteira.
+# O injector tem de ser IGUAL OU MAIS LARGO do que as regras.
+def sem_falha(desc, f, extra=lambda r: True):
+    try:
+        r = f()
+    except I.Falha as e:
+        certo(False, desc, f'parou: {e}')
+        return None
+    certo(extra(r), desc, repr(r)[:200])
+    return r
+
+
+s_feff = copy.deepcopy(SITE); s_feff['contactos']['telefone2'] = '\ufeff'
+sem_falha('segundo telefone que é só U+FEFF: está vazio (como para o trim() do painel), e não é um telefone mal escrito',
+          lambda: dados(site=s_feff), lambda d: d.telefone2 == '')
+s_fb = copy.deepcopy(SITE); s_fb['contactos']['facebook'] = '\ufeff'
+sem_falha('Facebook que é só U+FEFF: está vazio, e a ligação sai', lambda: visivel(injetar(FB, dados(site=s_fb))), lambda h: 'facebook' not in h.lower())
+s_85 = copy.deepcopy(SITE); s_85['servicos'][0]['texto'] = '\u0085'
+sem_falha('texto de serviço que é só U+0085: não está vazio para o trim() do painel, e aqui também não (as regras recusam-no antes)',
+          lambda: dados(site=s_85))
+s_1c = copy.deepcopy(SITE); s_1c['textos']['rodape']['frase'] = '\u001c'
+sem_falha('frase que é só U+001C: idem', lambda: injetar('<!--ap:rodape-frase-->x<!--/ap:rodape-frase-->', dados(site=s_1c)))
+s_url = copy.deepcopy(SITE); s_url['contactos']['facebook'] = 'https://www.facebook.com/a\u001fb'
+sem_falha('Facebook com U+001F lá dentro: o \\s do JavaScript não o apanha, e o daqui também não', lambda: dados(site=s_url), lambda d: d.facebook.endswith('a\u001fb'))
+s_tel = copy.deepcopy(SITE); s_tel['contactos']['telefone'] = '\ufeff935 218 857\u3000'
+sem_falha('telefone com U+FEFF e U+3000 nas pontas: tirados, como faz o trim()', lambda: dados(site=s_tel), lambda d: d.telefone == '935 218 857')
+s_85p = copy.deepcopy(SITE); s_85p['contactos']['telefone'] = '935 218 857\u0085'
+certo(falha_de(lambda: dados(site=s_85p)) is not None, 'mas um telefone com U+0085 no fim continua mal escrito (o trim() do painel também não o tira)')
+e_dist = copy.deepcopy(EMPRESA); e_dist['morada']['distrito'] = 5
+r = sem_falha('distrito que não é texto (para a guarda é só aviso): publica, e sai do JSON-LD',
+              lambda: negocio(injetar(JL, dados(empresa=e_dist))), lambda n: 'addressRegion' not in n['address'])
+st_f = copy.deepcopy(SETTINGS); st_f['delivery'].update(estimate_min_days=2.0, estimate_max_days=5.0, max_days=30.0)
+sem_falha('prazos escritos 2.0, 5.0 e 30.0 (o JSON.parse do JavaScript lê inteiros): publica, e diz «2 a 5 dias úteis»',
+          lambda: visivel(injetar('<!--ap:prazo-entrega-->x<!--/ap:prazo-entrega-->|<!--ap:prazo-maximo-->x<!--/ap:prazo-maximo-->', dados(settings=st_f))),
+          lambda h: h == '2 a 5 dias úteis|30 dias')
+st_q = copy.deepcopy(SETTINGS); st_q['delivery'].update(estimate_min_days=2.5)
+certo(falha_de(lambda: dados(settings=st_q)) is not None, 'mas 2.5 continua a não ser um prazo')
+e_ral = copy.deepcopy(EMPRESA); e_ral['ral']['url'] = 'https://ex\u2100mple.pt'
+msg = falha_de(lambda: injetar('<!--ap:ral-->x<!--/ap:ral-->', dados(empresa=e_ral)))
+certo(msg is None or '* sem par' not in msg, 'um endereço que o urlsplit recusa (ValueError) não passa por «um * sem par»', msg or '')
+
+# =============================================================================
 secao('as falhas: cada uma pára, e diz onde se corrige')
 S = lambda f: (lambda s: (f(s), s)[1])(copy.deepcopy(SITE))
 Emp = lambda f: (lambda e: (f(e), e)[1])(copy.deepcopy(EMPRESA))

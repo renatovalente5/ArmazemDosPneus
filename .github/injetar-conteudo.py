@@ -108,18 +108,43 @@ ICONES = {
     'generico': '<svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 015.2-.9l-2.6 2.6.4 2.3 2.3.4 2.6-2.6a4 4 0 01-5.5 5.2L9 21.4a2 2 0 01-2.8-2.8l8.1-8.1a4 4 0 01.4-4.2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
 }
 
+# O QUE É UM ESPAÇO: o mesmo que no JavaScript (String.prototype.trim e \s),
+# porque é com ele que o .github/regras.mjs decide o que está vazio — no painel,
+# no Worker do painel e na guarda do CI. O strip() e o \s do Python contam
+# outros (U+001C–U+001F, U+0085) e não contam o U+FEFF: um título que fosse só
+# U+0085 passava no painel e parava aqui, e um segundo telefone que fosse só
+# U+FEFF estava vazio lá e era um telefone mal escrito cá. As regras daqui têm
+# de ser IGUAIS OU MAIS LARGAS do que as do regras.mjs (o test-guardas.mjs
+# prova-o campo a campo): este é o último passo antes de publicar, e um valor
+# que só ele recusa pára a publicação inteira.
+ESPACOS_JS = ''.join(chr(c) for c in (
+    0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x20, 0xa0, 0x1680, *range(0x2000, 0x200b),
+    0x2028, 0x2029, 0x202f, 0x205f, 0x3000, 0xfeff))
+_ESPACO = re.escape(ESPACOS_JS)
+
+
+def aparar(t):
+    """O trim() do JavaScript."""
+    return t.strip(ESPACOS_JS)
+
+
 RE_HORA = re.compile(r'(?:[01][0-9]|2[0-3]):[0-5][0-9]')
 RE_WHATSAPP = re.compile(r'[0-9]{9,15}')
 RE_TELEFONE = re.compile(r'\+?[0-9][0-9 ]{7,18}[0-9]')
-RE_EMAIL = re.compile(r'[^\s@<>"\',;]+@[^\s@<>"\',;]+\.[^\s@<>"\',;]+')
+RE_EMAIL = re.compile('[^' + _ESPACO + '@<>"\',;]+@[^' + _ESPACO + '@<>"\',;]+\\.[^' + _ESPACO + '@<>"\',;]+')
 RE_CP = re.compile(r'[0-9]{4}-[0-9]{3}')
 RE_NIF = re.compile(r'[0-9]{9}')
-RE_URL = re.compile(r'https://[^\s"\'<>\\]+')
+RE_URL = re.compile('https://[^' + _ESPACO + '"\'<>\\\\]+')
 TOKEN = re.compile(r'<!--\s*(/?)ap:([^\s>]*?)(\s[^>]*?)?\s*-->')
 
 
 class Falha(Exception):
     pass
+
+
+class MarcaSemPar(ValueError):
+    """Um * que sobra no **negrito**/*itálico* (só o com_marcas a lança: uma
+    outra ValueError a meio do gerar() não pode passar por um * sem par)."""
 
 
 def falha(mensagem, ecra=None):
@@ -147,7 +172,7 @@ def com_marcas(t):
     e = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', e)
     e = re.sub(r'\*(.+?)\*', r'<em>\1</em>', e)
     if '*' in e:
-        raise ValueError('um * sem par')
+        raise MarcaSemPar('um * sem par')
     return e
 
 
@@ -166,6 +191,16 @@ def e_numero(v):
 
 def e_inteiro(v):
     return isinstance(v, int) and not isinstance(v, bool)
+
+
+def inteiro_de(v):
+    """O inteiro que o JavaScript vê (Number.isInteger): 2 e 2.0 são 2; o
+    resto, None."""
+    if e_inteiro(v):
+        return v
+    if isinstance(v, float) and v.is_integer():
+        return int(v)
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -205,7 +240,10 @@ class Dados:
             falha('O código postal escreve-se 0000-000.', E_EMP)
         self.localidade = self._texto(m, 'localidade', E_EMP, 'A localidade')
         self.concelho = self._texto(m, 'concelho', E_EMP, 'O concelho', obrigatorio=False)
-        self.distrito = self._texto(m, 'distrito', E_EMP, 'O distrito', obrigatorio=False)
+        # O distrito só vai para o JSON-LD, e para a guarda um distrito que não
+        # é texto é só um aviso: fica de fora, em vez de parar a publicação.
+        dist = m.get('distrito')
+        self.distrito = aparar(dist) if isinstance(dist, str) else ''
         ral = self._obj(e, 'ral', E_EMP, 'A entidade de resolução de litígios')
         self.ral_nome = self._texto(ral, 'nome', E_EMP, 'O nome da entidade de resolução de litígios')
         self.ral_url = self._url(ral, 'url', E_EMP, 'O endereço da entidade de resolução de litígios')
@@ -221,7 +259,7 @@ class Dados:
         self.geo = g if (isinstance(g, dict) and e_numero(g.get('lat')) and e_numero(g.get('lng'))
                          and abs(g['lat']) <= 90 and abs(g['lng']) <= 180) else None
         mapa = e.get('mapa')
-        self.mapa = mapa if isinstance(mapa, str) and RE_URL.fullmatch(mapa.strip()) else None
+        self.mapa = mapa if isinstance(mapa, str) and RE_URL.fullmatch(aparar(mapa)) else None
 
         self.horario = self._horario(self._obj(site, 'horario', E_CONT, 'O horário'))
         self.nota_horario = self._texto(site['horario'], 'nota', E_CONT, 'A nota do horário', obrigatorio=False)
@@ -230,9 +268,9 @@ class Dados:
         self.topo = self._obj(t, 'topo', E_TEXT, 'Os textos do topo')
         self.textos = t
         marcas = site.get('marcas')
-        if not isinstance(marcas, list) or not all(isinstance(x, str) and x.strip() for x in marcas):
+        if not isinstance(marcas, list) or not all(isinstance(x, str) and aparar(x) for x in marcas):
             falha('A lista das marcas não está bem preenchida.', E_TEXT)
-        self.marcas = [x.strip() for x in marcas]
+        self.marcas = [aparar(x) for x in marcas]
 
         # Definições da loja: o que vai para os Termos.
         sh = settings.get('shipping') if isinstance(settings.get('shipping'), dict) else {}
@@ -240,8 +278,9 @@ class Dados:
         d = settings.get('delivery')
         if not isinstance(d, dict):
             falha('Os prazos de entrega não estão gravados.', E_PRAZOS)
-        mn, mx, lim = d.get('estimate_min_days'), d.get('estimate_max_days'), d.get('max_days')
-        if not all(e_inteiro(x) and 1 <= x <= 30 for x in (mn, mx, lim)) or mn > mx or mx > lim:
+        # «2.0» é inteiro para o JavaScript (o JSON.parse dá 2), e não para o Python.
+        mn, mx, lim = (inteiro_de(d.get(k)) for k in ('estimate_min_days', 'estimate_max_days', 'max_days'))
+        if not all(x is not None and 1 <= x <= 30 for x in (mn, mx, lim)) or mn > mx or mx > lim:
             falha('Os prazos de entrega não estão bem preenchidos (números inteiros de 1 a 30, mínimo ≤ máximo ≤ prazo máximo).', E_PRAZOS)
         self.prazo_min, self.prazo_max, self.prazo_limite = mn, mx, lim
         r = settings.get('returns') if isinstance(settings.get('returns'), dict) else {}
@@ -262,13 +301,13 @@ class Dados:
     @staticmethod
     def _texto(o, k, ecra, nome, obrigatorio=True):
         v = o.get(k) if isinstance(o, dict) else None
-        if v is None or (isinstance(v, str) and not v.strip()):
+        if v is None or (isinstance(v, str) and not aparar(v)):
             if obrigatorio:
                 falha(f'{nome}: está vazio.', ecra)
             return ''
         if not isinstance(v, str):
             falha(f'{nome}: tem de ser texto.', ecra)
-        return v.strip()
+        return aparar(v)
 
     def _telefone(self, o, k, nome, obrigatorio):
         v = self._texto(o, k, E_CONT, nome, obrigatorio)
@@ -326,7 +365,7 @@ class Dados:
     def internacional(t):
         """«935 218 857» → «+351935218857» (tel: e JSON-LD)."""
         d = re.sub(r'\D', '', t)
-        if t.strip().startswith('+'):
+        if aparar(t).startswith('+'):
             return '+' + d
         if d.startswith('00'):
             return '+' + d[2:]
@@ -458,21 +497,21 @@ def gerar(nome, d, indent, ecra_de):
             return frase + (f' <strong>{com_marcas(destaque)}</strong>' if destaque else '')
         if nome == 'topo-destaques':
             lista = d.topo.get('destaques')
-            if not isinstance(lista, list) or not all(isinstance(x, str) and x.strip() for x in lista):
+            if not isinstance(lista, list) or not all(isinstance(x, str) and aparar(x) for x in lista):
                 falha('Topo › destaques: não estão bem preenchidos.', E_TEXT)
-            return sep.join(f'<li>{com_marcas(x.strip())}</li>' for x in lista)
+            return sep.join(f'<li>{com_marcas(aparar(x))}</li>' for x in lista)
         if nome == 'sobre-titulo':
             return com_marcas(Dados._texto(Dados._obj(t, 'sobre', E_TEXT, 'Sobre'), 'titulo', E_TEXT, 'Sobre › título'))
         if nome == 'sobre-texto':
             ps = Dados._obj(t, 'sobre', E_TEXT, 'Sobre').get('paragrafos')
-            if not isinstance(ps, list) or not ps or not all(isinstance(x, str) and x.strip() for x in ps):
+            if not isinstance(ps, list) or not ps or not all(isinstance(x, str) and aparar(x) for x in ps):
                 falha('Sobre › parágrafos: não estão bem preenchidos.', E_TEXT)
-            return sep.join(f'<p>{com_marcas(x.strip())}</p>' for x in ps)
+            return sep.join(f'<p>{com_marcas(aparar(x))}</p>' for x in ps)
         if nome == 'sobre-pontos':
             ps = Dados._obj(t, 'sobre', E_TEXT, 'Sobre').get('pontos')
-            if not isinstance(ps, list) or not all(isinstance(x, str) and x.strip() for x in ps):
+            if not isinstance(ps, list) or not all(isinstance(x, str) and aparar(x) for x in ps):
                 falha('Sobre › pontos: não estão bem preenchidos.', E_TEXT)
-            return sep.join(f'<li><span aria-hidden="true">✓</span> {com_marcas(x.strip())}</li>' for x in ps)
+            return sep.join(f'<li><span aria-hidden="true">✓</span> {com_marcas(aparar(x))}</li>' for x in ps)
         if nome == 'contactos-frase':
             return com_marcas(Dados._texto(Dados._obj(t, 'contactos', E_TEXT, 'Contactos › frase'), 'frase', E_TEXT, 'Contactos › frase'))
         if nome == 'rodape-frase':
@@ -490,10 +529,13 @@ def gerar(nome, d, indent, ecra_de):
             n = d.prazo_limite
             return '1 dia' if n == 1 else f'{n} dias'
         if nome == 'ral':
-            dominio = urlsplit(d.ral_url).netloc
+            try:
+                dominio = urlsplit(d.ral_url).netloc
+            except ValueError:   # o urlsplit recusa alguns endereços que o browser aceita
+                dominio = d.ral_url
             return (f'<strong>{escapar(d.ral_nome)}</strong> (<a href="{html.escape(d.ral_url, quote=True)}" '
                     f'target="_blank" rel="noopener">{escapar(dominio)}</a>)')
-    except ValueError:
+    except MarcaSemPar:
         falha('Um texto tem um * sem par (o **negrito** e o *itálico* abrem e fecham).', ecra_de.get(nome, E_TEXT))
     raise Falha(f'O marcador «{nome}» não sabe o que escrever (defeito do injector).')
 
