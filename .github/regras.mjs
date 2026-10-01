@@ -9,6 +9,15 @@
  * ES module puro: nenhum import, nada de node:*, fs, process ou require. Corre
  * tal e qual no browser, num Worker e no Node.
  *
+ * E UM QUARTO, QUE TEM REGRAS SUAS: o Worker dos pagamentos
+ * (worker/src/termos.js) lê do site os prazos, o custo de devolução, o
+ * telefone, o email e os dados da empresa, e repete-os na página de pagamento
+ * da Stripe e nos emails das encomendas. Um valor que ele recusa não chega lá:
+ * vale o anterior, e o site diria uma coisa e os emails outra. Por isso, nesses
+ * campos, as regras daqui são IGUAIS OU MAIS APERTADAS do que as dele — o que o
+ * painel deixa gravar chega aos emails. O .github/test-guardas.mjs prova-o caso
+ * a caso, contra o termos.js verdadeiro.
+ *
  * CADA PROBLEMA TEM UMA CLASSE:
  *   · bloqueia   — a publicação pára. Só o que não se consegue pôr num estado
  *                  seguro sem inventar um valor: JSON ilegível, a forma dos
@@ -91,7 +100,13 @@ export const TAMANHOS = {
   titulo: 80, frase: 300, paragrafo: 1200, ponto: 80, destaque: 40,
   servicoTitulo: 60, servicoTexto: 300, notaHorario: 200, notaChamada: 80,
   nomeMarca: 40, textoEmpresa: 200,
+  /* Os que o Worker dos pagamentos repete nos emails e na página da Stripe
+     (os mesmos tectos do worker/src/termos.js; aqui são «bloqueia»). */
+  nomeLoja: 80, denominacao: 160, rua: 120, localidade: 60, concelho: 60, enderecoLivro: 200, emailLoja: 160,
 };
+
+/* O custo de devolução mais alto que o Worker dos pagamentos aceita. */
+export const CUSTO_DEVOLUCAO_MAX = 1000;
 
 /* CAMPOS DAS DEFINIÇÕES QUE O PAINEL NÃO MUDA. O dono é autónomo: nada de
    CONTEÚDO fica aqui (os prazos e o custo de devolução são dele, e as páginas
@@ -118,7 +133,9 @@ const RE_DOT = /^[0-9]{4}$/;
 const RE_EPREL = /^[0-9]{3,12}$/;
 const RE_HORA = /^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/;
 const RE_CP = /^[0-9]{4}-[0-9]{3}$/;
-const RE_EMAIL = /^[^\s@<>"',;]+@[^\s@<>"',;]+\.[^\s@<>"',;]+$/;
+/* O email da loja vai também para o reply-to dos emails das encomendas: a
+   regra é a do Worker dos pagamentos (termos.js), sem acentos nem espaços. */
+export const RE_EMAIL_LOJA = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
 const RE_WHATSAPP = /^[0-9]{9,15}$/;
 const RE_TELEFONE = /^\+?[0-9][0-9 ]{7,18}[0-9]$/;
 const RE_ID_SERVICO = /^[a-z0-9][a-z0-9-]{0,39}$/;
@@ -142,10 +159,12 @@ export const duasCasas = (x) => typeof x === 'number' && Number.isFinite(x) && M
 export const terminacaoDe = (texto) => (typeof texto === 'string' && texto.endsWith('\n') ? '\n' : '');
 export function serializar(obj, terminacao = '') { return JSON.stringify(obj, null, 2) + (terminacao || ''); }
 
-/* NIF português: 9 algarismos e o de controlo (módulo 11). */
+/* NIF português: 9 algarismos, o primeiro nunca é 0, e o de controlo (módulo
+   11). Como o do Worker dos pagamentos: um 000000000 «de espera» aparecia no
+   site e os emails ficavam com o NIF anterior. */
 export function nifValido(nif) {
   const s = typeof nif === 'number' ? String(nif) : nif;
-  if (typeof s !== 'string' || !/^[0-9]{9}$/.test(s)) return false;
+  if (typeof s !== 'string' || !/^[1-9][0-9]{8}$/.test(s)) return false;
   let soma = 0;
   for (let i = 0; i < 8; i++) soma += Number(s[i]) * (9 - i);
   const resto = soma % 11;
@@ -181,6 +200,39 @@ const bytesDe = (s) => new TextEncoder().encode(s).length;
 function urlHttps(v) {
   if (typeof v !== 'string' || !/^https:\/\/[^\s"'<>\\]+$/.test(v)) return false;
   try { return new URL(v).protocol === 'https:'; } catch { return false; }
+}
+
+/* --- O que o Worker dos pagamentos aceita (worker/src/termos.js) --- */
+
+/* Os caracteres que ele troca por espaço antes de medir um texto: os de
+   controlo, os separadores de linha do Unicode, os de largura zero e os de
+   direcção. Construída a partir dos números, e não escrita com escapes: um
+   U+2028 literal dentro da expressão é um fim de linha e parte o ficheiro. */
+const INVISIVEIS = new RegExp(`[${[
+  [0x00, 0x1f], [0x7f, 0x9f], [0xad, 0xad], [0x200b, 0x200f], [0x2028, 0x202e],
+  [0x2060, 0x2064], [0x2066, 0x2069], [0xfeff, 0xfeff],
+].map(([a, b]) => `\\u${a.toString(16).padStart(4, '0')}-\\u${b.toString(16).padStart(4, '0')}`).join('')}]`, 'g');
+/* O texto como ele o mede: invisíveis trocados, espaços juntos, sem pontas. */
+const limpo = (v) => v.replace(INVISIVEIS, ' ').replace(/\s+/g, ' ').trim();
+/* Um texto de uma linha entre min e max caracteres, medido como ele mede. */
+const tamanhoParaOsEmails = (v, min, max) => typeof v === 'string' && v.length <= max * 4 && limpo(v).length >= min && limpo(v).length <= max;
+
+/* A morada vai para a página de pagamento da Stripe, que desenha Markdown:
+   letras, algarismos, espaços e estes sinais, mais nenhum. */
+const RE_MORADA = /^[\p{L}\p{M}\p{N} .,'’ºª°/&()-]+$/u;
+export const SINAIS_DA_MORADA = ". , ' ’ º ª ° / & ( ) -";
+export const parteDeMoradaValida = (v, min, max) => tamanhoParaOsEmails(v, min, max) && RE_MORADA.test(limpo(v));
+
+export const emailDaLojaValido = (v) => typeof v === 'string' && v.length <= TAMANHOS.emailLoja && RE_EMAIL_LOJA.test(v.trim());
+
+/* O endereço do Livro de Reclamações: https, sem utilizador nem palavra-passe,
+   e até 200 caracteres DEPOIS de normalizado (uma aspa vira %22). */
+function urlParaOsEmails(v) {
+  if (!urlHttps(v) || !tamanhoParaOsEmails(v, 10, TAMANHOS.enderecoLivro)) return false;
+  try {
+    const u = new URL(limpo(v));
+    return u.protocol === 'https:' && !u.username && !u.password && u.href.length <= TAMANHOS.enderecoLivro;
+  } catch { return false; }
 }
 
 function caminhoDeImagem(c) {
@@ -521,8 +573,8 @@ function problemasDasDefinicoes(lido, lista) {
   const r = s.returns;
   if (!ausente(r) && !eObjecto(r)) {
     bloqueia('returns', E_PRAZOS, 'returns', 'As definições das devoluções não têm a forma certa.');
-  } else if (eObjecto(r) && !ausente(r.return_cost_eur) && !(typeof r.return_cost_eur === 'number' && r.return_cost_eur >= 0 && duasCasas(r.return_cost_eur))) {
-    bloqueia('returns.return_cost_eur', E_PRAZOS, 'returns.return_cost_eur', 'O custo de devolução tem de ser um valor em euros (ex.: 6,50), ou ficar vazio se for a loja a pagar.');
+  } else if (eObjecto(r) && !ausente(r.return_cost_eur) && !(typeof r.return_cost_eur === 'number' && r.return_cost_eur >= 0 && r.return_cost_eur <= CUSTO_DEVOLUCAO_MAX && duasCasas(r.return_cost_eur))) {
+    bloqueia('returns.return_cost_eur', E_PRAZOS, 'returns.return_cost_eur', `O custo de devolução tem de ser um valor em euros até ${CUSTO_DEVOLUCAO_MAX} € (ex.: 6,50), ou ficar vazio se for a loja a pagar.`);
   }
 
   // Montagem: só o checkout a mostra.
@@ -605,7 +657,7 @@ function problemasDoSite(lido, lista) {
     bloqueia('contactos', E_CONT, 'contactos', 'Os contactos da loja não estão gravados.');
   } else {
     if (vazio(c.email)) bloqueia('contactos.email', E_CONT, 'contactos.email', 'O email da loja está vazio (a lei obriga a mostrá-lo).');
-    else if (typeof c.email !== 'string' || !RE_EMAIL.test(c.email.trim())) bloqueia('contactos.email', E_CONT, 'contactos.email', 'O email da loja não está bem escrito.');
+    else if (!emailDaLojaValido(c.email)) bloqueia('contactos.email', E_CONT, 'contactos.email', 'O email da loja não está bem escrito (ex.: loja@exemplo.pt — sem acentos nem espaços).');
     if (vazio(c.telefone)) bloqueia('contactos.telefone', E_CONT, 'contactos.telefone', 'O telefone da loja está vazio (aparece em todas as páginas, e a lei obriga a um contacto directo).');
     if (vazio(c.whatsapp)) bloqueia('contactos.whatsapp', E_CONT, 'contactos.whatsapp', 'O WhatsApp da loja está vazio (os botões «Pedir orçamento» do site vão para ele).');
     for (const [campo, nome] of [['telefone', 'O telefone'], ['telefone2', 'O segundo telefone']]) {
@@ -722,28 +774,42 @@ function problemasDaEmpresa(lido, lista) {
   /* Os campos que a lei obriga (DL 7/2004 art. 10.º; DL 24/2014; Lei 144/2015
      para a RAL; DL 156/2005 para o Livro de Reclamações). Vale mais o site
      ficar na versão anterior do que ir para o ar sem eles. */
-  const obrigatorio = (v, chave, campo, nome) => {
+  /* `emails`: o campo vai também para os emails das encomendas e para a
+     página de pagamento (o Worker dos pagamentos lê-o): o tamanho conta como
+     ele o mede e, fora dele, pára — senão os emails ficavam com o anterior. */
+  const obrigatorio = (v, chave, campo, nome, { emails = null } = {}) => {
     if (vazio(v)) { bloqueia(chave, campo, `${nome} está vazio (a lei obriga a mostrá-lo no site).`); return false; }
     if (typeof v !== 'string') { bloqueia(chave, campo, `${nome} tem de ser texto.`); return false; }
     if (RE_CONTROLO_LINHA.test(v)) avisa(`${chave}:controlo`, campo, `${nome} tem caracteres invisíveis. Escreva-o outra vez.`);
-    if (v.length > TAMANHOS.textoEmpresa) avisa(`${chave}:tamanho`, campo, `${nome} tem mais de ${TAMANHOS.textoEmpresa} caracteres.`);
+    if (emails) {
+      if (!tamanhoParaOsEmails(v, emails.min, emails.max)) { bloqueia(`${chave}:tamanho`, campo, `${nome} tem de ter entre ${emails.min} e ${emails.max} caracteres (vai também para os emails das encomendas).`); return false; }
+    } else if (v.length > TAMANHOS.textoEmpresa) avisa(`${chave}:tamanho`, campo, `${nome} tem mais de ${TAMANHOS.textoEmpresa} caracteres.`);
     return true;
   };
-  obrigatorio(e.nome, 'nome', 'nome', 'O nome da loja');
-  obrigatorio(e.denominacao, 'denominacao', 'denominacao', 'A denominação da empresa');
+  const sinaisDaMorada = (v, chave, campo, nome) => {
+    if (!RE_MORADA.test(limpo(v))) bloqueia(`${chave}:sinais`, campo, `${nome} só pode ter letras, algarismos, espaços e ${SINAIS_DA_MORADA} (outros sinais não passam para a página de pagamento nem para os emails das encomendas).`);
+  };
+  obrigatorio(e.nome, 'nome', 'nome', 'O nome da loja', { emails: { min: 2, max: TAMANHOS.nomeLoja } });
+  obrigatorio(e.denominacao, 'denominacao', 'denominacao', 'A denominação da empresa', { emails: { min: 2, max: TAMANHOS.denominacao } });
   if (vazio(e.nif)) bloqueia('nif', 'nif', 'O NIF está vazio (a lei obriga a mostrá-lo no site).');
-  else if (!nifValido(e.nif)) bloqueia('nif', 'nif', 'O NIF não é válido (9 algarismos, e o último tem de bater certo com os outros). Confira-o.');
+  else if (typeof e.nif !== 'string') bloqueia('nif', 'nif', 'O NIF está gravado como número e não como texto. Só o Renato o pode corrigir.');
+  else if (!nifValido(e.nif)) bloqueia('nif', 'nif', 'O NIF não é válido (9 algarismos, o primeiro não é 0, e o último tem de bater certo com os outros). Confira-o.');
   const m = e.morada;
   if (!eObjecto(m)) bloqueia('morada', 'morada', 'A morada da empresa está vazia (a lei obriga a mostrá-la no site).');
   else {
-    obrigatorio(m.rua, 'morada.rua', 'morada.rua', 'A rua da morada');
+    if (obrigatorio(m.rua, 'morada.rua', 'morada.rua', 'A rua da morada', { emails: { min: 3, max: TAMANHOS.rua } })) sinaisDaMorada(m.rua, 'morada.rua', 'morada.rua', 'A rua da morada');
     if (vazio(m.cp)) bloqueia('morada.cp', 'morada.cp', 'O código postal está vazio (a lei obriga a mostrar a morada completa).');
     else if (!(typeof m.cp === 'string' && RE_CP.test(m.cp))) bloqueia('morada.cp', 'morada.cp', 'O código postal escreve-se 0000-000.');
-    obrigatorio(m.localidade, 'morada.localidade', 'morada.localidade', 'A localidade da morada');
-    for (const [k, nome] of [['concelho', 'O concelho'], ['distrito', 'O distrito']]) {
-      if (vazio(m[k])) avisa(`morada.${k}`, `morada.${k}`, `${nome} está vazio.`);
-      else if (typeof m[k] !== 'string') avisa(`morada.${k}`, `morada.${k}`, `${nome} tem de ser texto.`);
-    }
+    if (obrigatorio(m.localidade, 'morada.localidade', 'morada.localidade', 'A localidade da morada', { emails: { min: 2, max: TAMANHOS.localidade } })) sinaisDaMorada(m.localidade, 'morada.localidade', 'morada.localidade', 'A localidade da morada');
+    /* O concelho pode faltar; se estiver, vai para a morada dos emails, e um
+       concelho que o Worker recuse deita fora a morada INTEIRA (fica a
+       anterior). O distrito ele não lê. */
+    if (vazio(m.concelho)) avisa('morada.concelho', 'morada.concelho', 'O concelho está vazio.');
+    else if (typeof m.concelho !== 'string') bloqueia('morada.concelho', 'morada.concelho', 'O concelho tem de ser texto.');
+    else if (!tamanhoParaOsEmails(m.concelho, 2, TAMANHOS.concelho)) bloqueia('morada.concelho', 'morada.concelho', `O concelho tem de ter entre 2 e ${TAMANHOS.concelho} caracteres, ou ficar vazio.`);
+    else sinaisDaMorada(m.concelho, 'morada.concelho', 'morada.concelho', 'O concelho');
+    if (vazio(m.distrito)) avisa('morada.distrito', 'morada.distrito', 'O distrito está vazio.');
+    else if (typeof m.distrito !== 'string') avisa('morada.distrito', 'morada.distrito', 'O distrito tem de ser texto.');
   }
   const ral = e.ral;
   if (!eObjecto(ral)) bloqueia('ral', 'ral', 'Falta a entidade de resolução alternativa de litígios (a lei obriga a indicá-la).');
@@ -754,6 +820,7 @@ function problemasDaEmpresa(lido, lista) {
   }
   if (vazio(e.livro_reclamacoes)) bloqueia('livro_reclamacoes', 'livro_reclamacoes', 'Falta o endereço do Livro de Reclamações (a lei obriga a mostrá-lo).');
   else if (!urlHttps(e.livro_reclamacoes)) bloqueia('livro_reclamacoes', 'livro_reclamacoes', 'O endereço do Livro de Reclamações tem de começar por https://');
+  else if (!urlParaOsEmails(e.livro_reclamacoes)) bloqueia('livro_reclamacoes', 'livro_reclamacoes', `O endereço do Livro de Reclamações tem de ter até ${TAMANHOS.enderecoLivro} caracteres e não pode levar nome de utilizador (vai também para os emails das encomendas).`);
 
   /* Capital social e conservatória (CSC art. 171.º): opcionais até o
      contabilista confirmar; se estiverem lá, vão para as páginas legais e têm

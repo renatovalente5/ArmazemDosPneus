@@ -16,6 +16,11 @@
  *   · cada regra com um caso e a classe certa — um produto partido nunca dá
  *     exit 1, e sai de venda na cópia publicada sem mexer no ficheiro;
  *   · 30 problemas → 9 anotações + «e mais 21», e os 30 no resumo;
+ *   · o Worker dos pagamentos (worker/src/termos.js) aceita tudo o que estas
+ *     regras aceitam nos campos que repete aos clientes — caso a caso e ao
+ *     acaso, contra o termos.js verdadeiro —, a guarda já não avisa de cópias
+ *     do Worker (deixaram de existir), e o worker/src não volta a ter esses
+ *     valores escritos à mão;
  *   · o varrimento: apagar cada chave, uma a uma (memória
  *     testar-o-caminho-do-cliente), mudar cada categoria, ligar e desligar
  *     cada produto;
@@ -31,6 +36,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync, execFileSync } from 'node:child_process';
 import * as R from './regras.mjs';
 import * as G from './guardas.mjs';
+import * as T from '../worker/src/termos.js';
 
 const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PY = process.env.PYTHON || 'python3';   // no Mac, o do venv com Pillow: o python3 do sistema é o do Xcode
@@ -99,8 +105,8 @@ const MICHELIN = indicePorSku('michelin-primacy-4');           // pneu novo, for
 const SEMINOVO = indicePorSku('pneu-seminovo-continental-205-55-r16');
 const TESTE = indicePorSku('teste-pagamento');
 
-/* Um repositório de ensaio mínimo: data/, as fotografias (vazias: a guarda só
-   quer saber se existem) e o worker/ (para os avisos). */
+/* Um repositório de ensaio mínimo: data/ e as fotografias (vazias: a guarda só
+   quer saber se existem). Sem o worker/: a guarda não o lê. */
 function repoDeEnsaio(dados, { html = {} } = {}) {
   const dir = mkdtempSync(join(TMP, 'repo-'));
   mkdirSync(join(dir, 'data'));
@@ -111,9 +117,6 @@ function repoDeEnsaio(dados, { html = {} } = {}) {
   }
   mkdirSync(join(dir, 'assets', 'uploads'), { recursive: true });
   for (const f of UPLOADS) writeFileSync(join(dir, 'assets', 'uploads', f), '');
-  mkdirSync(join(dir, 'worker', 'src'), { recursive: true });
-  copyFileSync(join(RAIZ, 'worker', 'wrangler.toml'), join(dir, 'worker', 'wrangler.toml'));
-  for (const f of readdirSync(join(RAIZ, 'worker', 'src'))) copyFileSync(join(RAIZ, 'worker', 'src', f), join(dir, 'worker', 'src', f));
   for (const [rel, texto] of Object.entries(html)) { mkdirSync(dirname(join(dir, rel)), { recursive: true }); writeFileSync(join(dir, rel), texto); }
   return dir;
 }
@@ -189,7 +192,18 @@ try {
   const partidas = G.paginasHtml(RAIZ).flatMap((p) => G.problemasDoHtml(p, ler(p), { exigirMetas: true }));
   certo(partidas.length === 0, 'as páginas de hoje: nenhum marcador partido, e as duas metas em cada uma', partidas.map((x) => x.mensagem).join(' | '));
   certo(R.serializar(HOJE.site, '\n') === TEXTO.site && R.serializar(HOJE.empresa, '\n') === TEXTO.empresa, 'site.json e empresa.json estão como o painel os grava (2 espaços, \\n no fim)');
-  certo(G.avisosDoWorker(TEXTO, { wranglerToml: ler('worker/wrangler.toml'), fontes: '' }).length === 0, 'os prazos de hoje batem com os DELIVERY_* do Worker dos pagamentos');
+  {
+    const t = T.termosDasFontes({ settings: HOJE.settings, site: HOJE.site, empresa: HOJE.empresa }, {});
+    const deRecurso = Object.entries(t.origem).filter(([, o]) => o !== 'dados').map(([g]) => g);
+    const m = HOJE.empresa.morada;
+    certo(t.invalidos.length === 0 && deRecurso.length === 0, 'o Worker dos pagamentos lê os dados de hoje sem cair para o recurso em nenhum grupo', JSON.stringify(t.origem));
+    certo(t.termos.prazos.min_dias === HOJE.settings.delivery.estimate_min_days && t.termos.prazos.max_dias_uteis === HOJE.settings.delivery.estimate_max_days
+      && t.termos.prazos.max_dias === HOJE.settings.delivery.max_days && t.termos.contactos.telefone === HOJE.site.contactos.telefone
+      && t.termos.contactos.email === HOJE.site.contactos.email && t.termos.empresa.nif === HOJE.empresa.nif && t.termos.empresa.denominacao === HOJE.empresa.denominacao
+      && t.termos.empresa.morada.rua === m.rua && t.termos.empresa.morada.cp === m.cp && t.termos.empresa.morada.localidade === m.localidade
+      && t.termos.empresa.livro_reclamacoes === HOJE.empresa.livro_reclamacoes,
+    'e os emails dizem o que o site diz: prazos, telefone, email, NIF, denominação, morada e Livro de Reclamações', JSON.stringify(t.termos));
+  }
 
   /* ================================================================== */
   secao('re-jogar os commits de data/');
@@ -307,6 +321,7 @@ try {
     ['prazo com casas decimais', (d) => { d.settings.delivery.estimate_min_days = 2.5; }, 'bloqueia', 'settings:delivery.estimate_min_days'],
     ['custo de devolução negativo', (d) => { d.settings.returns.return_cost_eur = -1; }, 'bloqueia', 'settings:returns.return_cost_eur'],
     ['custo de devolução como texto', (d) => { d.settings.returns.return_cost_eur = '5'; }, 'bloqueia', 'settings:returns.return_cost_eur'],
+    ['custo de devolução acima de 1000 € (o Worker dos pagamentos recusa-o)', (d) => { d.settings.returns.return_cost_eur = 1000.01; }, 'bloqueia', 'settings:returns.return_cost_eur'],
     ['preço da montagem negativo', (d) => { d.settings.mounting.price_eur = -1; }, 'avisa', 'settings:mounting.price_eur'],
     ['texto dos pagamentos comprido', (d) => { d.settings.payment.note = 'x'.repeat(301); }, 'avisa', 'settings:payment.note'],
     ['fotografia do topo em falta', (d) => { delete d.content.hero.image; }, 'bloqueia', 'content:hero.image'],
@@ -364,6 +379,7 @@ try {
     ['site ilegível', (s) => '{', null, 'bloqueia', 'site:ilegivel'],
     ['sem email', (s) => { delete s.contactos.email; }, null, 'bloqueia', 'site:contactos.email'],
     ['email mal escrito', (s) => { s.contactos.email = 'loja@'; }, null, 'bloqueia', 'site:contactos.email'],
+    ['email com acento (o reply-to dos emails das encomendas não o aceita)', (s) => { s.contactos.email = 'joão@exemplo.pt'; }, null, 'bloqueia', 'site:contactos.email'],
     ['sem telefone (as páginas têm-no em todo o lado)', (s) => { delete s.contactos.telefone; }, null, 'bloqueia', 'site:contactos.telefone'],
     ['sem WhatsApp (os botões «Pedir orçamento» vão para ele)', (s) => { s.contactos.whatsapp = ''; }, null, 'bloqueia', 'site:contactos.whatsapp'],
     ['telefone com 8 algarismos', (s) => { s.contactos.telefone = '93 521 885'; }, null, 'bloqueia', 'site:contactos.telefone'],
@@ -392,6 +408,18 @@ try {
     ['NIF com o controlo errado', null, (e) => { e.nif = '516324951'; }, 'bloqueia', 'empresa:nif'],
     ['NIF com 8 algarismos', null, (e) => { e.nif = '51632495'; }, 'bloqueia', 'empresa:nif'],
     ['NIF vazio', null, (e) => { e.nif = ''; }, 'bloqueia', 'empresa:nif'],
+    ['NIF 000000000 (nenhum NIF começa por 0)', null, (e) => { e.nif = '000000000'; }, 'bloqueia', 'empresa:nif'],
+    ['NIF gravado como número', null, (e) => { e.nif = 516324950; }, 'bloqueia', 'empresa:nif'],
+    ['nome da loja com 81 caracteres', null, (e) => { e.nome = 'x'.repeat(81); }, 'bloqueia', 'empresa:nome:tamanho'],
+    ['denominação com uma letra', null, (e) => { e.denominacao = 'X'; }, 'bloqueia', 'empresa:denominacao:tamanho'],
+    ['rua com ponto e vírgula', null, (e) => { e.morada.rua = 'Edifício Sol; Loja 2'; }, 'bloqueia', 'empresa:morada.rua:sinais'],
+    ['rua com as aspas curvas do iPhone', null, (e) => { e.morada.rua = 'Rua \u201cAlto\u201d, 3'; }, 'bloqueia', 'empresa:morada.rua:sinais'],
+    ['rua com 121 caracteres', null, (e) => { e.morada.rua = 'Rua ' + 'a'.repeat(117); }, 'bloqueia', 'empresa:morada.rua:tamanho'],
+    ['localidade com #', null, (e) => { e.morada.localidade = 'Arada #2'; }, 'bloqueia', 'empresa:morada.localidade:sinais'],
+    ['concelho com uma letra (o Worker recusava a morada inteira)', null, (e) => { e.morada.concelho = 'O'; }, 'bloqueia', 'empresa:morada.concelho'],
+    ['concelho com :', null, (e) => { e.morada.concelho = 'Ovar: Aveiro'; }, 'bloqueia', 'empresa:morada.concelho:sinais'],
+    ['Livro de Reclamações com utilizador', null, (e) => { e.livro_reclamacoes = 'https://eu:segredo@www.livroreclamacoes.pt/inicio'; }, 'bloqueia', 'empresa:livro_reclamacoes'],
+    ['Livro de Reclamações com 201 caracteres', null, (e) => { e.livro_reclamacoes = 'https://www.livroreclamacoes.pt/' + 'a'.repeat(169); }, 'bloqueia', 'empresa:livro_reclamacoes'],
     ['denominação vazia', null, (e) => { e.denominacao = ' '; }, 'bloqueia', 'empresa:denominacao'],
     ['código postal sem hífen', null, (e) => { e.morada.cp = '3885183'; }, 'bloqueia', 'empresa:morada.cp'],
     ['sem rua', null, (e) => { delete e.morada.rua; }, 'bloqueia', 'empresa:morada.rua'],
@@ -414,6 +442,7 @@ try {
     ['domingo fechado e sexta com almoço', () => {}, null],
     ['capital social de 5000 € e conservatória', null, (e) => { e.capital_social = 5000; e.conservatoria = 'Conservatória do Registo Comercial de Ovar'; }],
     ['sem mapa nem coordenadas', null, (e) => { delete e.mapa; delete e.geo; }],
+    ['morada com º, ª, apóstrofo curvo, barra e parênteses', null, (e) => { e.morada.rua = 'Rua D\u2019Ávila, n.º 3 (1.ª cave) 2/B - Lote & Co.'; }],
   ];
   for (const [desc, mSite, mEmpresa] of SEM_PROBLEMA_A2) {
     const s = clonar(SITE_OK); const e = clonar(EMPRESA_OK);
@@ -421,7 +450,8 @@ try {
     const lista = comA2(s, e);
     certo(lista.length === 0, `${desc} → sem problema`, lista.map((p) => `${p.classe} ${p.chave}`).join(', '));
   }
-  certo(R.nifValido('516324950') && R.nifValido(516324950) && !R.nifValido('516324951') && !R.nifValido('abc') && R.nifValido('000000000'), 'nifValido(): o NIF da loja passa, um algarismo trocado não (e o 000000000 de espera passa: presença, não verdade)');
+  certo(R.nifValido('516324950') && R.nifValido(516324950) && !R.nifValido('516324951') && !R.nifValido('abc') && !R.nifValido('000000000') && T.nifValido('516324950') && !T.nifValido('000000000'),
+    'nifValido(): o NIF da loja passa, um algarismo trocado não, e o 000000000 também não (como no Worker dos pagamentos: os emails ficavam com o NIF anterior)');
 
   /* ================================================================== */
   secao('a cópia publicada, neutralizada');
@@ -616,25 +646,132 @@ try {
     certo(iConteudo > 0 && iImagens > iConteudo, 'o preparar-site.sh injecta o conteúdo ANTES das fotografias');
   }
 
-  secao('o que o Worker dos pagamentos ainda tem escrito');
-  const toml = ler('worker/wrangler.toml');
-  const fontesW = readdirSync(join(RAIZ, 'worker', 'src')).map((f) => readFileSync(join(RAIZ, 'worker', 'src', f), 'utf8')).join('\n');
-  const aw = (dados, t = toml, f = fontesW) => G.avisosDoWorker(dados, { wranglerToml: t, fontes: f });
-  const prazos = dadosDeHoje(); prazos.settings.delivery.max_days = 20;
-  certo(aw(prazos).length === 1 && aw(prazos)[0].classe === 'avisa' && /30 dias/.test(aw(prazos)[0].mensagem), 'prazo mudado no painel: AVISA (não pára) e diz o que os emails ainda dizem');
-  certo(aw(prazos, toml.replace(/^DELIVERY_.*$/gm, '')).length === 0, 'sem DELIVERY_* no wrangler.toml (fase W publicada): nada a comparar');
-  const dev = dadosDeHoje(); dev.settings.returns.return_cost_eur = 6.5;
-  certo(aw(dev).some((p) => p.chave === 'worker:devolucao'), 'devolução a cargo do cliente e os emails a dizer que a loja paga: avisa');
-  certo(aw({ ...TEXTO, site: SITE_OK, empresa: EMPRESA_OK }).length === 1 && aw({ ...TEXTO, site: SITE_OK, empresa: EMPRESA_OK })[0].chave === 'worker:email', 'site.json e empresa.json de hoje: só o email de exemplo difere do STORE_EMAIL');
-  const outro = clonar(SITE_OK); outro.contactos.telefone = '912 345 678';
-  certo(aw({ ...TEXTO, site: outro }).some((p) => p.chave === 'worker:telefone' && /935 218 857/.test(p.mensagem)), 'telefone mudado: avisa com o número antigo');
-  const outraE = clonar(EMPRESA_OK); outraE.morada.rua = 'Rua Nova, 1'; outraE.nif = '500000000';
-  certo(aw({ ...TEXTO, empresa: outraE }).map((p) => p.chave).sort().join() === 'worker:morada,worker:nif', 'NIF e morada mudados: avisa');
+  /* ================================================================== */
+  secao('o Worker dos pagamentos lê o que o dono grava (fase W-dados)');
+  /* Desde a W-dados, o Worker lê os prazos, a devolução, o telefone, o email e
+     a empresa dos mesmos JSON. Os avisos de antes («os emails ainda dizem…
+     o Renato tem de actualizar o Worker») ficavam falsos — e mandavam o dono
+     ao Renato por conteúdo. Saíram; no lugar deles, três provas. */
   {
-    const dir = repoDeEnsaio(prazos);
+    const d = dadosDeHoje();
+    d.settings.delivery = { ...d.settings.delivery, estimate_min_days: 3, estimate_max_days: 7, max_days: 20 };
+    d.settings.returns.return_cost_eur = 6.5;
+    d.site.contactos.telefone = '912 345 678'; d.site.contactos.email = 'loja@exemplo.pt';
+    d.empresa.nif = '500000000'; d.empresa.morada.rua = 'Rua Nova, 1'; d.empresa.morada.cp = '3880-001';
+    const dir = repoDeEnsaio(d);
     const r = guardaEm(dir);
-    certo(r.status === 0 && r.relatorio.problemas.some((p) => p.chave === 'worker:delivery') && /::warning[^\n]*Prazos/.test(r.out), 'a guarda verdadeira avisa e sai com 0 (e o aviso não fica tapado pelos lembretes)');
+    const falsos = (r.relatorio?.problemas ?? []).filter((p) => /^worker:/.test(p.chave) || /Worker dos pagamentos|Renato tem de/.test(p.mensagem));
+    certo(r.status === 0 && r.relatorio && falsos.length === 0 && !/Worker dos pagamentos/.test(r.out),
+      '1. o dono muda prazos, devolução, telefone, email, NIF e morada: a guarda verdadeira sai com 0 e não diz que os emails estão atrasados (nem manda ninguém ao Worker)', falsos.map((p) => p.mensagem).join(' | ') || r.err);
+    const t = T.termosDasFontes(d, {});
+    certo(t.invalidos.length === 0 && t.termos.prazos.max_dias === 20 && t.termos.devolucao.custo_eur === 6.5 && t.termos.contactos.telefone === '912 345 678'
+      && t.termos.empresa.nif === '500000000' && t.termos.empresa.morada.rua === 'Rua Nova, 1', '   e o Worker dos pagamentos lê esses valores novos (é por isso que os avisos saíram)', JSON.stringify(t));
     rmSync(dir, { recursive: true, force: true });
+  }
+
+  /* 2. O que estas regras deixam passar, o Worker aceita (o contrato do
+     worker/README.md: «o painel tem de ser igual ou mais apertado»). Um valor
+     que ele recusasse chegava ao site e não aos emails: lá ficava o anterior,
+     escrito no termos.js. Caso a caso (os que já falharam) e ao acaso (com
+     semente: a mesma corrida dá o mesmo resultado). «Aceita» = nenhum
+     «bloqueia» — o mais largo dos três leitores (o CI); o painel e o Worker
+     do painel recusam mais (também os avisos). A nota da devolução fica de
+     fora: o painel não a edita e não sai em lado nenhum (nem checkout, nem
+     Termos, nem emails). */
+  {
+    let semente = 20261001;
+    const acaso = () => { semente = (semente * 1103515245 + 12345) % 2147483648; return semente / 2147483648; };
+    const um = (lista) => lista[Math.floor(acaso() * lista.length)];
+    const LETRAS = [...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789áéíóúâêôãõçÁÉÇ'];
+    const SINAIS = [...' .,;:!?#@%&*_+=/\\|()[]{}<>"\'’‘“”«»–—-ºª°€$^~`'];
+    const textoAoAcaso = (max) => Array.from({ length: Math.floor(acaso() * max) }, () => (acaso() < 0.75 ? um(LETRAS) : um(SINAIS))).join('');
+    /* Quase sempre com os sinais que a morada aceita; de vez em quando um que
+       não aceita. Assim há muitos valores aceites perto da fronteira. */
+    const DA_MORADA = [...LETRAS, ...LETRAS, ' ', ' ', ' ', ...". , ' ’ º ª ° / & ( ) -".split(' ')];
+    const moradaAoAcaso = (max) => Array.from({ length: Math.floor(acaso() * max) }, () => (acaso() < 0.985 ? um(DA_MORADA) : um(SINAIS))).join('');
+    const nifAoAcaso = () => {
+      const b = Array.from({ length: 8 }, () => Math.floor(acaso() * 10));
+      const soma = b.reduce((a, x, i) => a + x * (9 - i), 0); const resto = soma % 11;
+      return b.join('') + (acaso() < 0.85 ? (resto < 2 ? 0 : 11 - resto) : Math.floor(acaso() * 10));
+    };
+    const custoAoAcaso = () => um([Math.round(acaso() * 200000) / 100, Math.round(acaso() * 120000) / 100, Math.round(acaso() * 1000) / 1000, -acaso() * 10, 1000, 1000.01, 999.99, 0]);
+    const de = (alfabeto, min, max, intruso = '', p = 0) => Array.from({ length: min + Math.floor(acaso() * (max - min + 1)) }, () => (intruso && acaso() < p ? um([...intruso]) : um([...alfabeto]))).join('');
+    const emailAoAcaso = () => `${um(['', ' '])}${de('abcXYZ019._%+-', 1, 30, 'áç !#/,;<>"@', 0.02)}@${de('abcdefXYZ019-', 1, 20, '_áç.', 0.03)}${um(['', `.${de('abc019-', 1, 10)}`])}.${um(['pt', 'com', 'p', 'p1', 'PT', 'xn--p1ai', de('abcXYZ', 1, 4), de('abc1-', 1, 4)])}${acaso() < 0.05 ? 'a'.repeat(150) : ''}`;
+    const telAoAcaso = () => `${um(['', '', '+351 ', '+', '00351 ', '(+351) '])}${de('0123456789  ', 7, 20, '-().+', 0.05)}`;
+    const urlAoAcaso = () => `${um(['https://', 'https://', 'https://', 'http://', 'https://eu:pw@', 'https://eu@'])}${um(['www.livroreclamacoes.pt', 'x.pt', 'A.PT:443', 'x.pt:8443'])}/${de('abcxyz019/.-_~%?=&', 0, 200, '" \'<>', 0.01)}`;
+    const definir = (o, caminho, v) => { const ks = caminho.split('.'); let x = o; for (const k of ks.slice(0, -1)) x = x[k]; if (v === undefined) delete x[ks.at(-1)]; else x[ks.at(-1)] = v; };
+    /* [ficheiro, caminho, grupo do termos.js, casos escolhidos, gerador ao acaso] */
+    const CAMPOS = [
+      ['settings', 'delivery.estimate_min_days', 'prazos', [0, 1, 2, 5, 6, 30, 31, 2.5, '2', null], () => um([Math.floor(acaso() * 35) - 2, acaso() * 30])],
+      ['settings', 'delivery.estimate_max_days', 'prazos', [1, 5, 30, 31, 4.5], () => um([Math.floor(acaso() * 35) - 2, acaso() * 30])],
+      ['settings', 'delivery.max_days', 'prazos', [1, 4, 5, 30, 31, 0, '30'], () => um([Math.floor(acaso() * 35) - 2, acaso() * 30])],
+      ['settings', 'returns.return_cost_eur', 'custo_devolucao', [null, undefined, 0, 6.5, 999.99, 1000, 1000.01, 1500, -1, '6.5', 6.555], custoAoAcaso],
+      ['site', 'contactos.telefone', 'telefone', ['935 218 857', '+351 935 218 857', '935218857', '93521885', '(+351) 935 218 857', '935-218-857', ' 935 218 857 ', '935  218  857', '1234567890123456'], telAoAcaso],
+      ['site', 'contactos.email', 'email', ['loja@exemplo.pt', 'a@b.c', 'josé@exemplo.pt', 'loja@exem_plo.pt', 'loja@armazém.pt', 'loja@exemplo.p1', 'loja!@x.pt', 'a/b@x.pt', 'loja@x..pt', ' loja@exemplo.pt', `${'a'.repeat(150)}@exemplo.pt`, "o'neil@x.pt", 'Loja+tag@Exemplo.PT'], emailAoAcaso],
+      ['empresa', 'nif', 'identidade', ['516324950', '000000000', '123456789', '516 324 950', 516324950, '0516324950', '999999990'], nifAoAcaso],
+      ['empresa', 'denominacao', 'identidade', ['X', 'XY', 'a'.repeat(160), 'a'.repeat(161), 'Motivar & Lucrar <Lda>', ' \u200b X \u200b '], () => textoAoAcaso(200)],
+      ['empresa', 'nome', 'nome', ['X', 'XY', 'a'.repeat(80), 'a'.repeat(81), '\u2028Armazém\u2028'], () => textoAoAcaso(120)],
+      ['empresa', 'morada.rua', 'morada', ['Travessa do Navega, 436 F', 'R1', 'Rua 1', 'Rua do Sol #3', 'Edifício X; Loja 2', 'Rua: X', 'Rua “Alto”, 3', 'Rua [A]', 'Rua *A*', 'Rua_A', 'Lugar + 3', 'Rua 25 de Abril, 3 – 1.º Esq.', 'Rua D’Ávila, n.º 3', `Rua ${'a'.repeat(116)}`, `Rua ${'a'.repeat(117)}`, `Rua${' '.repeat(400)}a`], () => moradaAoAcaso(140)],
+      ['empresa', 'morada.localidade', 'morada', ['Arada', 'A', 'São João da Madeira', 'Arada (Ovar)', 'Arada; Ovar', 'a'.repeat(61)], () => moradaAoAcaso(70)],
+      ['empresa', 'morada.concelho', 'morada', ['Ovar', '', null, undefined, 'O', 'Ovar; Aveiro', 'a'.repeat(61), 5], () => moradaAoAcaso(70)],
+      ['empresa', 'morada.cp', 'morada', ['3885-183', ' 3885-183', '3885183', '3885-1830'], () => `${Math.floor(acaso() * 10000)}-${Math.floor(acaso() * 1000)}`],
+      ['empresa', 'livro_reclamacoes', 'livro_reclamacoes', ['https://www.livroreclamacoes.pt/inicio', 'http://x.pt', 'https://user:pw@x.pt', `https://x.pt/${'a'.repeat(187)}`, `https://x.pt/${'a'.repeat(188)}`, 'https://x.pt/"a"', 'https://x.pt/ a', 'https://A.PT:443/../b'], urlAoAcaso],
+    ];
+    const ACASO = 400;
+    const prova = (regras) => CAMPOS.map(([qual, caminho, grupo, casos, gerar]) => {
+      const valores = [...casos, ...Array.from({ length: ACASO }, gerar)];
+      let aceites = 0; let recusados = 0; const furos = [];
+      for (const v of valores) {
+        const d = dadosDeHoje(); definir(d[qual], caminho, v);
+        if (regras.problemas(d).some((p) => p.classe === 'bloqueia')) { recusados++; continue; }
+        aceites++;
+        if (T.termosDasFontes(d, {}).invalidos.includes(grupo)) furos.push(v);
+      }
+      return { qual, caminho, aceites, recusados, furos };
+    });
+    let total = 0;
+    for (const x of prova(R)) {
+      total += x.aceites + x.recusados;
+      certo(x.furos.length === 0 && x.aceites > 0 && x.recusados > 0,
+        `2. ${x.qual}.${x.caminho}: dos ${x.aceites + x.recusados} valores, os ${x.aceites} que as regras deixam passar o Worker aceita (${x.recusados} recusados pelas regras)`,
+        x.furos.slice(0, 4).map((v) => JSON.stringify(v).slice(0, 60)).join(' · '));
+    }
+    console.log(`    (${total} valores, ${ACASO} ao acaso por campo)`);
+    /* A guarda da guarda: as regras do A2 (81982ae), de antes deste acerto,
+       tinham furos — esta prova tem de os encontrar. */
+    try {
+      const antes = execFileSync('git', ['-C', RAIZ, 'show', '81982ae:.github/regras.mjs'], { encoding: 'utf8' });
+      const RA = await import(`data:text/javascript;base64,${Buffer.from(antes).toString('base64')}`);
+      const furos = prova(RA).filter((x) => x.furos.length);
+      certo(furos.length >= 5, `   guarda da guarda: com as regras do A2 (81982ae) a mesma prova encontra furos em ${furos.length} campos`, furos.map((x) => x.caminho).join(', '));
+    } catch (e) {
+      certo(false, '   guarda da guarda: ler as regras do A2 (81982ae) do git', String(e.message || e));
+    }
+  }
+
+  /* 3. O worker/src não volta a ter os valores escritos à mão. Só o
+     src/termos.js os tem, no RECURSO (o que vale enquanto um ficheiro não se
+     lê, e o que se prometeu às encomendas de antes), e só ele lê DELIVERY_* e
+     STORE_* do wrangler.toml. */
+  {
+    const LITERAIS = [/935[ .]?218[ .]?857/, /516[ .]?324[ .]?950/, /3885-183/, /Navega/, /Motivar/, /livroreclamacoes\.pt/];
+    const fontes = Object.fromEntries(readdirSync(join(RAIZ, 'worker', 'src')).filter((f) => f.endsWith('.js')).map((f) => [f, ler(`worker/src/${f}`)]));
+    const escritosAMao = (fs) => Object.entries(fs).flatMap(([f, texto]) => {
+      let t = texto;
+      if (f === 'termos.js') {
+        const i = t.indexOf('const RECURSO_TELEFONE'); const j = t.indexOf('};', t.indexOf('const RECURSO_EMPRESA'));
+        if (i < 0 || j < 0) return [`${f}: o bloco do RECURSO não está onde se esperava`];
+        t = t.slice(0, i) + t.slice(j + 2);
+        t = t.replace(/^\s*\/\*\*[^\n]*\*\/\s*$/gm, '');   // o exemplo da moradaLinha()
+      }
+      const achados = LITERAIS.filter((re) => re.test(t)).map((re) => `${f}: ${re.source}`);
+      if (f !== 'termos.js' && /\benv\.(DELIVERY_|STORE_(PHONE|EMAIL))/.test(t)) achados.push(`${f}: lê DELIVERY_*/STORE_* do wrangler.toml`);
+      return achados;
+    });
+    certo(Object.keys(fontes).length >= 4 && 'termos.js' in fontes, `3. li o worker/src (${Object.keys(fontes).join(', ')})`);
+    certo(escritosAMao(fontes).length === 0, '   nenhum telefone, NIF, código postal, rua, denominação ou Livro de Reclamações escrito à mão fora do RECURSO do termos.js, e só ele lê DELIVERY_*/STORE_*', escritosAMao(fontes).join(' | '));
+    const mexido = { ...fontes, 'mail.js': fontes['mail.js'] + "\nconst TEL = '935 218 857';\n", 'index.js': fontes['index.js'] + '\nconst x = env.DELIVERY_MAX_DAYS;\n' };
+    certo(escritosAMao(mexido).length === 2, '   guarda da guarda: um telefone escrito no mail.js e um DELIVERY_* lido no index.js são apanhados', escritosAMao(mexido).join(' | '));
   }
 
   /* ================================================================== */

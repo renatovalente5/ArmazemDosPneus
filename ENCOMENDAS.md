@@ -128,11 +128,14 @@ em código nem chamar ninguém.
 
 ---
 
-## Ainda em falta (falar com o Renato)
+## Ainda por preencher (no backoffice, sem precisar de ninguém)
 
-- **Preço da montagem** — tem de estar publicado no site
-- **Custo real de devolução de um pneu ou jante** — enquanto não existir, a loja suporta
-  esses custos por lei; para os cobrar ao cliente é preciso indicar o valor
+- **Preço da montagem** — nas definições da loja, em *Montagem*. O checkout mostra-o a quem
+  pede montagem.
+- **Custo real de devolução de um pneu ou jante** — nas definições da loja, em *Devoluções*.
+  Enquanto estiver vazio, a loja suporta esses custos por lei. Preenchido com o custo real
+  da transportadora, o checkout, os Termos e condições e os emails das encomendas passam a
+  dizer que o cliente paga esse valor.
 
 ---
 

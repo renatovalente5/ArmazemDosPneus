@@ -41,7 +41,7 @@ _source/            Fotos em alta + logo vetorial (NÃO publicado — ver .gitig
 ## Ver localmente
 ```bash
 python3 _source/dev-server.py 8096   # http://localhost:8096
-cd worker && npm test                # 48 asserções (precisa do dev server acima)
+cd worker && npm test                # a bateria do Worker (serve os data/*.json sozinha)
 cd worker && npx wrangler dev        # Worker em :8787, com chaves de TESTE
 ```
 
@@ -57,6 +57,13 @@ O CI (`.github/workflows/pages.yml`) tem três jobs:
 Um produto com dados partidos sai de venda **só na cópia publicada** e o resto publica; só um
 problema de estrutura (JSON ilegível, o interruptor dos pagamentos, os portes, os prazos, os
 dados legais) pára a publicação.
+
+Os prazos, o custo de devolução, o telefone, o email e os dados da empresa chegam também à
+página de pagamento e aos emails das encomendas: o Worker dos pagamentos lê-os dos mesmos JSON
+(ver [worker/README.md](worker/README.md)), por isso o dono muda-os no painel e não há cópias a
+acertar. Nesses campos as regras de `.github/regras.mjs` são iguais ou mais apertadas do que as
+do Worker (`worker/src/termos.js`) — o que o painel deixa gravar chega aos emails —, e o
+`test-guardas.mjs` prova-o contra o código dele, campo a campo.
 
 ```bash
 PYTHON=<python com Pillow> node .github/test-guardas.mjs   # a bateria das guardas e do CI

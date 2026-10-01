@@ -4,9 +4,16 @@
  * Lê os JSON de data/ e corre as regras de .github/regras.mjs — as MESMAS que o
  * painel mostra por baixo dos campos e que o Worker do painel confere ao
  * gravar. Acrescenta o que só o repositório tem: os marcadores das páginas
- * (fase A2) e o que o Worker dos pagamentos tem escrito (prazos, contactos,
- * morada), para avisar quando o site e os emails das encomendas deixaram de
- * dizer o mesmo.
+ * (fase A2).
+ *
+ * O Worker dos pagamentos NÃO entra aqui. Desde a fase W-dados ele lê os
+ * prazos, a devolução, os contactos e a empresa dos mesmos JSON (com o
+ * retrato na encomenda), e já não há cópias suas a comparar; a guarda de que
+ * o que o painel deixa gravar chega aos emails está nas regras (iguais ou
+ * mais apertadas do que as do worker/src/termos.js) e é provada pelo
+ * .github/test-guardas.mjs, que também confere que o worker/src não volta a
+ * ter esses valores escritos à mão. Um aviso aqui seria para o dono, e uma
+ * diferença no código do Worker não é coisa que ele possa corrigir.
  *
  * O PRINCÍPIO: um problema de um produto nunca pára a publicação. O
  * interruptor dos pagamentos, o stock a 0 de uma peça vendida e as correcções
@@ -129,81 +136,6 @@ export function problemasDoHtml(caminho, html, { exigirMetas = false } = {}) {
 }
 
 /* ------------------------------------------------------------------ */
-/* O Worker dos pagamentos: o que ele ainda tem escrito               */
-/* ------------------------------------------------------------------ */
-
-/* Até à fase W o Worker dos pagamentos tem os prazos em DELIVERY_* (página da
-   Stripe e emails), o telefone e o email em STORE_*, e a morada, o NIF e «a
-   loja paga a devolução» escritos no código. O dono muda estes valores no
-   painel; o Worker só muda com um deploy do Renato. Enquanto houver cópias,
-   compara-se e AVISA-SE (nunca pára: o site está certo, os emails é que estão
-   atrasados). Quando a fase W tirar as cópias, não há nada a comparar e os
-   avisos deixam de aparecer sozinhos. */
-export function varsDoToml(toml) {
-  const vars = {};
-  let dentro = false;
-  for (const l of String(toml || '').split('\n')) {
-    const t = l.trim();
-    if (/^\[.*\]$/.test(t)) { dentro = t === '[vars]'; continue; }
-    if (!dentro) continue;
-    const m = t.match(/^([A-Z0-9_]+)\s*=\s*"([^"]*)"/);
-    if (m) vars[m[1]] = m[2];
-  }
-  return vars;
-}
-
-const soDigitos = (s) => String(s ?? '').replace(/[^0-9]/g, '');
-const lerJson = (t) => { try { return typeof t === 'string' ? JSON.parse(t) : t; } catch { return undefined; } };
-
-export function avisosDoWorker(dados, { wranglerToml = '', fontes = '' } = {}) {
-  const out = [];
-  const vars = varsDoToml(wranglerToml);
-  // Não é lembrete: pede uma coisa ao Renato, e não pode ficar tapado pelos lembretes.
-  const avisa = (chave, ecra, ficheiro, mensagem) => out.push({ classe: 'avisa', chave: `worker:${chave}`, ficheiro, ecra, mensagem: `${mensagem} O Renato tem de actualizar o Worker dos pagamentos.` });
-
-  const s = lerJson(dados.settings);
-  const d = s && s.delivery;
-  if (d && typeof d === 'object') {
-    const pares = [['estimate_min_days', 'DELIVERY_MIN_DAYS'], ['estimate_max_days', 'DELIVERY_MAX_BUSINESS_DAYS'], ['max_days', 'DELIVERY_MAX_DAYS']];
-    const diferentes = pares.filter(([k, v]) => vars[v] !== undefined && String(d[k]) !== vars[v]);
-    if (diferentes.length) {
-      const dizem = [];
-      if (vars.DELIVERY_MIN_DAYS !== undefined && vars.DELIVERY_MAX_BUSINESS_DAYS !== undefined) dizem.push(`entrega em ${vars.DELIVERY_MIN_DAYS} a ${vars.DELIVERY_MAX_BUSINESS_DAYS} dias úteis`);
-      if (vars.DELIVERY_MAX_DAYS !== undefined) dizem.push(`prazo máximo de ${vars.DELIVERY_MAX_DAYS} dias`);
-      avisa('delivery', 'Loja online › Prazos e devoluções', FICHEIROS.settings, `Os prazos de entrega mudaram, mas os emails das encomendas e a página de pagamento da Stripe ainda dizem ${dizem.join(' e ')}.`);
-    }
-  }
-  const r = s && s.returns;
-  if (r && typeof r.return_cost_eur === 'number' && r.return_cost_eur > 0 && /suportados pela loja/.test(fontes)) {
-    avisa('devolucao', 'Loja online › Prazos e devoluções', FICHEIROS.settings, 'O custo de devolução passou a ser do cliente, mas os emails das encomendas ainda dizem que a loja paga a devolução.');
-  }
-
-  const site = lerJson(dados.site);
-  const c = site && site.contactos;
-  if (c && typeof c === 'object') {
-    const telefones = new Set([...(vars.STORE_PHONE ? [vars.STORE_PHONE] : []), ...[...fontes.matchAll(/['"`](\d{3} \d{3} \d{3})['"`]/g)].map((m) => m[1])]);
-    const antigos = [...telefones].filter((t) => soDigitos(t) !== soDigitos(c.telefone));
-    if (c.telefone && antigos.length) avisa('telefone', 'Contactos e horário', FICHEIROS.site, `O telefone mudou no painel, mas os emails das encomendas ainda dizem ${antigos.join(', ')}.`);
-    if (vars.STORE_EMAIL && c.email && vars.STORE_EMAIL.trim().toLowerCase() !== String(c.email).trim().toLowerCase()) {
-      avisa('email', 'Contactos e horário', FICHEIROS.site, `O email mudou no painel, mas os emails das encomendas ainda dizem ${vars.STORE_EMAIL}.`);
-    }
-  }
-
-  const e = lerJson(dados.empresa);
-  if (e && typeof e === 'object') {
-    const nifs = [...new Set([...fontes.matchAll(/NIF\s+(\d{9})/g)].map((m) => m[1]))];
-    if (e.nif && nifs.some((n) => n !== String(e.nif))) avisa('nif', 'Dados da empresa', FICHEIROS.empresa, `O NIF mudou no painel, mas os emails das encomendas ainda dizem ${nifs.join(', ')}.`);
-    const m = e.morada;
-    // O 0000-000 é o modelo do formato nas mensagens do checkout, não uma morada.
-    const cps = [...new Set([...fontes.matchAll(/\b(\d{4}-\d{3})\b/g)].map((x) => x[1]))].filter((cp) => cp !== '0000-000');
-    if (m && typeof m === 'object' && cps.length && (cps.some((cp) => cp !== m.cp) || (m.rua && !fontes.includes(m.rua)))) {
-      avisa('morada', 'Dados da empresa', FICHEIROS.empresa, 'A morada mudou no painel, mas a página de pagamento e os emails das encomendas ainda têm a antiga.');
-    }
-  }
-  return out;
-}
-
-/* ------------------------------------------------------------------ */
 /* Ler o repositório                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -242,19 +174,11 @@ export function paginasHtml(raiz) {
   return out.sort();
 }
 
-function fontesDoWorker(raiz) {
-  const pasta = join(raiz, 'worker', 'src');
-  if (!existsSync(pasta)) return '';
-  return readdirSync(pasta).filter((f) => f.endsWith('.js')).sort().map((f) => readFileSync(join(pasta, f), 'utf8')).join('\n');
-}
-
 export function conferir(raiz) {
   const dados = lerDados(raiz);
   const lista = problemas(dados, { imagemExiste: imagemExisteEm(raiz) });
   const exigirMetas = OBRIGATORIOS.includes('site');
   for (const pagina of paginasHtml(raiz)) lista.push(...problemasDoHtml(pagina, readFileSync(join(raiz, pagina), 'utf8'), { exigirMetas }));
-  const toml = join(raiz, 'worker', 'wrangler.toml');
-  lista.push(...avisosDoWorker(dados, { wranglerToml: existsSync(toml) ? readFileSync(toml, 'utf8') : '', fontes: fontesDoWorker(raiz) }));
   const ordem = { bloqueia: 0, neutraliza: 1, avisa: 2 };
   // Os lembretes (o artigo de teste, os pneus à espera da etiqueta) vão para o
   // fim: não podem tapar, nas 9 anotações, um aviso que pede alguma coisa.

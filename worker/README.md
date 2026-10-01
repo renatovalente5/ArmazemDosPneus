@@ -82,7 +82,8 @@ morada). Encomendas criadas antes desta versão não têm retrato e usam o recur
 (`termos: valores recusados…`).
 
 **Regras** (o painel tem de ser igual ou mais apertado, senão o que o dono grava
-não chega aos emails): prazos inteiros, 1 ≤ mínimo ≤ máximo estimado ≤ 30,
+não chega aos emails — o `.github/regras.mjs` é, e o `.github/test-guardas.mjs`
+prova-o contra este `termos.js`; quem mudar uma regra aqui corre essa bateria): prazos inteiros, 1 ≤ mínimo ≤ máximo estimado ≤ 30,
 prazo máximo 1–30; custo da devolução número 0–1000 (ou `null`); telefone com
 9–15 algarismos e só `+ ( ) . -` e espaços; email sem espaços nem `< > ,`; NIF
 com 9 algarismos, o primeiro ≠ 0, e o de controlo certo; rua 3–120, localidade
