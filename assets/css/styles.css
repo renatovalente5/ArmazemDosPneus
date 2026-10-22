@@ -533,7 +533,11 @@ a.contact__card:hover{transform:translateY(-3px);box-shadow:var(--shadow);border
 .legal-footer__contact{margin-top:.6rem;font-size:.85rem}
 .legal-footer__contact a{text-decoration:underline;text-underline-offset:2px}
 .legal-footer__contact .call-note{display:inline;font-size:.78rem;opacity:.8}
-.legal-footer ul{align-items:center}
+/* O Livro na linha das outras ligações legais, com o texto na mesma linha de
+   base (o ícone fica ao centro): sem isto subia 1 a 2 px. */
+.footer__legal,.legal-footer ul{align-items:baseline}
+.footer__legal .lr-discreto,.legal-footer .lr-discreto{align-items:baseline}
+.footer__legal .lr-discreto svg,.legal-footer .lr-discreto svg{align-self:center}
 .legal .destinatarios{width:100%;border-collapse:collapse;margin:1rem 0 1.4rem;font-size:.9rem;text-transform:none}
 .legal .destinatarios th,.legal .destinatarios td{border:1px solid var(--line-2);padding:.55rem .65rem;text-align:left;vertical-align:top;line-height:1.5;color:var(--body)}
 .legal .destinatarios th{background:var(--bg-soft);color:var(--ink);font-family:var(--font-body);font-weight:600;font-size:.82rem}
