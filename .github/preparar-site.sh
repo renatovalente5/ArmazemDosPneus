@@ -43,9 +43,11 @@ DENTRO=()
 case "$SITE/" in "$RAIZ"/*) DENTRO=(--exclude "/${SITE#"$RAIZ"/}") ;; esac
 
 # --- copiar tudo menos o que não deve ser servido ao público -------------
-# worker/ (ids do KV, origens permitidas), os .md internos e a configuração
-# do wrangler. Nada disso são segredos, mas também não têm razão para estar
-# públicos, e um Disallow no robots.txt esconde do Google e não do público.
+# worker/ (ids do KV, origens permitidas), os .md internos, a configuração
+# do wrangler e a cópia da biblioteca legal-comum (que o CI e o Worker
+# importam, mas que as páginas não carregam). Nada disso são segredos, mas
+# também não têm razão para estar públicos, e um Disallow no robots.txt
+# esconde do Google e não do público.
 rsync -a ./ "$SITE"/ \
   --exclude '.git' \
   --exclude '.github' \
@@ -57,6 +59,8 @@ rsync -a ./ "$SITE"/ \
   --exclude 'wrangler.jsonc' \
   --exclude '/wrangler.toml' \
   --exclude '/scripts' \
+  --exclude '/legal-comum' \
+  --exclude '/.legal-comum.json' \
   ${DENTRO[@]+"${DENTRO[@]}"}
 
 # --- contactos, horário, serviços, textos e dados da empresa --------------

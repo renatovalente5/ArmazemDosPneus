@@ -23,6 +23,12 @@
     var m = doc.querySelector('meta[name="ap:telefone"]');
     return m && /^\+?[0-9][0-9 ]{7,18}[0-9]$/.test(m.content) ? m.content : '935 218 857';
   }
+  /* A nota do custo da chamada (DL 59/2021), tal como a publicação a escreveu
+     no marcador ap:nota-chamada desta página. */
+  function notaChamada() {
+    var el = doc.querySelector('#ob-unknown .co__note');
+    return el && el.textContent.trim() ? el.textContent.trim() : '(Chamada para a rede móvel nacional)';
+  }
   function show(id) {
     ['ob-loading', 'ob-paid', 'ob-pending', 'ob-unknown'].forEach(function (x) {
       var el = doc.getElementById(x); if (el) el.hidden = (x !== id);
@@ -49,7 +55,7 @@
     s.push('Recebe a <strong>fatura</strong> por email, emitida hoje.');
     if (d.entrega === 'ctt') {
       s.push('Preparamos e expedimos a encomenda pelos CTT.');
-      s.push('Recebe em casa. Se precisar de ajuda, ligue ' + esc(telefone()) + '.');
+      s.push('Recebe em casa. Se precisar de ajuda, ligue ' + esc(telefone()) + ' ' + esc(notaChamada()) + '.');
     } else {
       s.push('Contactamos para combinar o <strong>levantamento e a montagem</strong>.');
       s.push('Leve o número da encomenda quando vier à loja.');
@@ -97,6 +103,7 @@
     clearCart();   // a encomenda existe no servidor; o carrinho já não serve
   }
 
+  var ano = doc.querySelector('[data-year]'); if (ano) ano.textContent = new Date().getFullYear();
   var sid = null;
   try { sid = new URLSearchParams(location.search).get('session_id'); } catch (e) {}
 

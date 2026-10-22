@@ -508,8 +508,12 @@ certo('Porto, Porto' not in ''.join(pub.values()), '   «Porto, Porto» não se 
 muda('NIF', '500000000', '516324950', empresa=e_(lambda e: e.update(nif='500000000')), minimo=9)
 muda('denominação', 'Outra Empresa, Lda.', 'Motivar', empresa=e_(lambda e: e.update(denominacao='Outra Empresa, Lda.')), minimo=6)
 pub = muda('nome', 'Pneus do Norte', '«Armazém dos Pneus»', empresa=e_(lambda e: e.update(nome='Pneus do Norte')), minimo=8)
-pub = muda('RAL', 'Centro de Arbitragem X', 'CNIACC', empresa=e_(lambda e: e.update(ral={'nome': 'Centro de Arbitragem X', 'url': 'https://www.x.pt/'})))
-certo('<a href="https://www.x.pt/" target="_blank" rel="noopener">www.x.pt</a>' in pub['legal/termos.html'], '   a ligação e o domínio mostrado são os novos')
+# Grupo 1 da auditoria legal (22 out 2026): os Termos listam os centros RAL de
+# todo o país (biblioteca legal-comum, ralHtml de âmbito nacional) e já não só
+# o da sede; a entidade do empresa.json deixou de ir para as páginas.
+pub = site_publicado(empresa=e_(lambda e: e.update(ral={'nome': 'Centro de Arbitragem X', 'url': 'https://www.x.pt/'})))
+certo('Centro de Arbitragem X' not in ''.join(pub.values()) and all(x in pub['legal/termos.html'] for x in ('CNIACC', 'CICAP', 'CACCL', 'CIAB', 'TRIAVE', 'CIMARA')),
+      'RAL: os Termos listam os centros de todo o país, e a entidade do empresa.json já não vai para as páginas')
 muda('Livro de Reclamações', 'https://www.livroreclamacoes.pt/novo', 'href="https://www.livroreclamacoes.pt/inicio"', empresa=e_(lambda e: e.update(livro_reclamacoes='https://www.livroreclamacoes.pt/novo')), minimo=7)
 pub = site_publicado(empresa=e_(lambda e: e.update(capital_social=5000, conservatoria='Conservatória do Registo Comercial de Ovar')))
 certo('NIF 516324950. Capital social: 5000,00 €. Matriculada na Conservatória do Registo Comercial de Ovar. Sede:' in pub['legal/termos.html'], 'capital social e conservatória: entram na identificação dos Termos')
@@ -629,7 +633,7 @@ secao('os Termos de 1 out 2026: a garantia dos seminovos (§6) e sem foro (§9)'
 # por terceiros (a da loja é dela, Dir. 2019/771 art. 8.º); e sai o foro da
 # comarca de Aveiro (num contrato com um consumidor não vale, e só confundia).
 def paragrafo(html, titulo):
-    m = re.search(rf'<h2>{re.escape(titulo)}</h2>\s*<p>(.*?)</p>', html, re.S)
+    m = re.search(rf'<h2[^>]*>{re.escape(titulo)}</h2>\s*<p>(.*?)</p>', html, re.S)
     return re.sub(r'<[^>]+>', '', m.group(1)) if m else None
 
 
@@ -657,8 +661,18 @@ marcas = lambda t: re.findall(r'<!--\s*/?ap:[^>]*?-->|data-ap-[a-z-]+="[^"]*"', 
 mudou = (git_texto('log', '--reverse', '--format=%H', '-S', 'nunca inferior a 18 meses', '--', 'legal/termos.html') or '').split()
 antes_t = git_texto('show', f'{mudou[0]}^:legal/termos.html' if mudou else 'HEAD:legal/termos.html')
 depois_t = git_texto('show', f'{mudou[0]}:legal/termos.html') if mudou else HTML['legal/termos.html']
-certo(antes_t is not None and 'segunda mão' in antes_t and len(marcas(antes_t)) > 30 and marcas(antes_t) == marcas(depois_t) == marcas(HTML['legal/termos.html']),
-      f'os {len(marcas(HTML["legal/termos.html"]))} marcadores <!--ap:…--> e data-ap-* dos Termos são os de antes da mudança ({mudou[0][:7] if mudou else "HEAD"}), pela mesma ordem')
+# Depois disso, o grupo 1 da auditoria legal (22 out 2026) tirou o ap:ral (os
+# Termos listam os centros de todo o país) e acrescentou outros (o Livro, os
+# contactos no Cancelamento): os de então continuam todos, pela mesma ordem.
+def subsequencia(a, b):
+    it = iter(b)
+    return all(x in it for x in a)
+
+
+GRUPO1_TIROU = {'<!--ap:ral-->', '<!--/ap:ral-->'}
+certo(antes_t is not None and 'segunda mão' in antes_t and len(marcas(antes_t)) > 30 and marcas(antes_t) == marcas(depois_t)
+      and subsequencia([x for x in marcas(depois_t) if x not in GRUPO1_TIROU], marcas(HTML['legal/termos.html'])),
+      f'os {len(marcas(depois_t or ""))} marcadores <!--ap:…--> e data-ap-* dos Termos de {mudou[0][:7] if mudou else "HEAD"} são os de antes dessa mudança, e continuam todos (menos o ap:ral do grupo 1), pela mesma ordem')
 # A mesma cláusula em mais nenhum sítio: as páginas, os emails do Worker e a documentação.
 onde = {rel: HTML[rel] for rel in PAGINAS}
 onde.update({p.relative_to(RAIZ).as_posix(): p.read_text(encoding='utf-8') for p in (RAIZ / 'worker' / 'src').glob('*.js')})

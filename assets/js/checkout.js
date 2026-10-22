@@ -207,6 +207,19 @@
       : 'Para continuar, confirme na caixa acima que aceita a garantia do pneu seminovo: por ser um bem usado, é mais curta do que 3 anos e só vale com o seu acordo.';
   }
 
+  /* ---------- a retoma gratuita do usado (DL 152-D/2017, art. 13.º) ----------
+     Os avisos estão escritos no checkout.html (um por tipo, escondidos); aqui
+     só se mostra o do que está no carrinho: pneus novos e baterias. */
+  function mostrarRetoma() {
+    var tipos = {};
+    items.forEach(function (it) {
+      var c = catalogo[it.sku]; if (!c) return;
+      if (/pneu/i.test(c.categoria) && !c.seminovo) tipos.pneus = true;
+      if (/bateria/i.test(c.categoria)) tipos.baterias = true;
+    });
+    doc.querySelectorAll('[data-retoma]').forEach(function (el) { el.hidden = !tipos[el.getAttribute('data-retoma')]; });
+  }
+
   function validate(f) {
     doc.querySelectorAll('[aria-invalid]').forEach(function (el) {
       el.removeAttribute('aria-invalid');
@@ -408,6 +421,7 @@
   }
 
   function init() {
+    var ano = doc.querySelector('[data-year]'); if (ano) ano.textContent = new Date().getFullYear();
     try {
       if (new URLSearchParams(location.search).get('cancelado')) {
         var c = doc.getElementById('co-cancelado'); if (c) c.hidden = false;
@@ -440,6 +454,7 @@
 
     if (elForm) elForm.hidden = false;
     renderItems(); renderTotals();
+    mostrarRetoma();
     mostrarGarantia(garantiaDoCarrinho());
     if (settingsLido) applySettings();
 
@@ -474,7 +489,7 @@
       if (!p || p.available === false || price <= 0 || stock <= 0) { removidos.push(it.name); return false; }
       // Para a caixa da garantia: o estado e a garantia do artigo (a regra do
       // ePneu do .github/regras.mjs e do catalog.js).
-      catalogo[it.sku] = { seminovo: /pneu/i.test(p.category || '') && p.condition === 'Seminovo', meses: p.warranty_months, nome: p.name };
+      catalogo[it.sku] = { seminovo: /pneu/i.test(p.category || '') && p.condition === 'Seminovo', meses: p.warranty_months, nome: p.name, categoria: p.category || '' };
       it.price_cents = price;
       it.name = p.name;
       it.weight = Number(p.weight_kg) || 0;

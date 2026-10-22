@@ -1,0 +1,20 @@
+{
+  "versao": "1.1.0",
+  "instaladoEm": "2026-10-22",
+  "origem": "/Users/renatovalente/Websites/_ferramentas/legal-comum",
+  "pasta": "legal-comum",
+  "ficheiros": [
+    "VERSION",
+    "index.mjs",
+    "src/cookies.mjs",
+    "src/encomenda.mjs",
+    "src/garantia.mjs",
+    "src/guardas.mjs",
+    "src/livro.mjs",
+    "src/privacidade.mjs",
+    "src/ral.mjs",
+    "src/telefone.mjs",
+    "src/util.mjs",
+    "src/versao.mjs"
+  ]
+}

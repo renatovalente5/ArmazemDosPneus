@@ -144,31 +144,10 @@
       }).catch(function () {});
   })();
 
-  /* ---------- Consentimento de cookies + Mapa (Google Maps) ---------- */
-  (function () {
-    var KEY = 'ap-consent';
-    var banner = doc.getElementById('cookie-banner');
-    function get() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
-    function set(v) { try { localStorage.setItem(KEY, v); } catch (e) {} }
-    function show() { if (banner) banner.hidden = false; }
-    function hide() { if (banner) banner.hidden = true; }
-    function loadMap() {
-      var host = doc.getElementById('map-facade'); if (!host) return;
-      var f = doc.createElement('iframe');
-      f.src = host.getAttribute('data-map-embed'); f.title = host.getAttribute('data-map-title') || 'Mapa';
-      f.loading = 'lazy'; f.setAttribute('referrerpolicy', 'no-referrer');
-      f.style.cssText = 'display:block;width:100%;height:400px;border:0'; host.replaceWith(f);
-    }
-    var cur = get();
-    if (cur === 'accepted') loadMap(); else if (cur !== 'rejected') show();
-    if (banner) banner.addEventListener('click', function (e) {
-      var b = e.target.closest('[data-cookie]'); if (!b) return;
-      if (b.getAttribute('data-cookie') === 'accept') { set('accepted'); hide(); loadMap(); } else { set('rejected'); hide(); }
-    });
-    var facade = doc.getElementById('map-facade');
-    if (facade) facade.addEventListener('click', function () { if (get() === 'accepted') loadMap(); else show(); });
-    doc.querySelectorAll('[data-cookie-manage]').forEach(function (el) { el.addEventListener('click', function (e) { e.preventDefault(); show(); }); });
-  })();
+  /* ---------- Mapa (Google Maps) ----------
+     A fachada e o consentimento são da biblioteca legal-comum, em
+     assets/js/mapa.js (nada é pedido à Google antes do clique; o banner de
+     cookies saiu, porque o mapa era o único terceiro). */
 
   /* ---------- Formulário de orçamento → WhatsApp ---------- */
   (function () {

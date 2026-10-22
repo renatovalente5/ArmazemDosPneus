@@ -75,6 +75,45 @@
       '</div>';
   }
 
+  /* A FICHA DO PRODUTO. O Regulamento (UE) 2023/988 (GPSR, art. 19.º) e o
+     DL 69/2005 pedem, na venda à distância, o fabricante (nome, morada,
+     email), o responsável na UE quando o fabricante é de fora, a referência
+     ou EAN e os avisos de segurança. Os campos são opcionais no painel
+     («Ficha de segurança»): aparece só o que o dono preencheu, e nada esconde
+     o artigo nem o tira de venda (a guarda do CI só avisa). Quando há ficha
+     num pneu novo ou numa bateria, leva também o aviso de retoma gratuita do
+     usado (DL 152-D/2017, art. 13.º), o mesmo do checkout e dos Termos: o
+     AVISO_RETOMA da biblioteca legal-comum, letra a letra (a bateria
+     .github/test-guardas.mjs confere-o). A descrição continua por mostrar. */
+  var RETOMA = {
+    pneus: 'Ao comprar pneus novos, pode entregar-nos gratuitamente os pneus usados equivalentes; diga-nos ao encomendar. (Decreto-Lei n.º 152-D/2017, art. 13.º)',
+    baterias: 'Ao comprar uma bateria nova, pode entregar-nos gratuitamente a bateria usada equivalente; diga-nos ao encomendar. (Decreto-Lei n.º 152-D/2017, art. 13.º)'
+  };
+  function tipoDeRetoma(p) {
+    if (isTyre(p) && p.condition !== 'Seminovo') return 'pneus';
+    if (/bateria/i.test(p.category || '')) return 'baterias';
+    return null;
+  }
+  function texto(v) { return typeof v === 'string' ? v.trim() : ''; }
+  function linhasDe(v) { return texto(v).split(/\r?\n+/).map(function (l) { return l.trim(); }).filter(Boolean); }
+  function fichaHtml(p) {
+    var dl = [];
+    var fab = texto(p.manufacturer_name), morada = texto(p.manufacturer_address), email = texto(p.manufacturer_email);
+    if (fab || morada || email) {
+      dl.push(['Fabricante', [fab, morada, email].filter(Boolean).map(esc).join(' · ')]);
+    }
+    if (texto(p.eu_responsible)) dl.push(['Responsável na UE', esc(texto(p.eu_responsible))]);
+    if (texto(p.reference_code)) dl.push(['Referência', esc(texto(p.reference_code))]);
+    var avisos = linhasDe(p.safety_warnings);
+    if (!dl.length && !avisos.length) return '';
+    var retoma = tipoDeRetoma(p);
+    return '<details class="pcard__ficha"><summary>Ficha do produto</summary>' +
+      (dl.length ? '<dl>' + dl.map(function (x) { return '<dt>' + x[0] + '</dt><dd>' + x[1] + '</dd>'; }).join('') + '</dl>' : '') +
+      (avisos.length ? '<p class="pcard__aviso"><strong>Avisos de segurança</strong></p><ul class="pcard__aviso">' + avisos.map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('') + '</ul>' : '') +
+      (retoma ? '<p>' + esc(RETOMA[retoma]) + '</p>' : '') +
+      '</details>';
+  }
+
   function card(p) {
     var img = p.image
       ? '<img src="' + esc(normImg(p.image)) + '" alt="' + esc(p.name) + '" loading="lazy" />'
@@ -95,6 +134,7 @@
           '<div class="pcard__meta">' + (p.brand ? '<span class="pcard__brand">' + esc(p.brand) + '</span>' : '') + (p.size ? '<span class="pcard__size">' + esc(p.size) + '</span>' : '') + '</div>' +
           '<h3 class="pcard__title">' + esc(p.name) + '</h3>' +
           labelHtml(p) +
+          fichaHtml(p) +
           '<div class="pcard__foot">' +
             '<span class="pcard__price">' + (hasPrice ? fmt(p.price_eur) : 'Sob consulta') + '</span>' +
             (ok

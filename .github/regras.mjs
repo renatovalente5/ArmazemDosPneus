@@ -86,7 +86,7 @@ export const ICONES_SERVICOS = ['montagem', 'alinhamento', 'furos', 'travoes', '
 
 /* A ordem das chaves de um produto: a do ficheiro de hoje. Uma chave nova
    acrescenta-se por esta ordem; as que já lá estão ficam onde estão. */
-export const ORDEM_CHAVES_PRODUTO = ['name', 'category', 'brand', 'size', 'price_eur', 'stock', 'weight_kg', 'image', 'description', 'condition', 'season', 'available', 'featured', 'hidden', 'tyre_class', 'label_fuel', 'label_grip', 'label_noise_class', 'label_noise_db', 'snow_3pmsf', 'ice_grip', 'eprel_id', 'dot', 'tread_mm', 'warranty_months', 'sku'];
+export const ORDEM_CHAVES_PRODUTO = ['name', 'category', 'brand', 'size', 'price_eur', 'stock', 'weight_kg', 'image', 'description', 'condition', 'season', 'available', 'featured', 'hidden', 'tyre_class', 'label_fuel', 'label_grip', 'label_noise_class', 'label_noise_db', 'snow_3pmsf', 'ice_grip', 'eprel_id', 'dot', 'tread_mm', 'warranty_months', 'manufacturer_name', 'manufacturer_address', 'manufacturer_email', 'eu_responsible', 'reference_code', 'safety_warnings', 'sku'];
 /* Sempre escritos, com o valor explícito. Um produto novo nasce com todos a
    false — nunca à venda por acidente. */
 export const BOOLEANOS_PRODUTO = ['available', 'featured', 'hidden', 'snow_3pmsf', 'ice_grip'];
@@ -109,7 +109,25 @@ export const TAMANHOS = {
   /* Os que o Worker dos pagamentos repete nos emails e na página da Stripe
      (os mesmos tectos do worker/src/termos.js; aqui são «bloqueia»). */
   nomeLoja: 80, denominacao: 160, rua: 120, localidade: 60, concelho: 60, enderecoLivro: 200, emailLoja: 160,
+  /* A ficha de segurança do produto (GPSR, art. 19.º; grupo 1 da auditoria
+     legal, 22 out 2026): opcional, e só avisa. */
+  fabricante: 120, moradaFabricante: 200, emailFabricante: 160, responsavelUE: 300, referenciaProduto: 60, avisosSeguranca: 1000,
 };
+
+/* OS CAMPOS DA FICHA DE SEGURANÇA DE UM PRODUTO (Regulamento (UE) 2023/988,
+   art. 19.º; DL 69/2005): o fabricante (nome, morada, email), o responsável na
+   UE, a referência ou EAN e os avisos de segurança (uma linha cada). Todos
+   OPCIONAIS: o site mostra-os na «Ficha do produto» quando existem, e a guarda
+   do CI (biblioteca legal-comum, verificarProduto) avisa dos que faltam a um
+   artigo à venda — nunca o tira de venda. [campo, tecto, nome, uma linha?] */
+export const CAMPOS_FICHA = [
+  ['manufacturer_name', 'fabricante', 'o nome do fabricante', true],
+  ['manufacturer_address', 'moradaFabricante', 'a morada do fabricante', true],
+  ['manufacturer_email', 'emailFabricante', 'o email do fabricante', true],
+  ['eu_responsible', 'responsavelUE', 'o responsável na UE', true],
+  ['reference_code', 'referenciaProduto', 'a referência (ou EAN)', true],
+  ['safety_warnings', 'avisosSeguranca', 'os avisos de segurança', false],
+];
 
 /* O custo de devolução mais alto que o Worker dos pagamentos aceita. */
 export const CUSTO_DEVOLUCAO_MAX = 1000;
@@ -505,6 +523,14 @@ export function problemasDoProduto(p, ctx = {}) {
     if (typeof p[campo] === 'string' && RE_CONTROLO_LINHA.test(p[campo])) avisa(`controlo-${campo}`, campo, `O campo ${NOMES_CAMPOS[campo] || campo} tem caracteres invisíveis (ex.: uma mudança de linha). Escreva-o outra vez.`);
   }
   if (typeof p.description === 'string' && RE_CONTROLO_TEXTO.test(p.description)) avisa('controlo-description', 'description', 'A descrição tem caracteres invisíveis. Escreva-a outra vez.');
+  for (const [campo, tecto, nome, linha] of CAMPOS_FICHA) {
+    const v = p[campo];
+    if (ausente(v) || v === '') continue;
+    if (typeof v !== 'string') avisa(`texto-${campo}`, campo, `Na ficha de segurança, ${nome} tem de ser texto.`);
+    else if (v.length > TAMANHOS[tecto]) avisa(`tamanho-${campo}`, campo, `Na ficha de segurança, ${nome} tem mais de ${TAMANHOS[tecto]} caracteres.`);
+    else if ((linha ? RE_CONTROLO_LINHA : RE_CONTROLO_TEXTO).test(v)) avisa(`controlo-${campo}`, campo, `Na ficha de segurança, ${nome} tem caracteres invisíveis. Escreva-o outra vez.`);
+    else if (campo === 'manufacturer_email' && !RE_EMAIL_LOJA.test(v.trim())) avisa('email-fabricante', campo, 'Na ficha de segurança, o email do fabricante não parece um endereço de email (ex.: apoio@fabricante.com).');
+  }
   if (p.hidden === true && vendavel(p)) {
     avisa('escondido-a-venda', 'hidden', 'Artigo escondido mas à venda: quem abrir a loja com ?teste=1 no endereço pode comprá-lo (é o artigo de teste?).', { lembrete: true });
   }

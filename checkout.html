@@ -106,6 +106,21 @@
           </div>
         </section>
 
+        <!-- DL 152-D/2017, art. 13.º: a retoma gratuita do usado, dita ANTES de
+             pagar. O checkout.js mostra o aviso do que está no carrinho (pneus
+             novos, baterias); os textos são os da biblioteca legal-comum,
+             iguais aos dos Termos e do email de confirmação. -->
+        <div class="co__retoma" data-retoma="pneus" hidden>
+          <!-- legal-comum:encomenda-retoma v1.1.0 -->
+          <p>Ao comprar pneus novos, pode entregar-nos gratuitamente os pneus usados equivalentes; diga-nos ao encomendar. (Decreto-Lei n.º 152-D/2017, art. 13.º)</p>
+          <!-- /legal-comum:encomenda-retoma -->
+        </div>
+        <div class="co__retoma" data-retoma="baterias" hidden>
+          <!-- legal-comum:encomenda-retoma v1.1.0 -->
+          <p>Ao comprar uma bateria nova, pode entregar-nos gratuitamente a bateria usada equivalente; diga-nos ao encomendar. (Decreto-Lei n.º 152-D/2017, art. 13.º)</p>
+          <!-- /legal-comum:encomenda-retoma -->
+        </div>
+
         <!-- Fechada por omissão: menos um campo à vista, sem perder os 500
              caracteres. -->
         <details class="co__notes">
@@ -174,7 +189,25 @@
     </form>
   </main>
 
-  <div class="stripe" aria-hidden="true"></div>
+  <footer class="legal-footer">
+    <div class="container">
+      <p>© <span data-year>2026</span> <!--ap:nome-->Armazém dos Pneus<!--/ap:nome--> · <!--ap:denominacao-->Motivar &amp; Lucrar, Unipessoal, Lda.<!--/ap:denominacao--> · NIF <!--ap:nif-->516324950<!--/ap:nif--></p>
+      <p class="legal-footer__contact"><a href="mailto:armazemdospneus2019@gmail.com" data-ap-href="mailto"><!--ap:email-->armazemdospneus2019@gmail.com<!--/ap:email--></a> · <a href="tel:+351935218857" data-ap-href="tel"><!--ap:telefone-->935 218 857<!--/ap:telefone--></a> <small class="call-note"><!--ap:nota-chamada-->(Chamada para a rede móvel nacional)<!--/ap:nota-chamada--></small></p>
+      <ul>
+        <li><a href="legal/privacidade.html">Privacidade</a></li>
+        <li><a href="legal/cookies.html">Cookies</a></li>
+        <li><a href="legal/termos.html">Termos &amp; Condições</a></li>
+        <li><a href="legal/termos.html#entrega">Envios e portes</a></li>
+        <li><a href="legal/livre-resolucao.html">Devoluções e reembolsos</a></li>
+        <li><a href="legal/termos.html#cancelamento">Cancelamento</a></li>
+        <li class="footer__legal-livro">
+          <!-- legal-comum:livro v1.1.0 -->
+          <a class="lr-discreto" data-ap-href="livro-reclamacoes" href="https://www.livroreclamacoes.pt/inicio" target="_blank" rel="noopener" lang="pt"><svg class="lr-icone" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false" fill="currentColor"><path fill-rule="evenodd" d="M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm1 0v20h1.2V2H7Zm3.8 5.2h5.4a.8.8 0 0 1 0 1.6h-5.4a.8.8 0 0 1 0-1.6Zm0 4h5.4a.8.8 0 0 1 0 1.6h-5.4a.8.8 0 0 1 0-1.6Zm0 4h3.4a.8.8 0 0 1 0 1.6h-3.4a.8.8 0 0 1 0-1.6Z"/></svg><span>Livro de Reclamações</span><span class="lr-sr"> (abre numa nova janela)</span></a>
+          <!-- /legal-comum:livro -->
+        </li>
+      </ul>
+    </div>
+  </footer>
   <script src="assets/js/checkout.js" defer></script>
 </body>
 </html>

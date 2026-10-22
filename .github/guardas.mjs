@@ -36,7 +36,12 @@
 import { readFileSync, writeFileSync, appendFileSync, existsSync, lstatSync, readdirSync } from 'node:fs';
 import { join, dirname, resolve, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { FICHEIROS, OBRIGATORIOS, problemas, neutralizar, serializar, terminacaoDe } from './regras.mjs';
+import { FICHEIROS, OBRIGATORIOS, problemas, neutralizar, serializar, terminacaoDe, vendavel, ePneu } from './regras.mjs';
+/* As guardas legais comuns aos sites do Renato (cópia em legal-comum/, que o
+   _ferramentas/legal-comum/instalar.mjs escreve; não se edita à mão). Aqui só
+   AVISAM (grupo 1 da auditoria legal, 22 out 2026): nunca param a publicação
+   nem tiram um artigo de venda. */
+import { verificarProduto, verificarIdentificacao } from '../legal-comum/index.mjs';
 
 const RAIZ_DO_REPOSITORIO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const MAX_ANOTACOES = 9;
@@ -176,9 +181,75 @@ export function paginasHtml(raiz) {
   return out.sort();
 }
 
+/* ------------------------------------------------------------------ */
+/* As guardas legais (legal-comum), em modo «avisar»                    */
+/* ------------------------------------------------------------------ */
+
+const lerJson = (texto) => { try { return JSON.parse(texto); } catch { return null; } };
+const textoDe = (v) => (typeof v === 'string' ? v.trim() : '');
+const NOMES_FICHA = {
+  'fabricante.nome': 'o nome do fabricante', 'fabricante.morada': 'a morada do fabricante',
+  'fabricante.email': 'o email do fabricante', referencia: 'a referência (ou EAN)',
+};
+const listaPt = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} e ${xs[xs.length - 1]}`);
+
+/** A ficha de segurança de cada artigo à venda (Regulamento (UE) 2023/988, art. 19.º): um aviso por artigo. */
+export function avisosDasFichas(dados) {
+  const doc = lerJson(dados.products);
+  const produtos = doc && Array.isArray(doc.products) ? doc.products : [];
+  const out = [];
+  produtos.forEach((p, indice) => {
+    // O artigo de teste (escondido) fica de fora: não é para vender.
+    if (!p || typeof p !== 'object' || !vendavel(p) || p.hidden === true) return;
+    const categoria = ePneu(p) && p.condition === 'Novo' ? 'pneus' : /bateria/i.test(p.category || '') ? 'baterias' : 'geral';
+    const r = verificarProduto({
+      nome: textoDe(p.name), preco: p.price_eur, aVenda: true,
+      fabricante: { nome: textoDe(p.manufacturer_name), morada: textoDe(p.manufacturer_address), email: textoDe(p.manufacturer_email) },
+      referencia: textoDe(p.reference_code),
+      avisos: textoDe(p.safety_warnings).split(/\r?\n/).map((l) => l.trim()).filter(Boolean),
+      // O aviso de retoma está no checkout, nos Termos, no email e na ficha.
+      retoma: true,
+    }, { categoria, modo: 'avisar' });
+    const faltas = r.problemas.map((x) => NOMES_FICHA[x.campo] || x.mensagem);
+    if (!faltas.length) return;
+    const nome = textoDe(p.name) || textoDe(p.sku) || `produto n.º ${indice + 1}`;
+    out.push({
+      classe: 'avisa', chave: `legal:produto:${textoDe(p.sku) || indice}:ficha`, ficheiro: FICHEIROS.products,
+      ecra: `Produtos › ${nome}`, indice, ...(textoDe(p.sku) ? { sku: p.sku } : {}), campo: 'manufacturer_name', lembrete: true,
+      mensagem: `Artigo à venda sem a ficha de segurança completa (Regulamento (UE) 2023/988, art. 19.º): falta ${listaPt(faltas)}. Preencha-a em «Ficha de segurança»; o artigo continua à venda.`,
+    });
+  });
+  return out;
+}
+
+/** A identificação do vendedor (DL 7/2004, art. 10.º; CSC, art. 171.º), do empresa.json e do site.json. */
+export function avisosDaIdentificacao(dados) {
+  const e = lerJson(dados.empresa);
+  if (!e || typeof e !== 'object') return [];   // a falta do ficheiro é das regras
+  const c = (lerJson(dados.site) || {}).contactos || {};
+  const m = e.morada && typeof e.morada === 'object' ? e.morada : {};
+  const morada = [textoDe(m.rua), [textoDe(m.cp), textoDe(m.localidade)].filter(Boolean).join(' '), textoDe(m.concelho) !== textoDe(m.localidade) ? textoDe(m.concelho) : '']
+    .filter(Boolean).join(', ');
+  const denominacao = textoDe(e.denominacao);
+  const formaJuridica = /unipessoal/i.test(denominacao) ? 'unipessoal' : /\bS\.?\s?A\.?$/i.test(denominacao) ? 'sa' : /\bL(?:i)?da\b|limitada/i.test(denominacao) ? 'lda' : 'eni';
+  const r = verificarIdentificacao({
+    nome: denominacao, formaJuridica, nif: textoDe(e.nif), morada, email: textoDe(c.email), telefone: textoDe(c.telefone),
+    sociedade: { sede: morada, conservatoria: textoDe(e.conservatoria), matricula: textoDe(e.nif), capital: e.capital_social },
+  }, { modo: 'avisar' });
+  return r.problemas.map((x) => {
+    const contactos = x.campo === 'email' || x.campo === 'telefone';
+    return {
+      classe: 'avisa', chave: `legal:identificacao:${x.campo}`, ficheiro: contactos ? FICHEIROS.site : FICHEIROS.empresa,
+      ecra: contactos ? 'Contactos' : 'Dados da empresa', campo: x.campo,
+      mensagem: `Identificação do vendedor: ${x.mensagem.replace(/\s*\(corrige em[^)]*\)$/, '')}.`,
+    };
+  });
+}
+
 export function conferir(raiz) {
   const dados = lerDados(raiz);
   const lista = problemas(dados, { imagemExiste: imagemExisteEm(raiz) });
+  lista.push(...avisosDaIdentificacao(dados), ...avisosDasFichas(dados));
   const exigirMetas = OBRIGATORIOS.includes('site');
   for (const pagina of paginasHtml(raiz)) lista.push(...problemasDoHtml(pagina, readFileSync(join(raiz, pagina), 'utf8'), { exigirMetas }));
   const ordem = { bloqueia: 0, neutraliza: 1, avisa: 2 };

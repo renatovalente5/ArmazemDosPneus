@@ -351,6 +351,11 @@
               <span class="contact__ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
               <span class="contact__meta"><small>Horário</small><!--ap:horario--><strong>Seg. a Sex.: 9h – 19h<br>Sábado: 9h – 13h</strong><!--/ap:horario--></span>
             </div>
+            <p class="contact__livro"><span>Reclamações:</span>
+              <!-- legal-comum:livro v1.1.0 -->
+              <a class="lr-discreto" data-ap-href="livro-reclamacoes" href="https://www.livroreclamacoes.pt/inicio" target="_blank" rel="noopener" lang="pt"><svg class="lr-icone" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false" fill="currentColor"><path fill-rule="evenodd" d="M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm1 0v20h1.2V2H7Zm3.8 5.2h5.4a.8.8 0 0 1 0 1.6h-5.4a.8.8 0 0 1 0-1.6Zm0 4h5.4a.8.8 0 0 1 0 1.6h-5.4a.8.8 0 0 1 0-1.6Zm0 4h3.4a.8.8 0 0 1 0 1.6h-3.4a.8.8 0 0 1 0-1.6Z"/></svg><span>Livro de Reclamações</span><span class="lr-sr"> (abre numa nova janela)</span></a>
+              <!-- /legal-comum:livro -->
+            </p>
           </div>
 
           <form class="contact__form card" id="quote-form" data-reveal novalidate>
@@ -373,17 +378,23 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.945C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.824 11.824 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zM6.597 20.13c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.87 9.87 0 001.512 5.26l-.999 3.648 3.985-1.607zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.767.967-.94 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.095 3.2 5.076 4.487.71.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
               Enviar pelo WhatsApp
             </button>
+            <p class="contact__privacy">Ao enviar, abre-se o WhatsApp (Meta) com a sua mensagem já escrita, para a enviar você mesmo.</p>
+            <!-- legal-comum:frase-formulario v1.1.0 -->
+            <p class="privacidade-formulario" lang="pt">Os dados que enviar servem só para responder ao seu pedido de orçamento e ficam guardados até 12 meses. Saiba mais na <a href="legal/privacidade.html">política de privacidade</a>.</p>
+            <!-- /legal-comum:frase-formulario -->
           </form>
         </div>
 
         <div class="contact__map" data-reveal>
-          <button type="button" class="map-facade" id="map-facade"
-            data-map-embed="https://www.google.com/maps?hl=pt&amp;q=Travessa%20do%20Navega%20436%20F%2C%203885-183%20Arada%2C%20Ovar&amp;z=15&amp;output=embed" data-ap-attr="data-map-embed:mapa-embed"
-            data-map-title="Mapa — Armazém dos Pneus (Arada, Ovar)">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-5.6 7-12a7 7 0 10-14 0c0 6.4 7 12 7 12z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="10" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
-            <span class="map-facade__txt"><strong>Ver o nosso mapa</strong><small>Ao carregar, o mapa é obtido do Google Maps e o seu IP pode ser transmitido à Google.</small></span>
-            <span class="btn btn--primary">Carregar mapa</span>
-          </button>
+          <!-- legal-comum:cookies v1.1.0 -->
+          <div class="fachada-mapa" data-fachada-mapa data-ap-attr="data-src:mapa-embed" data-src="https://www.google.com/maps?hl=pt&amp;q=Travessa%20do%20Navega%20436%20F%2C%203885-183%20Arada%2C%20Ovar&amp;z=15&amp;output=embed" data-chave="mapa-autorizado" data-titulo="Mapa — Armazém dos Pneus (Arada, Ovar)" data-classe="fachada-mapa" data-texto="O mapa é da Google e só é carregado dos servidores dela depois de carregar no botão. Nessa altura a Google (Google Ireland Ltd.) recebe o seu endereço IP e pode gravar cookies no seu aparelho. A sua escolha fica guardada neste aparelho até a retirar." data-texto-botao="Carregar o mapa" data-estado="por-carregar" lang="pt">
+          <div class="fachada-mapa__moldura" data-fachada-moldura>
+          <p class="fachada-mapa__texto">O mapa é da Google e só é carregado dos servidores dela depois de carregar no botão. Nessa altura a Google (Google Ireland Ltd.) recebe o seu endereço IP e pode gravar cookies no seu aparelho. A sua escolha fica guardada neste aparelho até a retirar.</p>
+          <button type="button" class="fachada-mapa__carregar" data-fachada-carregar>Carregar o mapa</button>
+          </div>
+          <button type="button" class="fachada-mapa__retirar" data-fachada-retirar hidden>Deixar de carregar o mapa</button>
+          </div>
+          <!-- /legal-comum:cookies -->
           <a class="contact__map-link" href="https://www.google.com/maps/search/?api=1&amp;query=Travessa%20do%20Navega%20436%20F%2C%203885-183%20Arada%2C%20Ovar" data-ap-href="mapa-link" target="_blank" rel="noopener">Abrir no Google Maps ↗</a>
         </div>
       </div>
@@ -426,24 +437,20 @@
           <li><a href="legal/privacidade.html">Política de Privacidade</a></li>
           <li><a href="legal/cookies.html">Cookies</a></li>
           <li><a href="legal/termos.html">Termos &amp; Condições</a></li>
-          <li><a href="https://www.livroreclamacoes.pt/inicio" data-ap-href="livro-reclamacoes" target="_blank" rel="noopener">Livro de Reclamações</a></li>
-          <li><a href="#" data-cookie-manage>Gerir cookies</a></li>
+          <li><a href="legal/termos.html#entrega">Envios e portes</a></li>
+          <li><a href="legal/livre-resolucao.html">Devoluções e reembolsos</a></li>
+          <li><a href="legal/termos.html#cancelamento">Cancelamento</a></li>
+          <li class="footer__legal-livro">
+            <!-- legal-comum:livro v1.1.0 -->
+            <a class="lr-discreto" data-ap-href="livro-reclamacoes" href="https://www.livroreclamacoes.pt/inicio" target="_blank" rel="noopener" lang="pt"><svg class="lr-icone" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false" fill="currentColor"><path fill-rule="evenodd" d="M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm1 0v20h1.2V2H7Zm3.8 5.2h5.4a.8.8 0 0 1 0 1.6h-5.4a.8.8 0 0 1 0-1.6Zm0 4h5.4a.8.8 0 0 1 0 1.6h-5.4a.8.8 0 0 1 0-1.6Zm0 4h3.4a.8.8 0 0 1 0 1.6h-3.4a.8.8 0 0 1 0-1.6Z"/></svg><span>Livro de Reclamações</span><span class="lr-sr"> (abre numa nova janela)</span></a>
+            <!-- /legal-comum:livro -->
+          </li>
           <li><a href="https://backoffice.armazemdospneus.pt/" class="footer__admin" rel="nofollow">Gestão</a></li>
         </ul>
       </div>
     </div>
   </footer>
 
-  <!-- ===== BANNER DE COOKIES ===== -->
-  <div id="cookie-banner" class="cookie" role="dialog" aria-live="polite" aria-label="Consentimento de cookies" hidden>
-    <div class="cookie__inner">
-      <div class="cookie__text">Utilizamos cookies do Google Maps apenas para mostrar o mapa da nossa localização. Pode aceitar ou rejeitar — o site funciona na mesma. Saiba mais na <a href="legal/cookies.html">Política de Cookies</a>.</div>
-      <div class="cookie__actions">
-        <button type="button" class="btn btn--outline-light btn--sm" data-cookie="reject">Recusar</button>
-        <button type="button" class="btn btn--primary btn--sm" data-cookie="accept">Aceitar</button>
-      </div>
-    </div>
-  </div>
 
   <!-- ===== CARRINHO (drawer) ===== -->
   <div class="cart" id="cart" aria-hidden="true">
@@ -462,6 +469,7 @@
 
   <!-- Scripts -->
   <script src="assets/js/main.js" defer></script>
+  <script src="assets/js/mapa.js" defer></script>
   <script src="assets/js/catalog.js" defer></script>
   <script src="assets/js/cart.js" defer></script>
 </body>

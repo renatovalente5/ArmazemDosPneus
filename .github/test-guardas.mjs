@@ -1299,6 +1299,56 @@ try {
   }
 
   /* ================================================================== */
+  secao('o grupo 1 da auditoria legal (22 out 2026): as peças da biblioteca legal-comum');
+  {
+    const LC = await import('../legal-comum/index.mjs');
+    const linhas = (t) => t.split('\n').map((l) => l.trim()).filter(Boolean).join('\n');
+    const pneus = LC.AVISO_RETOMA({ tipos: ['pneus'] }), baterias = LC.AVISO_RETOMA({ tipos: ['baterias'] });
+    const cat = ler('assets/js/catalog.js'), co = ler('checkout.html'), termos = ler('legal/termos.html');
+    certo(cat.includes(`pneus: '${pneus}'`) && cat.includes(`baterias: '${baterias}'`), 'catalog.js: os dois avisos de retoma são o AVISO_RETOMA da biblioteca, letra a letra');
+    certo(co.includes(`<p>${pneus}</p>`) && co.includes(`<p>${baterias}</p>`) && co.indexOf('data-retoma="baterias"') < co.indexOf('id="co-submit"'),
+      'checkout.html: os mesmos dois avisos, antes do «Pagar agora»');
+    certo(termos.includes(LC.AVISO_RETOMA({ tipos: ['pneus', 'baterias'] })), 'Termos: a retoma dos pneus e das baterias');
+    const semComentarios = (t) => t.replace(/<!--[\s\S]*?-->/g, '');
+    certo(linhas(termos).includes(linhas(LC.ralHtml({ ambito: 'nacional' }))) && !/aderimos|consumers\/odr/i.test(semComentarios(termos)), 'Termos: os centros RAL de âmbito nacional (ralHtml), sem «aderimos» nem a plataforma ODR');
+    certo(/<h3 id="como-se-faz">Como se faz a encomenda<\/h3>/.test(termos) && /id="entrega"/.test(termos) && /id="cancelamento"/.test(termos),
+      'Termos: «Como se faz a encomenda» e as âncoras do rodapé (#entrega, #cancelamento)');
+
+    const paginas = G.paginasHtml(RAIZ);
+    const LIVRO = /<!-- legal-comum:livro v[\d.]+ -->\s*<a class="lr-discreto" data-ap-href="livro-reclamacoes" href="https:\/\/www\.livroreclamacoes\.pt\/inicio" target="_blank" rel="noopener" lang="pt">/;
+    const semLivro = paginas.filter((p) => !LIVRO.test(ler(p)));
+    certo(paginas.length >= 9 && semLivro.length === 0, `o Livro de Reclamações (discreto) nas ${paginas.length} páginas`, semLivro);
+    certo(/class="contact__livro"[\s\S]{0,200}legal-comum:livro/.test(ler('index.html')), '   e nos Contactos da página inicial');
+    certo(!paginas.some((p) => /lr-botao/.test(ler(p))) && !/(^|\})\s*\.lr-discreto[^{}]*\{[^}]*(opacity|background)/m.test(ler('assets/css/styles.css').replace(/\/\*[\s\S]*?\*\//g, '')),
+      '   sem o botão com caixa, e sem nada que o esbata (o Renato quer o discreto)');
+    const semLigacoes = paginas.filter((p) => !['termos.html#entrega"', 'livre-resolucao.html"', 'termos.html#cancelamento"'].every((h) => ler(p).includes(h)));
+    certo(semLigacoes.length === 0, 'o rodapé de todas as páginas liga para envios, devoluções e reembolsos, e cancelamento', semLigacoes);
+
+    const inicio = ler('index.html');
+    certo(!/cookie-banner|data-cookie/.test(inicio) && !/<iframe/i.test(inicio) && /data-fachada-mapa/.test(inicio), 'sem banner de cookies, e o mapa só com a fachada (nenhum iframe no HTML)');
+    certo(ler('legal/cookies.html').includes(LC.textoSemCookies({ comMapa: true })), 'a política de cookies diz o textoSemCookies() da biblioteca');
+    certo(inicio.includes(LC.fraseFormularioHtml({ urlPolitica: 'legal/privacidade.html', finalidade: 'responder ao seu pedido de orçamento' })), 'o formulário de orçamento tem a frase de privacidade');
+    const priv = ler('legal/privacidade.html');
+    certo(/Cloudflare, Inc\./.test(priv) && /Stripe/.test(priv) && /Resend/.test(priv) && /Meta Platforms/.test(priv) && /400 dias/.test(priv) && /legal-comum:direitos/.test(priv),
+      'a privacidade: os destinatários (Cloudflare, Stripe, Resend, Meta), os 400 dias do KV e os direitos');
+
+    // As guardas legais só avisam, e uma ficha completa não dá aviso.
+    const avisos = [...G.avisosDaIdentificacao(TEXTO), ...G.avisosDasFichas(TEXTO)];
+    certo(avisos.length > 0 && avisos.every((a) => a.classe === 'avisa'), `as guardas legais dão ${avisos.length} avisos com os dados de hoje, e nenhum pára nem tira de venda`);
+    const bateria = { name: 'Bateria de ensaio 60Ah', category: 'Baterias', condition: 'Novo', price_eur: 79.9, stock: 2, weight_kg: 15, available: true, featured: false, hidden: false, snow_3pmsf: false, ice_grip: false, sku: 'bateria-ensaio' };
+    const ficha = { manufacturer_name: 'Fabricante de Ensaio, S.A.', manufacturer_address: 'Rua do Ensaio, 1, 1000-001 Lisboa', manufacturer_email: 'apoio@fabricante.pt',
+      eu_responsible: 'O próprio fabricante (na UE)', reference_code: 'EAN 5601234567890', safety_warnings: 'Contém ácido sulfúrico.\nGases explosivos: afaste chamas.' };
+    certo(G.avisosDasFichas({ products: JSON.stringify({ products: [bateria] }) }).length === 1, '   uma bateria à venda sem ficha: um aviso');
+    certo(G.avisosDasFichas({ products: JSON.stringify({ products: [{ ...bateria, ...ficha }] }) }).length === 0, '   com a ficha completa: nenhum');
+    certo(R.problemasDoProduto({ ...bateria, ...ficha }).length === 0, '   e as regras aceitam os campos novos sem problemas');
+    const comFicha = await cartoes([{ ...bateria, ...ficha }]);
+    certo(['Ficha do produto', 'Fabricante de Ensaio, S.A.', 'apoio@fabricante.pt', 'Responsável na UE', 'EAN 5601234567890', 'Contém ácido sulfúrico.', baterias].every((x) => comFicha.includes(x)),
+      'o cartão mostra a ficha (fabricante, responsável, referência, avisos e a retoma)');
+    certo(!(await cartoes([bateria])).includes('Ficha do produto'), '   e sem os campos não mostra ficha nenhuma');
+    certo(!comFicha.includes('Excelente') && !(await cartoes([{ ...bateria, ...ficha, description: 'Texto de descrição' }])).includes('Texto de descrição'), '   a descrição continua por mostrar');
+  }
+
+  /* ================================================================== */
   secao('o pages.yml: quem tem o quê');
   const construir = jobDoYaml('construir'); const publicar = jobDoYaml('publicar'); const avisar = jobDoYaml('avisar');
   /* Achado L8-07: as actions iam por etiquetas móveis (v3, v4) — a do job
