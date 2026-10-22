@@ -16,6 +16,8 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { redeFalsa, eventos, semAcaso } from './palco.mjs';
 import { ENV_HOJE, PRODUTOS, SETTINGS_HOJE, SITE_A2, EMPRESA_A2, PEDIDOS, nifCom } from './dados.mjs';
+/* As peças legais do grupo 1 (22 out 2026) tiram-se antes de comparar com o de antes (grupo1.mjs). */
+import { comoAntes } from './grupo1.mjs';
 
 const { Miniflare } = await import(process.env.MINIFLARE ? pathToFileURL(process.env.MINIFLARE).href : 'miniflare');
 
@@ -59,7 +61,8 @@ async function arrancar(raiz, rede, env = ENV_HOJE) {
     modulesRoot: raiz,
     scriptPath: path.join(raiz, 'src', 'index.js'),
     // Como o wrangler: os .js do Worker são módulos ES (o package.json diz "type": "module").
-    modulesRules: [{ type: 'ESModule', include: ['**/*.js'] }],
+    // E os .mjs da cópia da biblioteca legal-comum (worker/legal-comum), que o mail.js importa.
+    modulesRules: [{ type: 'ESModule', include: ['**/*.js', '**/*.mjs'] }],
     compatibilityDate: COMPAT,
     kvNamespaces: ['ORDERS'],
     bindings: { ...env },
@@ -144,9 +147,9 @@ try {
     const N2 = await correr(PASTA_WORKER, cen, { site: SITE_A2, empresa: EMPRESA_A2 });
     ok(`${nome}: o de antes mandou ${cen.emails} email(s)`, A.emails.length === cen.emails, A.emails.length);
     eq(`${nome}: sem os ficheiros novos — /checkout, Stripe e emails iguais byte a byte`,
-      semAcaso([N.checkout, N.stripe, N.emails]), semAcaso([A.checkout, A.stripe, A.emails]));
+      semAcaso([N.checkout, N.stripe, comoAntes(N.emails)]), semAcaso([A.checkout, A.stripe, A.emails]));
     eq(`${nome}: com a A2 publicada com os valores de hoje — iguais`,
-      semAcaso([N2.checkout, N2.stripe, N2.emails]), semAcaso([A.checkout, A.stripe, A.emails]));
+      semAcaso([N2.checkout, N2.stripe, comoAntes(N2.emails)]), semAcaso([A.checkout, A.stripe, A.emails]));
   }
 
   // Valores novos: o retrato e os emails seguem-nos, no runtime verdadeiro.

@@ -26,6 +26,10 @@ import { normalizarTermos, termosDeRecurso, termosDaEncomenda, nifValido, morada
 import { esc } from '../src/email-html.js';
 import { kvFalso, redeFalsa, palco, eventos, workerDeAntes, semAcaso, varsDoToml } from './palco.mjs';
 import { ENV_HOJE, PRODUTOS, SETTINGS_HOJE, SITE_A2, EMPRESA_A2, PEDIDOS, nifCom } from './dados.mjs';
+/* O grupo 1 da auditoria legal (22 out 2026) acrescentou peças legais aos
+   emails de propósito; comoAntes() tira-as (só elas) para a comparação com o
+   Worker de antes continuar byte a byte. Provam-se à parte, em grupo1.mjs. */
+import { comoAntes } from './grupo1.mjs';
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const PASTA_WORKER = path.resolve(AQUI, '..');
@@ -121,7 +125,12 @@ function estadoFinal(R) {
     let x = v;
     try { x = JSON.parse(v); } catch { /* o session: e o pi: são texto */ }
     // Sem os carimbos de hora, e sem o retrato (o Worker de antes não o tinha; prova-se à parte).
-    if (x && typeof x === 'object') { delete x.created_at; delete x.updated_at; delete x.paid_at; delete x.termos; }
+    if (x && typeof x === 'object') {
+      delete x.created_at; delete x.updated_at; delete x.paid_at; delete x.termos;
+      // Do grupo 1 (provados em grupo1.mjs): o hash das condições gerais e a marca da retoma nas linhas.
+      delete x.condicoes_gerais;
+      if (Array.isArray(x.lines)) x.lines = x.lines.map((l) => { const c = { ...l }; delete c.retoma; return c; });
+    }
     out[k] = x;
   }
   return semAcaso(out);
@@ -208,7 +217,7 @@ export async function correr({ ok }) {
       ok(`${cen.nome}: ${cen.emails ? `o de antes mandou ${cen.emails} email(s) — há o que comparar` : 'o de antes não mandou emails, como devia'}`, A.emails.length === cen.emails, A.emails.length);
       eq(`${cen.nome}: resposta do /checkout`, semAcaso(N.checkout), semAcaso(A.checkout));
       eq(`${cen.nome}: página da Stripe`, semAcaso(N.stripe), semAcaso(A.stripe));
-      eq(`${cen.nome}: emails (assunto, texto, html, reply_to)`, semAcaso(N.emails), semAcaso(A.emails));
+      eq(`${cen.nome}: emails (assunto, texto, html, reply_to)`, semAcaso(comoAntes(N.emails)), semAcaso(A.emails));
       eq(`${cen.nome}: respostas aos webhooks`, semAcaso(N.webhooks), semAcaso(A.webhooks));
       /* As escritas no KV mudaram de propósito depois do W-dados (achados
          L4-07/L7-04, a quota de 1 000 escritas/dia da conta): o /checkout grava
@@ -220,14 +229,18 @@ export async function correr({ ok }) {
       eq(`${cen.nome}: o mesmo estado final no KV (encomenda, sessão e pagamento)`, estadoFinal(N), estadoFinal(A));
       const pedidos = (R) => R.chamadas.map((c) => `${c.method} ${c.url}`);
       const novos = pedidos(N).filter((u) => /\/data\/(site|empresa)\.json$/.test(u));
-      eq(`${cen.nome}: os mesmos pedidos à rede, mais os dos dois ficheiros novos`,
-        pedidos(N).filter((u) => !/\/data\/(site|empresa)\.json$/.test(u)), pedidos(A));
+      // Os Termos (grupo 1) lêem-se também só no /checkout, para o email os levar.
+      const termos = pedidos(N).filter((u) => u.endsWith('/legal/termos.html'));
+      eq(`${cen.nome}: os mesmos pedidos à rede, mais os dos dois ficheiros novos e os Termos`,
+        pedidos(N).filter((u) => !/\/data\/(site|empresa)\.json$/.test(u) && !u.endsWith('/legal/termos.html')), pedidos(A));
+      eq(`${cen.nome}: os Termos lidos uma vez, e só no /checkout`, [termos, N.chamadasNoWebhook.filter((c) => c.url.endsWith('/legal/termos.html')).length],
+        [chave === 'madeira' ? [] : [`GET ${ENV_HOJE.SITE_URL}/legal/termos.html`], 0]);
       eq(`${cen.nome}: site.json/empresa.json lidos só no /checkout`, novos,
         chave === 'madeira' ? [`GET ${ENV_HOJE.SITE_DATA_URL}`] : [`GET ${ENV_HOJE.SITE_DATA_URL}`, `GET ${ENV_HOJE.EMPRESA_URL}`]);
       if (cen.emails) {
         const X = await correrCenario(MISTO, cen);
         ok(`${cen.nome}: encomenda criada antes do deploy não tem retrato`, X.encomenda && !Object.hasOwn(X.encomenda, 'termos'));
-        eq(`${cen.nome}: paga depois do deploy, o Worker novo manda os emails de antes`, semAcaso(X.emails), semAcaso(A.emails));
+        eq(`${cen.nome}: paga depois do deploy, o Worker novo manda os emails de antes`, semAcaso(comoAntes(X.emails)), semAcaso(A.emails));
       }
     }
 
@@ -267,7 +280,7 @@ export async function correr({ ok }) {
     for (const [chave, cen] of Object.entries(CEN)) {
       const N = await correrCenario(NOVO, cen, { site: SITE_A2, empresa: EMPRESA_A2 });
       eq(`A2 publicado com os valores de hoje — ${cen.nome}: tudo igual`,
-        semAcaso([N.checkout, N.stripe, N.emails]), semAcaso([base[chave].checkout, base[chave].stripe, base[chave].emails]));
+        semAcaso([N.checkout, N.stripe, comoAntes(N.emails)]), semAcaso([base[chave].checkout, base[chave].stripe, base[chave].emails]));
     }
 
     // E a comparação sabe dizer «diferente» (memória afirmacao-vazia-nao-prova).
@@ -323,10 +336,10 @@ export async function correr({ ok }) {
     eq('email, texto: o bloco VENDEDOR', blocoTexto(txt, 'VENDEDOR'), [
       '  Rodas & Filhos, Unipessoal, Lda. ("Casa Rodas")',
       `  NIF ${NIF_NOVO} · ${MORADA_NOVA}`,
-      '  912 345 678 · geral@rodas-ensaio.pt',
+      '  912 345 678 (Chamada para a rede móvel nacional) · geral@rodas-ensaio.pt',
     ]);
     eq('email, html: o parágrafo Vendedor (com o & escapado)', paragrafoHtml(html, 'Vendedor'),
-      `<strong>Rodas &amp; Filhos, Unipessoal, Lda.</strong> ("Casa Rodas")<br>NIF ${NIF_NOVO} · ${esc(MORADA_NOVA)}<br>912 345 678 · geral@rodas-ensaio.pt`);
+      `<strong>Rodas &amp; Filhos, Unipessoal, Lda.</strong> ("Casa Rodas")<br>NIF ${NIF_NOVO} · ${esc(MORADA_NOVA)}<br>912 345 678 (Chamada para a rede móvel nacional) · geral@rodas-ensaio.pt`);
     // Livro de Reclamações.
     ok('email, texto: o Livro de Reclamações do painel',
       blocoTexto(txt, 'RECLAMAÇÕES')[0] === '  Livro de Reclamações eletrónico: https://www.livroreclamacoes.pt/Pedido/Reclamacao');
@@ -336,7 +349,7 @@ export async function correr({ ok }) {
     eq('email: responder vai para o email do painel', c.reply_to, 'geral@rodas-ensaio.pt');
     const r = referencia(mb);
     ok('referência Multibanco: o telefone do painel, no texto e no html',
-      r.text.includes('\n  Dúvidas? 912 345 678\n') && r.html.includes('Dúvidas? 912 345 678</p>'));
+      r.text.includes('\n  Dúvidas? 912 345 678 (Chamada para a rede móvel nacional)\n') && r.html.includes('Dúvidas? 912 345 678 (Chamada para a rede móvel nacional)</p>'));
     eq('referência Multibanco: responder vai para o email do painel', r.reply_to, 'geral@rodas-ensaio.pt');
     eq('o aviso ao dono não depende destes campos (igual com e sem eles)',
       semAcaso(avisoDono(ctt)), semAcaso(avisoDono(await correrCenario(NOVO, CEN.tabela))));
@@ -361,7 +374,7 @@ export async function correr({ ok }) {
     ];
     const deVolta = (R) => trocarDeVolta(R.emails, pares);
     for (const [nome, R] of [['tabela', ctt], ['loja', loja], ['mb', mb]]) {
-      eq(`${CEN[nome].nome}: com os valores antigos de volta, os emails são os de antes`, semAcaso(deVolta(R)), semAcaso(base[nome].emails));
+      eq(`${CEN[nome].nome}: com os valores antigos de volta, os emails são os de antes`, semAcaso(comoAntes(deVolta(R))), semAcaso(base[nome].emails));
     }
     eq('levantamento: com a morada antiga de volta, a página da Stripe é a de antes',
       semAcaso(loja.stripe.map((s) => s.split(encodeURIComponent(MORADA_NOVA)).join(encodeURIComponent(MORADA_ANTIGA)))), semAcaso(base.loja.stripe));
@@ -449,7 +462,7 @@ export async function correr({ ok }) {
     // que se lhe prometeu foi o de antes, não o de agora.
     const A = await correrCenario(ANTIGO, CEN.ctt);
     const X = await correrCenario(MISTO, CEN.ctt, { site, empresa, settings: { ...SETTINGS_HOJE, delivery: settings.delivery, returns: settings.returns } });
-    eq('encomenda antiga paga com o site já mudado: os emails de antes, não os valores novos', semAcaso(X.emails), semAcaso(A.emails));
+    eq('encomenda antiga paga com o site já mudado: os emails de antes, não os valores novos', semAcaso(comoAntes(X.emails)), semAcaso(A.emails));
 
     // Um retrato estragado no KV (à mão, ou por um bug): cada grupo estragado
     // cai para o recurso; nada chega ao email por escapar.
@@ -467,7 +480,7 @@ export async function correr({ ok }) {
     const ce = confirmacao(E);
     eq('retrato estragado: responder vai para o email de recurso', ce.reply_to, 'loja@exemplo.pt');
     ok('retrato estragado: telefone, morada e prazos de recurso; nada de <script> nem de [Clique]',
-      blocoTexto(ce.text, 'VENDEDOR')[2] === '  935 218 857 · loja@exemplo.pt'
+      blocoTexto(ce.text, 'VENDEDOR')[2] === '  935 218 857 (Chamada para a rede móvel nacional) · loja@exemplo.pt'
       && blocoTexto(ce.text, 'VENDEDOR')[1].endsWith('Travessa do Navega, 436 F, 3885-183 Arada, Ovar')
       && ce.text.includes('  Prazo máximo de entrega: 30 dias a contar de hoje.')
       && !/<script|\[Clique/.test(ce.text + ce.html));

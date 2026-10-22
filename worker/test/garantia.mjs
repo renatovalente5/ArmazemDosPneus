@@ -23,6 +23,12 @@ import { normalizarTermos, garantiaUsadosValida } from '../src/termos.js';
 import { GARANTIA_VERSAO, CODIGO_GARANTIA, textoDaGarantia } from '../src/garantia.js';
 import { kvFalso, redeFalsa, palco, eventos, workerDeAntes, semAcaso } from './palco.mjs';
 import { ENV_HOJE, PRODUTOS, SETTINGS_HOJE, PEDIDOS } from './dados.mjs';
+/* O grupo 1 da auditoria legal (22 out 2026): a garantia passou a ser dita
+   pelas frases da biblioteca legal-comum (3 anos; 18 meses nos usados, por
+   acordo), e o resto das peças novas prova-se em grupo1.mjs; comoAntes() tira-as
+   para a comparação com o Worker de antes. */
+import { GARANTIA_BENS, GARANTIA_USADOS_18 } from '../legal-comum/index.mjs';
+import { comoAntes } from './grupo1.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -143,7 +149,7 @@ export async function correr({ ok }) {
       const A = await conduzir(corpo, { w: antes.worker });
       const N = await conduzir(corpo);
       ok(`${nome}: o de antes passou e mandou 2 emails — há o que comparar`, A.checkout.status === 200 && A.emails.length === 2, A.checkout);
-      eq(`${nome}: /checkout, página da Stripe e emails iguais byte a byte`, semAcaso([N.checkout, N.stripe, N.emails]), semAcaso([A.checkout, A.stripe, A.emails]));
+      eq(`${nome}: /checkout, página da Stripe e emails iguais byte a byte`, semAcaso([N.checkout, N.stripe, comoAntes(N.emails)]), semAcaso([A.checkout, A.stripe, A.emails]));
       ok(`${nome}: o retrato não ganha a garantia`, N.encomenda && !Object.hasOwn(N.encomenda.termos, 'garantia_usados'), N.encomenda && N.encomenda.termos);
       ok(`${nome}: nenhum email nem a página da Stripe falam de garantia acordada`, !falaDoAcordo(N.emails) && !ACORDADA.test(N.mensagemStripe));
     }
@@ -247,14 +253,16 @@ export async function correr({ ok }) {
   const c = R.confirmacao;
   const gTexto = blocoTexto(c.text, 'GARANTIA');
   eq('confirmação, texto: o bloco GARANTIA com a garantia do artigo', gTexto, [
-    '  Garantia legal de conformidade nos termos do DL 84/2021.',
+    `  ${GARANTIA_BENS}`,
+    `  ${GARANTIA_USADOS_18}`,
     '  Pneus seminovos (bens usados), com a garantia reduzida por acordo que',
     '  aceitou antes de pagar (art. 12.º do DL 84/2021):',
     `    ${S18.name} — 18 meses`,
   ]);
   const gHtml = garantiaDoHtml(c.html);
   eq('confirmação, html: os mesmos parágrafos', gHtml, [
-    'Garantia legal de conformidade nos termos do DL 84/2021.',
+    GARANTIA_BENS,
+    GARANTIA_USADOS_18,
     `Pneus seminovos (bens usados), com a garantia reduzida por acordo que aceitou antes de pagar (art. 12.º do DL 84/2021):\n${S18.name} — 18 meses`,
   ]);
   const juntar = (ls) => ls.map((l) => l.trim()).join(' ');
@@ -277,8 +285,8 @@ export async function correr({ ok }) {
     eq('   o texto aceite nomeia-os (há um seminovo com os 3 anos)', M.encomenda.termos.garantia_usados.texto,
       `Aceito que a garantia de conformidade destes pneus seminovos, por serem bens usados, é a indicada a seguir, em vez de 3 anos (DL n.º 84/2021, art. 12.º): ${S18.name} — 18 meses; ${S24.name} — 24 meses.`);
     ok('   a Stripe diz «de 18 a 24 meses, conforme o pneu»', M.mensagemStripe.endsWith(' Inclui pneus seminovos (bens usados) com a garantia reduzida que aceitou: de 18 a 24 meses, conforme o pneu.'), M.mensagemStripe);
-    eq('   a confirmação lista os dois, no texto', blocoTexto(M.confirmacao.text, 'GARANTIA').slice(3), [`    ${S18.name} — 18 meses`, `    ${S24.name} — 24 meses`]);
-    ok('   e no html', garantiaDoHtml(M.confirmacao.html)[1].endsWith(`${S18.name} — 18 meses\n${S24.name} — 24 meses`), garantiaDoHtml(M.confirmacao.html));
+    eq('   a confirmação lista os dois, no texto', blocoTexto(M.confirmacao.text, 'GARANTIA').slice(4), [`    ${S18.name} — 18 meses`, `    ${S24.name} — 24 meses`]);
+    ok('   e no html', garantiaDoHtml(M.confirmacao.html)[2].endsWith(`${S18.name} — 18 meses\n${S24.name} — 24 meses`), garantiaDoHtml(M.confirmacao.html));
     ok('   o de 36 meses não aparece na garantia acordada', !blocoTexto(M.confirmacao.text, 'GARANTIA').some((l) => l.includes(S36.name)) && !blocoTexto(M.dono.text, 'GARANTIA DOS PNEUS SEMINOVOS').some((l) => l.includes(S36.name)));
     const env = { ...corpo, entrega: 'ctt', morada: 'Rua do Ensaio, 10', cp: '1000-001', localidade: 'Lisboa' };
     const E = await conduzir(env);
@@ -329,7 +337,7 @@ export async function correr({ ok }) {
     };
     const X = await conduzir(ok18, { antesDoWebhook: kvEstragado });
     ok('   e os emails, com o retrato estragado, ficam só com a garantia legal (a de 3 anos)', !falaDoAcordo(X.emails)
-      && blocoTexto(X.confirmacao.text, 'GARANTIA').join('\n') === '  Garantia legal de conformidade nos termos do DL 84/2021.', blocoTexto(X.confirmacao.text, 'GARANTIA'));
+      && blocoTexto(X.confirmacao.text, 'GARANTIA').join('\n') === `  ${GARANTIA_BENS}`, blocoTexto(X.confirmacao.text, 'GARANTIA'));
     eq('normalizar um acordo bom: igual', garantiaUsadosValida(R.encomendaNoCheckout.termos.garantia_usados), R.encomendaNoCheckout.termos.garantia_usados);
   }
 

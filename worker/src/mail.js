@@ -28,7 +28,13 @@
    ============================================================= */
 
 import { documento, tabelaArtigos, caixaMultibanco, botao, separador, bloco, h2, p, link, esc } from './email-html.js';
-import { termosDaEncomenda, moradaLinha, contactoLinha, custoDevolucaoCentimos, dominioDe } from './termos.js';
+import { termosDaEncomenda, moradaLinha, custoDevolucaoCentimos, dominioDe } from './termos.js';
+/* As peças legais comuns aos sites do Renato (cópia em worker/legal-comum,
+   instalada pelo _ferramentas/legal-comum/instalar.mjs; não se edita à mão):
+   a garantia, a retoma, o formulário de livre resolução, os centros RAL e a
+   nota do custo da chamada. Os textos são os mesmos dos Termos do site. */
+import { GARANTIA_BENS, GARANTIA_USADOS_18, AVISO_RETOMA, formularioLivreResolucao, FORMULARIO_LIVRE_RESOLUCAO, ralTexto, notaChamada } from '../legal-comum/index.mjs';
+import { condicoesDaEncomenda } from './condicoes.js';
 
 const RESEND = 'https://api.resend.com/emails';
 
@@ -42,6 +48,77 @@ function seguro(fn, assunto) {
 }
 
 function eur(cents) { return (cents / 100).toFixed(2).replace('.', ',') + ' €'; }
+
+/* A NOTA DO CUSTO DA CHAMADA (DL 59/2021, art. 3.º, n.º 3) junto de cada número
+   que os emails mostram, na forma que o site usa («para a rede móvel»). Um
+   número fora dos formatos nacionais sai sem nota: a biblioteca não a inventa. */
+export function telefoneComNota(numero) {
+  const n = String(numero ?? '').trim();
+  if (!n) return '';
+  let nota = null;
+  try { nota = notaChamada(n, { frase: 'com-a' }); } catch { nota = null; }
+  return nota ? `${n} (${nota})` : n;
+}
+const contactoComNota = (t) => [telefoneComNota(t.contactos.telefone), t.contactos.email].filter(Boolean).join(' · ');
+
+/* A RETOMA GRATUITA DO USADO (DL 152-D/2017, art. 13.º): os tipos que estão na
+   encomenda (o pricing.js marca as linhas de pneus novos e de baterias). Uma
+   encomenda antiga, sem a marca, fica sem o aviso. */
+export function tiposDeRetoma(order) {
+  const tem = new Set((order.lines || []).map((l) => l && l.retoma).filter(Boolean));
+  return ['pneus', 'baterias'].filter((x) => tem.has(x));
+}
+
+/* O BOTÃO «VER A MINHA ENCOMENDA»: a obrigado.html só sabe que encomenda é com
+   o ?session_id= (sem ele, dizia «Não conseguimos confirmar a encomenda»). A
+   chave session:<id> fica no KV os mesmos 400 dias da encomenda. */
+export function ligacaoDaEncomenda(site, order) {
+  const sid = order && order.session_id;
+  return typeof sid === 'string' && /^cs_[A-Za-z0-9_]{10,}$/.test(sid)
+    ? `${site}/obrigado.html?session_id=${encodeURIComponent(sid)}`
+    : null;
+}
+
+/* O FORMULÁRIO DE LIVRE RESOLUÇÃO (DL 24/2014, Anexo, Parte B), já com o
+   vendedor preenchido, para ir no corpo do email e não só como ligação. */
+function formularioDoVendedor(t) {
+  try {
+    return formularioLivreResolucao({ nome: `${t.empresa.denominacao} («${t.empresa.nome}»)`, morada: moradaLinha(t), email: t.contactos.email });
+  } catch {
+    return FORMULARIO_LIVRE_RESOLUCAO;
+  }
+}
+
+/* OS CENTROS DE ARBITRAGEM (Lei 144/2015, art. 18.º): os de competência
+   genérica, como nos Termos do site. */
+const RAL = () => ralTexto({ ambito: 'nacional' });
+
+/* AS CONDIÇÕES GERAIS no corpo do email (DL 7/2004, art. 31.º; DL 24/2014,
+   art. 6.º): as que estavam publicadas quando o cliente carregou em «Pagar
+   agora» (condicoes.js guarda-as no checkout). Sem elas (uma encomenda antiga,
+   ou a página não respondeu nesse momento), vai a ligação. */
+function condicoesTexto(blocos, site) {
+  if (!blocos) return [`  As condições gerais em vigor estão em ${site}/legal/termos.html (pode guardá-las e imprimi-las).`];
+  return blocos.map((b) => (b.tipo === 'titulo' ? `\n${b.texto.toUpperCase()}` : b.tipo === 'item' ? `  - ${b.texto}` : b.texto));
+}
+const PEQUENO = 'margin:0 0 8px 0;font-size:13px;line-height:19px;';
+function condicoesHtml(blocos, site) {
+  if (!blocos) return p(`As condições gerais em vigor estão em ${link(site + '/legal/termos.html', 'armazemdospneus.pt/legal/termos.html')} (pode guardá-las e imprimi-las).`, 'last');
+  return blocos.map((b) => (b.tipo === 'titulo'
+    ? `<p style="margin:16px 0 6px 0;font-size:13px;line-height:19px;font-weight:bold;">${esc(b.texto)}</p>`
+    : `<p style="${PEQUENO}">${b.tipo === 'item' ? '• ' : ''}${esc(b.texto)}</p>`)).join('');
+}
+/* Um texto com URLs: escapado, e cada URL uma ligação. */
+const comLigacoes = (s) => String(s).split(/(https?:\/\/[^\s]+)/g)
+  .map((x, i) => (i % 2 ? link(x, x.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')) : esc(x))).join('');
+function ralHtmlDoEmail() {
+  const linhas = RAL().split('\n');
+  const itens = linhas.filter((l) => l.startsWith('- '));
+  const [primeira, ...resto] = linhas.filter((l) => !l.startsWith('- '));
+  return p(comLigacoes(primeira))
+    + `<ul style="margin:0 0 16px 0;padding-left:20px;">${itens.map((l) => `<li style="margin:0 0 4px 0;">${comLigacoes(l.slice(2))}</li>`).join('')}</ul>`
+    + resto.map((l) => p(comLigacoes(l))).join('');
+}
 
 /* MAIL_TO é para onde vai o aviso INTERNO de encomenda paga.
    O email PÚBLICO da loja (contactos.email do site.json, que o dono muda no
@@ -212,9 +289,9 @@ export function avisoLoja(env, order) {
 }
 
 /* ---------- 2. Confirmação ao cliente (suporte duradouro) ---------- */
-export function confirmacaoCliente(env, order) {
+export async function confirmacaoCliente(env, order) {
   const c = order.cliente || {};
-  if (!c.email) return Promise.resolve({ skipped: true });
+  if (!c.email) return { skipped: true };
   // Ao cliente diz-se o que ele efetivamente pagou, não o que esperávamos
   // cobrar. Se divergir, o dono já foi alertado para conferir antes de faturar.
   const pago = order.amount_mismatch ? order.amount_mismatch.cobrado : order.total_cents;
@@ -224,6 +301,10 @@ export function confirmacaoCliente(env, order) {
   const devolucao = custoDevolucaoCentimos(t);
   // O preço da montagem que o checkout mostrou, se o cliente a pediu.
   const montagemCents = c.montagem ? precoMontagemDe(order, env) : 0;
+  const site = (env.SITE_URL || 'https://armazemdospneus.pt').replace(/\/+$/, '');
+  const retoma = tiposDeRetoma(order);
+  const formulario = formularioDoVendedor(t);
+  const condicoes = await condicoesDaEncomenda(env, order);
   const text = [
     `Olá${c.nome ? ' ' + String(c.nome).split(' ')[0] : ''},`,
     '',
@@ -251,6 +332,7 @@ export function confirmacaoCliente(env, order) {
     '  contrato sem indicar qualquer motivo. Para o exercer, basta comunicar-nos',
     '  a sua decisão — por email, telefone, ou usando o formulário em:',
     `  ${env.SITE_URL}/legal/livre-resolucao.html`,
+    '  (o modelo do formulário vai também no fim deste email, no Anexo 1).',
     '  Reembolsamos em 14 dias, pelo mesmo meio de pagamento, incluindo os',
     '  portes de entrega standard.',
     devolucao ? '  Em caso de devolução, os custos de envio de retorno são suportados' : '  Os custos de devolução dos bens são suportados pela loja.',
@@ -262,29 +344,42 @@ export function confirmacaoCliente(env, order) {
       : null,
     '',
     'GARANTIA',
-    '  Garantia legal de conformidade nos termos do DL 84/2021.',
+    '  ' + GARANTIA_BENS,
+    t.garantia_usados ? '  ' + GARANTIA_USADOS_18 : null,
     ...(t.garantia_usados ? garantiaTexto(t.garantia_usados) : []),
+    ...(retoma.length ? ['', 'RETOMA DO USADO', '  ' + AVISO_RETOMA({ tipos: retoma })] : []),
     '',
     'VENDEDOR',
     `  ${t.empresa.denominacao} ("${t.empresa.nome}")`,
     `  NIF ${t.empresa.nif} · ${moradaLinha(t)}`,
-    `  ${contactoLinha(t)}`,
+    `  ${contactoComNota(t)}`,
     '',
     'RECLAMAÇÕES',
     `  Livro de Reclamações eletrónico: ${t.empresa.livro_reclamacoes}`,
-    '  Em caso de litígio de consumo pode recorrer a uma entidade de resolução',
-    `  alternativa de litígios. Ver ${env.SITE_URL}/legal/termos.html`,
+    '',
+    'RESOLUÇÃO ALTERNATIVA DE LITÍGIOS',
+    ...RAL().split('\n').map((l) => '  ' + l),
     '',
     `Termos e Condições: ${env.SITE_URL}/legal/termos.html`,
     `Política de Privacidade: ${env.SITE_URL}/legal/privacidade.html`,
     '',
     'Obrigado pela sua preferência.',
     'Armazém dos Pneus',
+    '',
+    '------------------------------------------------------------',
+    'ANEXO 1 — FORMULÁRIO DE LIVRE RESOLUÇÃO',
+    '',
+    formulario,
+    '',
+    '------------------------------------------------------------',
+    'ANEXO 2 — CONDIÇÕES GERAIS (os Termos e Condições de Venda publicados quando fez a encomenda)',
+    '',
+    ...condicoesTexto(condicoes, site),
   ].filter((l) => l !== null).join('\n');
 
   const assunto = `Encomenda ${order.order_id} confirmada — Armazém dos Pneus`;
-  const site = (env.SITE_URL || 'https://armazemdospneus.pt').replace(/\/+$/, '');
-  const contacto = contactoLinha(t);
+  const contacto = contactoComNota(t);
+  const ligacao = ligacaoDaEncomenda(site, order);
 
   // O bloco legal vem ANTES do rodapé, de propósito: se o email for cortado por
   // tamanho, o que desaparece é a marca, nunca a informação obrigatória. E é
@@ -310,24 +405,36 @@ export function confirmacaoCliente(env, order) {
             + 'reembolsado na totalidade.', 'last')
           : '',
       ].join(''), '24px 40px 8px 40px'),
-      botao(`${site}/obrigado.html`, 'Ver a minha encomenda'),
+      ligacao ? botao(ligacao, 'Ver a minha encomenda') : '',
       separador(),
       bloco([
         h2('Direito de livre resolução'),
-        p(`Tem <strong>14 dias</strong>, a contar da data em que recebe os bens, para resolver este contrato sem indicar qualquer motivo. Para o exercer, basta comunicar-nos a sua decisão — por email, telefone, ou usando o formulário em ${link(site + '/legal/livre-resolucao.html', 'armazemdospneus.pt/legal/livre-resolucao.html')}. Reembolsamos em 14 dias, pelo mesmo meio de pagamento, incluindo os portes de entrega standard${devolucao
+        p(`Tem <strong>14 dias</strong>, a contar da data em que recebe os bens, para resolver este contrato sem indicar qualquer motivo. Para o exercer, basta comunicar-nos a sua decisão — por email, telefone, ou usando o formulário em ${link(site + '/legal/livre-resolucao.html', 'armazemdospneus.pt/legal/livre-resolucao.html')} (o modelo vai também no fim deste email, no Anexo 1). Reembolsamos em 14 dias, pelo mesmo meio de pagamento, incluindo os portes de entrega standard${devolucao
           ? `. Em caso de devolução, <strong>os custos de envio de retorno são suportados por si, no valor de ${esc(eur(devolucao))}</strong>.`
           : ', e <strong>os custos de devolução dos bens são suportados pela loja</strong>.'}`),
         c.montagem_imediata
           ? p('Pediu expressamente a montagem imediata. Uma vez prestado esse serviço, perde o direito de livre resolução <strong>quanto a ele</strong> — mantendo-o integralmente quanto aos bens.')
           : '',
         h2('Garantia'),
-        p('Garantia legal de conformidade nos termos do DL 84/2021.'),
+        p(esc(GARANTIA_BENS)),
+        t.garantia_usados ? p(esc(GARANTIA_USADOS_18)) : '',
         t.garantia_usados ? garantiaHtml(t.garantia_usados) : '',
+        retoma.length ? h2('Retoma do usado') + p(esc(AVISO_RETOMA({ tipos: retoma }))) : '',
         h2('Vendedor'),
         p(`<strong>${esc(t.empresa.denominacao)}</strong> ("${esc(t.empresa.nome)}")<br>NIF ${esc(t.empresa.nif)} · ${esc(moradaLinha(t))}<br>${esc(contacto)}`),
         h2('Reclamações'),
-        p(`Livro de Reclamações eletrónico: ${link(t.empresa.livro_reclamacoes, dominioDe(t.empresa.livro_reclamacoes))}. Em caso de litígio de consumo pode recorrer a uma entidade de resolução alternativa de litígios — ver os ${link(site + '/legal/termos.html', 'Termos e Condições')}.`),
+        p(`Livro de Reclamações eletrónico: ${link(t.empresa.livro_reclamacoes, dominioDe(t.empresa.livro_reclamacoes))}.`),
+        h2('Resolução alternativa de litígios'),
+        ralHtmlDoEmail(),
         p(`${link(site + '/legal/termos.html', 'Termos e Condições')} · ${link(site + '/legal/privacidade.html', 'Política de Privacidade')}`, 'last'),
+      ].join(''), '24px 40px 32px 40px'),
+      separador(),
+      bloco([
+        h2('Anexo 1 — Formulário de livre resolução'),
+        p(formulario.split('\n').map(esc).join('<br>')),
+        h2('Anexo 2 — Condições gerais'),
+        p('Os Termos e Condições de Venda publicados quando fez a encomenda.'),
+        condicoesHtml(condicoes, site),
       ].join(''), '24px 40px 32px 40px'),
     ].join('\n'),
   }), assunto);
@@ -419,7 +526,7 @@ export function referenciaMultibanco(env, order) {
     '  reservamos stock até lá. Assim que o pagamento entrar, enviamos a',
     '  confirmação e a fatura.',
     '',
-    '  Dúvidas? ' + t.contactos.telefone,
+    '  Dúvidas? ' + telefoneComNota(t.contactos.telefone),
     '',
     'Armazém dos Pneus',
   ].filter((l) => l !== null).join('\n');
@@ -443,7 +550,7 @@ export function referenciaMultibanco(env, order) {
         p('Pode pagar no <strong>Multibanco</strong>, no <strong>homebanking</strong> ou na <strong>app do seu banco</strong>.'),
         h2('Importante'),
         p('A encomenda só é preparada depois de recebermos o pagamento, e <strong>não reservamos stock</strong> até lá. Assim que o pagamento entrar, enviamos a confirmação e a fatura.'),
-        p(`Dúvidas? ${esc(t.contactos.telefone)}`, 'last'),
+        p(`Dúvidas? ${esc(telefoneComNota(t.contactos.telefone))}`, 'last'),
       ].join(''), '8px 40px 24px 40px'),
       // O link do voucher é COMPLEMENTO, nunca o único sítio onde a referência
       // existe: é alojado pela Stripe e pode expirar.

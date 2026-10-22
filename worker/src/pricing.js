@@ -40,6 +40,16 @@ const centesimosDeKg = (kg) => Math.round((Number(kg) || 0) * 100);
    garantia.js. */
 const ePneuSeminovo = (p) => /pneu/i.test(p.category || '') && p.condition === 'Seminovo';
 
+/* A retoma gratuita do usado (DL 152-D/2017, art. 13.º): pneus novos e
+   baterias, a mesma regra do assets/js/checkout.js, que mostra o aviso antes
+   de pagar. Vai na linha da encomenda para o email de confirmação o repetir
+   (mail.js); as outras linhas ficam como sempre foram. */
+export function tipoDeRetoma(p) {
+  if (/pneu/i.test(p.category || '') && p.condition !== 'Seminovo') return 'pneus';
+  if (/bateria/i.test(p.category || '')) return 'baterias';
+  return null;
+}
+
 /** Escalão de portes por peso total, a partir de data/settings.json. */
 export function shippingTierCents(weightKg, settings) {
   return escalaoDePortes(centesimosDeKg(weightKg), settings);
@@ -125,6 +135,7 @@ export async function priceOrder(env, rawItems, delivery) {
       sku, name: p.name, qty, unit_cents: unitCents,
       weight_kg: Number(p.weight_kg) || 0,
       condition: p.condition || 'Novo',
+      ...(tipoDeRetoma(p) ? { retoma: tipoDeRetoma(p) } : {}),
     });
     if (ePneuSeminovo(p)) seminovos.push({ sku, nome: p.name, meses: p.warranty_months, qty });
   }

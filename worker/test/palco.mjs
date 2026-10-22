@@ -44,6 +44,25 @@ export function kvFalso(mapa = new Map()) {
 }
 
 export const SITE = 'https://armazemdospneus.pt';
+/* legal/termos.html do repositório (a página que o CI publica, ainda com os
+   dois ramos dos marcadores ap: por resolver). */
+export const TERMOS_DO_REPOSITORIO = () => fs.readFileSync(new URL('../../legal/termos.html', import.meta.url), 'utf8');
+/* Os Termos que o palco serve por omissão: uma página pequena e neutra (sem
+   telefones, prazos nem custos), para as comparações dos emails não
+   dependerem do texto dos Termos de hoje. Tem o que o leitor tem de tratar:
+   um marcador, um título h3, uma lista, uma ligação relativa, uma entidade e
+   o botão do Livro com o texto só para leitores de ecrã. */
+export const TERMOS_DE_ENSAIO = `<!doctype html><html lang="pt"><body><main><article class="legal container">
+<h1>Termos e Condições de Venda</h1>
+<p class="legal-updated">Última atualização: <!--ap:atualizacao-->outubro de 2026<!--/ap:atualizacao--></p>
+<h2>1. Objeto</h2>
+<p>Estas condições regulam as vendas deste site (texto de ensaio).</p>
+<h3 id="como-se-faz">Como se faz a encomenda</h3>
+<ol class="como-encomendar"><li>Escolhe os artigos.</li><li>Carrega em «Pagar agora».</li></ol>
+<h2>5. Direito de livre resolução</h2>
+<p>Está disponível um <a href="livre-resolucao.html">modelo de formulário</a> &amp; o seu uso é facultativo.</p>
+<!-- legal-comum:livro v1.1.0 --><a class="lr-discreto" href="https://www.livroreclamacoes.pt/inicio"><svg viewBox="0 0 24 24"><path d="M0 0"/></svg><span>Livro de Reclamações</span><span class="lr-sr"> (abre numa nova janela)</span></a><!-- /legal-comum:livro -->
+</article></main></body></html>`;
 
 /**
  * A rede a fingir. `dados` é { 'products.json': objecto | texto | função }:
@@ -64,6 +83,13 @@ export function redeFalsa(dados) {
       }
       if (typeof v === 'function') return v();
       return new Response(typeof v === 'string' ? v : JSON.stringify(v), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    // Os Termos publicados, que o /checkout lê para o email de confirmação os
+    // levar no corpo (condicoes.js): os de ensaio, ou dados['legal/termos.html'].
+    if (url === `${SITE}/legal/termos.html` && method === 'GET') {
+      const v = m.dados['legal/termos.html'];
+      if (typeof v === 'function') return v();
+      return new Response(typeof v === 'string' ? v : TERMOS_DE_ENSAIO, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } });
     }
     if (url === 'https://api.stripe.com/v1/checkout/sessions' && method === 'POST') {
       const id = `cs_test_ensaio${++n}`;
@@ -178,6 +204,14 @@ export async function workerDeAntes(ref, pastaRepo) {
     fs.mkdirSync(path.join(dir, 'src'));
     fs.writeFileSync(path.join(dir, 'package.json'), '{"type":"module"}\n');
     for (const f of ficheiros) fs.writeFileSync(path.join(dir, 'src', f), git('show', `${ref}:worker/src/${f}`));
+    // A cópia da biblioteca legal-comum (worker/legal-comum, importada pelo
+    // mail.js como ../legal-comum/index.mjs), quando já existia nesse commit.
+    let lc = [];
+    try { lc = git('ls-tree', '-r', '--full-tree', '--name-only', `${ref}:worker/legal-comum`).split('\n').filter(Boolean); } catch { /* ainda não havia */ }
+    for (const f of lc) {
+      fs.mkdirSync(path.dirname(path.join(dir, 'legal-comum', f)), { recursive: true });
+      fs.writeFileSync(path.join(dir, 'legal-comum', f), git('show', `${ref}:worker/legal-comum/${f}`));
+    }
     const mod = await import(pathToFileURL(path.join(dir, 'src', 'index.js')).href);
     return { worker: mod.default, ficheiros, apagar };
   } catch (e) {

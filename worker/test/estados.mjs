@@ -116,7 +116,10 @@ export async function correr({ ok }) {
   console.log('\nEstados — a quota de 1 000 escritas/dia da conta: menos escritas, e o travão da Cloudflare (L4-07, L7-04)');
   {
     const m = await montar();
-    eq('um /checkout aceite grava 2 vezes (a encomenda e a sessão), e não 3', escritas(m.kv).map((o) => o.replace(/AP-\S+|cs_\S+/, 'x')), ['put order:x', 'put session:x']);
+    // A terceira, termos:<hash>, é a das condições gerais (grupo 1): só quando
+    // esta versão dos Termos ainda não está no KV (grupo1.mjs prova que um
+    // segundo /checkout já não a faz).
+    eq('um /checkout aceite grava 2 vezes (a encomenda e a sessão), e não 3', escritas(m.kv).map((o) => o.replace(/AP-\S+|cs_\S+|[0-9a-f]{32}/, 'x')).filter((o) => o !== 'put termos:x'), ['put order:x', 'put session:x']);
     let n = m.kv.ops.length;
     await m.webhook(EV.expirou(m.e));
     eq('   a sessão expira (o destino de um /checkout forjado): 1 escrita, sem as marcas evt:/seen:', escritas(m.kv, n).map((o) => o.split(':')[0]), ['put order']);

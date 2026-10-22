@@ -33,6 +33,7 @@ import { priceOrder } from './pricing.js';
 import { avisoLoja, confirmacaoCliente, referenciaMultibanco, avisoPagamentoTardio, avisoDisputaSemEncomenda } from './mail.js';
 import { termosDasFontes, lerFontesDoSite, lerJsonOpcional, moradaLinha, prazoEntregaTexto, condicoesMostradas, condicoesDoRetrato, condicoesPiores, custoDevolucaoCentimos } from './termos.js';
 import { garantiaDoCarrinho, registoDaGarantia, aceitacaoConfere, mensagemDaGarantia, fraseDaGarantiaNaStripe, CODIGO_GARANTIA } from './garantia.js';
+import { lerCondicoesGerais, guardarCondicoes } from './condicoes.js';
 
 const MAX_BODY_BYTES = 8 * 1024;
 const SESSION_TTL_SECONDS = 3600;        // 1 h para concluir o pagamento
@@ -210,10 +211,12 @@ async function handleCheckout(request, env, cors) {
   // recurso de termos.js). Um pedido que falhe a validação do cliente não lê
   // nada, como antes — menos o de fora do continente, que lê o site.json para
   // dar o telefone da loja.
-  let cliente, calc, fontes;
+  // Os Termos publicados (condicoes.js) lêem-se ao mesmo tempo, para o email
+  // de confirmação os levar no corpo; nunca lançam nem param a venda.
+  let cliente, calc, fontes, condicoes;
   try {
     cliente = validateCliente(body, delivery);
-    [calc, fontes] = await Promise.all([priceOrder(env, body.items, delivery), lerFontesDoSite(env)]);
+    [calc, fontes, condicoes] = await Promise.all([priceOrder(env, body.items, delivery), lerFontesDoSite(env), lerCondicoesGerais(env)]);
   } catch (e) {
     if (e.foraDoContinente) {
       const site = await lerJsonOpcional(env.SITE_DATA_URL);
@@ -396,6 +399,11 @@ async function handleCheckout(request, env, cors) {
 
   order.status = 'aguarda_pagamento';
   order.session_id = session.id;
+  // Os Termos desta encomenda (condicoes.js): a encomenda fica com o hash, e
+  // o texto vai para o KV uma vez por versão, DEPOIS da encomenda e da sessão
+  // (as duas escritas de que a venda depende). Se essa escrita falhar, o email
+  // leva só a ligação para os Termos; a venda não pára.
+  if (condicoes) order.condicoes_gerais = condicoes.hash;
   try {
     await putOrder(env, order);
     await env.ORDERS.put(`session:${session.id}`, order_id, { expirationTtl: ORDER_TTL_SECONDS });
@@ -406,6 +414,7 @@ async function handleCheckout(request, env, cors) {
     console.error('ENCOMENDA NÃO GRAVADA (KV)', order_id, session.id, e.message);
     return json({ error: 'Não foi possível registar a encomenda agora. Tente daqui a pouco ou fale connosco.' }, 503, cors);
   }
+  await guardarCondicoes(env, condicoes);
 
   return json({
     url: session.url,
