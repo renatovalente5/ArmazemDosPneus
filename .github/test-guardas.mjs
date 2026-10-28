@@ -1318,7 +1318,15 @@ try {
     const LIVRO = /<!-- legal-comum:livro v[\d.]+ -->\s*<a class="lr-discreto" data-ap-href="livro-reclamacoes" href="https:\/\/www\.livroreclamacoes\.pt\/inicio" target="_blank" rel="noopener" lang="pt">/;
     const semLivro = paginas.filter((p) => !LIVRO.test(ler(p)));
     certo(paginas.length >= 9 && semLivro.length === 0, `o Livro de Reclamações (discreto) nas ${paginas.length} páginas`, semLivro);
-    certo(/class="contact__livro"[\s\S]{0,200}legal-comum:livro/.test(ler('index.html')), '   e nos Contactos da página inicial');
+    /* Só no rodapé (o Renato, 27 out 2026: nem nos Contactos nem nos Termos):
+       um marcador por página, dentro do <footer>. */
+    const soNoRodape = (t) => {
+      const marcas = [...t.matchAll(/<!-- legal-comum:livro v/g)].map((m) => m.index);
+      const rodapes = [...t.matchAll(/<footer\b[\s\S]*?<\/footer>/g)].map((m) => [m.index, m.index + m[0].length]);
+      return marcas.length === 1 && rodapes.some(([a, b]) => a < marcas[0] && marcas[0] < b);
+    };
+    const foraDoRodape = paginas.filter((p) => !soNoRodape(ler(p)));
+    certo(foraDoRodape.length === 0, '   só no rodapé, uma vez por página (nem nos Contactos nem nos Termos)', foraDoRodape);
     certo(!paginas.some((p) => /lr-botao/.test(ler(p))) && !/(^|\})\s*\.lr-discreto[^{}]*\{[^}]*(opacity|background)/m.test(ler('assets/css/styles.css').replace(/\/\*[\s\S]*?\*\//g, '')),
       '   sem o botão com caixa, e sem nada que o esbata (o Renato quer o discreto)');
     const semLigacoes = paginas.filter((p) => !['termos.html#entrega"', 'livre-resolucao.html"', 'termos.html#cancelamento"'].every((h) => ler(p).includes(h)));
