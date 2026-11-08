@@ -133,6 +133,9 @@
         '<div class="pcard__body">' +
           '<div class="pcard__meta">' + (p.brand ? '<span class="pcard__brand">' + esc(p.brand) + '</span>' : '') + (p.size ? '<span class="pcard__size">' + esc(p.size) + '</span>' : '') + '</div>' +
           '<h3 class="pcard__title">' + esc(p.name) + '</h3>' +
+          // As características essenciais, à vista (DL 24/2014, art. 4.º, n.º 1, al. a)):
+          // polaridade e caixa da bateria, aprovações do óleo, furação da jante.
+          (p.description ? '<p class="pcard__desc">' + esc(p.description) + '</p>' : '') +
           labelHtml(p) +
           fichaHtml(p) +
           '<div class="pcard__foot">' +

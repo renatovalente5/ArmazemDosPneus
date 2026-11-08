@@ -108,7 +108,8 @@
 
   function renderItems() {
     doc.getElementById('co-items').innerHTML = items.map(function (it) {
-      return '<div class="co-item"><span class="co-item__q">' + it.qty + '×</span><span class="co-item__n">' + esc(it.name) + '</span><span class="co-item__p">' + fmt(it.price_cents * it.qty) + '</span></div>';
+      return '<div class="co-item"><span class="co-item__q">' + it.qty + '×</span><span class="co-item__n">' + esc(it.name) + '</span><span class="co-item__p">' + fmt(it.price_cents * it.qty) + '</span>' +
+        (it.description ? '<span class="co-item__d">' + esc(it.description) + '</span>' : '') + '</div>';
     }).join('');
   }
   function renderTotals() {
@@ -492,6 +493,7 @@
       catalogo[it.sku] = { seminovo: /pneu/i.test(p.category || '') && p.condition === 'Seminovo', meses: p.warranty_months, nome: p.name, categoria: p.category || '' };
       it.price_cents = price;
       it.name = p.name;
+      it.description = p.description || ''; // as características essenciais, também imediatamente antes de pagar (art. 5.º, n.º 2)
       it.weight = Number(p.weight_kg) || 0;
       it.stock = stock;
       if (it.qty > stock) it.qty = stock;

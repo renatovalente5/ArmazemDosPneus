@@ -170,6 +170,7 @@ body.menu-open{overflow:hidden}
 .pcard__brand{font-family:var(--font-head);font-weight:600;text-transform:uppercase;letter-spacing:.03em;font-size:.8rem;color:var(--muted)}
 .pcard__size{font-size:.8rem;font-weight:600;color:var(--ink);background:var(--bg-mut);padding:.2em .6em;border-radius:6px}
 .pcard__title{font-size:1.05rem;line-height:1.15;text-transform:none;letter-spacing:0}
+.pcard__desc{margin:0;font-size:.88rem;line-height:1.4;color:var(--muted)}
 .pcard__label{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:auto}
 .pcard__label span{font-size:.74rem;font-weight:600;color:var(--body);background:var(--bg-soft);border:1px solid var(--line);padding:.2em .5em;border-radius:6px}
 .pcard__foot{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin-top:.3rem}
@@ -369,6 +370,7 @@ a.contact__card:hover{transform:translateY(-3px);box-shadow:var(--shadow);border
 .co-item{display:grid;grid-template-columns:auto 1fr auto;gap:.5rem;font-size:.9rem}
 .co-item__q{font-weight:700;color:var(--muted)}
 .co-item__n{color:var(--ink)}.co-item__p{font-weight:600;white-space:nowrap}
+.co-item__d{grid-column:2;font-size:.82rem;color:var(--muted)}
 .co__line{display:flex;align-items:center;justify-content:space-between;margin:.4rem 0;color:var(--body)}
 .co__line strong{font-family:var(--font-head)}
 .co__line--total{border-top:1px solid var(--line);margin-top:.7rem;padding-top:.7rem;font-size:1.15rem}
