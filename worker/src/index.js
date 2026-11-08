@@ -345,8 +345,8 @@ async function handleCheckout(request, env, cors) {
         // Com pneus seminovos de garantia reduzida, mais uma frase curta (só
         // texto fixo e números: a Stripe desenha isto em Markdown).
         message: (delivery === 'ctt'
-          ? `Ao concluir o pagamento celebra um contrato de compra e venda com obrigação de pagar. Entrega em ${prazoEntregaTexto(termos.prazos)}, para Portugal continental.`
-          : `Ao concluir o pagamento celebra um contrato de compra e venda com obrigação de pagar. Levantamento em ${moradaLinha(termos)}.`)
+          ? `Entrega em ${prazoEntregaTexto(termos.prazos)}, para Portugal continental.`
+          : `Levantamento em ${moradaLinha(termos)}.`)
           + (garantia ? ` ${fraseDaGarantiaNaStripe(garantia)}` : ''),
       },
       after_submit: {

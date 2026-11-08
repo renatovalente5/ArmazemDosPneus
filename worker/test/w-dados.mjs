@@ -313,9 +313,9 @@ export async function correr({ ok }) {
 
     // Página da Stripe.
     eq('Stripe, envio: os prazos do painel', ctt.mensagemStripe,
-      'Ao concluir o pagamento celebra um contrato de compra e venda com obrigação de pagar. Entrega em 3 a 6 dias úteis, para Portugal continental.');
+      'Entrega em 3 a 6 dias úteis, para Portugal continental.');
     eq('Stripe, levantamento: a morada do painel', loja.mensagemStripe,
-      `Ao concluir o pagamento celebra um contrato de compra e venda com obrigação de pagar. Levantamento em ${MORADA_NOVA}.`);
+      `Levantamento em ${MORADA_NOVA}.`);
     eq('/checkout da Madeira: o telefone do painel na mensagem',
       JSON.parse(madeira.checkout.corpo).error, 'Só entregamos em Portugal continental. Para a Madeira ou os Açores, ligue-nos: 912 345 678.');
 

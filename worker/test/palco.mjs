@@ -222,8 +222,14 @@ export async function workerDeAntes(ref, pastaRepo) {
 
 /* O número da encomenda e o fim da sessão mudam de corrida para corrida; o
    resto tem de ser igual byte a byte. */
+/* A frase «Ao concluir o pagamento celebra um contrato… com obrigação de pagar.» saiu da página da Stripe a
+   8 nov 2026 (o Renato não a quer). Os Workers de antes, tirados do git para as comparações byte a byte, ainda a
+   dizem: tira-se aqui, nas três maneiras de a escrever, e o resto continua a ser comparado. */
+const FRASE_QUE_SAIU = 'Ao concluir o pagamento celebra um contrato de compra e venda com obrigação de pagar. ';
+const semAFraseQueSaiu = (s) => [FRASE_QUE_SAIU, new URLSearchParams({ x: FRASE_QUE_SAIU }).toString().slice(2), encodeURIComponent(FRASE_QUE_SAIU)]
+  .reduce((t, f) => t.split(f).join(''), s);
 export function semAcaso(x) {
-  return JSON.parse(JSON.stringify(x)
+  return JSON.parse(semAFraseQueSaiu(JSON.stringify(x))
     .replace(/AP-\d{8}-[0-9a-f]{8}/g, 'AP-AAAAMMDD-xxxxxxxx')
     .replace(/expires_at=\d+/g, 'expires_at=N')
     .replace(/cs_test_ensaio\d+/g, 'cs_test_ensaioN')

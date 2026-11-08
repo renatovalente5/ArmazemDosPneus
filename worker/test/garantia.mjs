@@ -242,7 +242,7 @@ export async function correr({ ok }) {
   eq('   normalizar o retrato outra vez dá o mesmo (é o que cada email faz)', normalizarTermos(R.encomendaNoCheckout.termos, ENV_HOJE).termos, R.encomendaNoCheckout.termos);
   eq('as escritas no KV são as de sempre (a encomenda e a sessão)', R.escritas.slice(0, 2).map((o) => o.split(':')[0]), ['put order', 'put session']);
   eq('a página da Stripe: a frase de sempre e, a seguir, a da garantia', R.mensagemStripe,
-    `Ao concluir o pagamento celebra um contrato de compra e venda com obrigação de pagar. Levantamento em Travessa do Navega, 436 F, 3885-183 Arada, Ovar. Inclui um pneu seminovo (bem usado) com a garantia reduzida que aceitou: 18 meses.`);
+    `Levantamento em Travessa do Navega, 436 F, 3885-183 Arada, Ovar. Inclui um pneu seminovo (bem usado) com a garantia reduzida que aceitou: 18 meses.`);
   ok('   sem nada que o Markdown da Stripe leia, e dentro do tecto de 1200', !/[[\]<>*_`]/.test(R.mensagemStripe) && R.mensagemStripe.length <= MAX_STRIPE, R.mensagemStripe);
   eq('as linhas da Stripe são as de sempre (o seminovo com o preço do catálogo)',
     [...new URLSearchParams(R.stripe[0])].filter(([k]) => k.startsWith('line_items[0]')).map(([k, v]) => `${k}=${v}`),
