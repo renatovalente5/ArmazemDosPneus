@@ -50,6 +50,6 @@
   },
   "payment": {
     "mode": "online",
-    "note": "Pagamento seguro por MB WAY, cartão ou referência Multibanco. Os dados do cartão são tratados pela Stripe — não passam por este site."
+    "note": ""
   }
 }

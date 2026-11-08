@@ -170,11 +170,10 @@ body.menu-open{overflow:hidden}
 .pcard__brand{font-family:var(--font-head);font-weight:600;text-transform:uppercase;letter-spacing:.03em;font-size:.8rem;color:var(--muted)}
 .pcard__size{font-size:.8rem;font-weight:600;color:var(--ink);background:var(--bg-mut);padding:.2em .6em;border-radius:6px}
 .pcard__title{font-size:1.05rem;line-height:1.15;text-transform:none;letter-spacing:0}
-.pcard__desc{margin:0;font-size:.88rem;line-height:1.4;color:var(--muted)}
 .pcard__label{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:auto}
 .pcard__label span{font-size:.74rem;font-weight:600;color:var(--body);background:var(--bg-soft);border:1px solid var(--line);padding:.2em .5em;border-radius:6px}
 .pcard__foot{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin-top:.3rem}
-.pcard__price{font-family:var(--font-head);font-weight:700;font-size:1.35rem;color:var(--ink)}
+.pcard__price{font-family:var(--font-head);font-weight:700;font-size:1.35rem;color:var(--ink);white-space:nowrap}
 .pcard__label--used span{background:transparent;border-style:dashed}
 .pcard__label .pcard__eprel{font-weight:500;color:var(--muted);background:transparent;border-style:dotted}
 .pcard__eprel a{color:inherit;text-decoration:underline}
@@ -376,6 +375,7 @@ a.contact__card:hover{transform:translateY(-3px);box-shadow:var(--shadow);border
 .co__line--total{border-top:1px solid var(--line);margin-top:.7rem;padding-top:.7rem;font-size:1.15rem}
 .co__line--total strong{font-size:1.5rem}
 .co__pay-note{font-size:.82rem;color:var(--muted);background:var(--yellow-050);border:1px solid #F1DE9A;border-radius:8px;padding:.6rem .7rem;margin:.8rem 0}
+.co__pay-note:empty{display:none}
 .co__submit{width:100%}
 .co__legal{font-size:.76rem;line-height:1.5;color:var(--muted);margin:.8rem 0 0;text-align:center}
 .co__fineprint{font-size:.72rem;line-height:1.55;color:var(--muted);margin:.6rem 0 0;padding-top:.6rem;border-top:1px solid var(--line);text-align:center}

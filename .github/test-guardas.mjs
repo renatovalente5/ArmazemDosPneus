@@ -1354,9 +1354,11 @@ try {
     certo(['Ficha do produto', 'Fabricante de Ensaio, S.A.', 'apoio@fabricante.pt', 'Responsável na UE', 'EAN 5601234567890', 'Contém ácido sulfúrico.', baterias].every((x) => comFicha.includes(x)),
       'o cartão mostra a ficha (fabricante, responsável, referência, avisos e a retoma)');
     certo(!(await cartoes([bateria])).includes('Ficha do produto'), '   e sem os campos não mostra ficha nenhuma');
-    // Desde 7 nov 2026 a descrição aparece no cartão: é onde estão as características essenciais (polaridade e caixa
-    // da bateria, aprovações do óleo, furação da jante; DL 24/2014, art. 4.º, n.º 1, al. a)). Escrita pelo dono no painel.
-    certo(!comFicha.includes('Excelente') && (await cartoes([{ ...bateria, ...ficha, description: 'Polaridade + à direita, caixa L2.' }])).includes('Polaridade + à direita, caixa L2.'), '   a descrição (características essenciais) aparece no cartão');
+    // A descrição (as características essenciais: polaridade e caixa da bateria, aprovações do óleo) diz-se no resumo do
+    // checkout, imediatamente antes de pagar (DL 24/2014, art. 5.º, n.º 2; assets/js/checkout.js); o cartão fica curto
+    // (o Renato, 8 nov 2026).
+    certo(!comFicha.includes('Excelente') && !(await cartoes([{ ...bateria, ...ficha, description: 'Polaridade + à direita, caixa L2.' }])).includes('Polaridade + à direita, caixa L2.'), '   a descrição fica para o resumo do checkout, não no cartão');
+    certo(/it\.description/.test(ler('assets/js/checkout.js')), '   e o resumo do checkout mostra-a');
   }
 
   /* ================================================================== */
