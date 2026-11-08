@@ -528,8 +528,6 @@ a.contact__card:hover{transform:translateY(-3px);box-shadow:var(--shadow);border
 /* /legal-comum:cookies-css */
 
 /* O que liga as peças à página. */
-.privacidade-formulario{margin:1rem 0 0;font-size:.8rem;line-height:1.5;color:var(--muted);text-transform:none}
-.privacidade-formulario a{color:var(--ink);text-decoration:underline;text-underline-offset:2px}
 .contact__privacy{margin:.9rem 0 0;font-size:.8rem;line-height:1.5;color:var(--muted);text-transform:none}
 .legal-footer__contact{margin-top:.6rem;font-size:.85rem}
 .legal-footer__contact a{text-decoration:underline;text-underline-offset:2px}

@@ -1335,7 +1335,8 @@ try {
     const inicio = ler('index.html');
     certo(!/cookie-banner|data-cookie/.test(inicio) && !/<iframe/i.test(inicio) && /data-fachada-mapa/.test(inicio), 'sem banner de cookies, e o mapa só com a fachada (nenhum iframe no HTML)');
     certo(ler('legal/cookies.html').includes(LC.textoSemCookies({ comMapa: true })), 'a política de cookies diz o textoSemCookies() da biblioteca');
-    certo(inicio.includes(LC.fraseFormularioHtml({ urlPolitica: 'legal/privacidade.html', finalidade: 'responder ao seu pedido de orçamento' })), 'o formulário de orçamento tem a frase de privacidade');
+    // A frase curta junto do formulário saiu a 8 nov 2026 (não é obrigatória): a política fica ligada no rodapé da mesma página.
+    certo(inicio.includes('href="legal/privacidade.html"'), 'a página do formulário de orçamento liga para a política de privacidade (rodapé)');
     const priv = ler('legal/privacidade.html');
     certo(/Cloudflare, Inc\./.test(priv) && /Stripe/.test(priv) && /Resend/.test(priv) && /Meta Platforms/.test(priv) && /400 dias/.test(priv) && /legal-comum:direitos/.test(priv),
       'a privacidade: os destinatários (Cloudflare, Stripe, Resend, Meta), os 400 dias do KV e os direitos');
@@ -1353,7 +1354,9 @@ try {
     certo(['Ficha do produto', 'Fabricante de Ensaio, S.A.', 'apoio@fabricante.pt', 'Responsável na UE', 'EAN 5601234567890', 'Contém ácido sulfúrico.', baterias].every((x) => comFicha.includes(x)),
       'o cartão mostra a ficha (fabricante, responsável, referência, avisos e a retoma)');
     certo(!(await cartoes([bateria])).includes('Ficha do produto'), '   e sem os campos não mostra ficha nenhuma');
-    certo(!comFicha.includes('Excelente') && !(await cartoes([{ ...bateria, ...ficha, description: 'Texto de descrição' }])).includes('Texto de descrição'), '   a descrição continua por mostrar');
+    // Desde 7 nov 2026 a descrição aparece no cartão: é onde estão as características essenciais (polaridade e caixa
+    // da bateria, aprovações do óleo, furação da jante; DL 24/2014, art. 4.º, n.º 1, al. a)). Escrita pelo dono no painel.
+    certo(!comFicha.includes('Excelente') && (await cartoes([{ ...bateria, ...ficha, description: 'Polaridade + à direita, caixa L2.' }])).includes('Polaridade + à direita, caixa L2.'), '   a descrição (características essenciais) aparece no cartão');
   }
 
   /* ================================================================== */

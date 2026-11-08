@@ -165,7 +165,7 @@ function validateCliente(body, delivery) {
   if (!EMAIL_RE.test(c.email)) throw new Error('Indique um email válido — é para lá que enviamos a confirmação e a fatura.');
   if (c.telefone.replace(/\D/g, '').length < 9) throw new Error('Indique um telemóvel válido.');
   if (c.nif && !NIF_RE.test(c.nif)) throw new Error('O NIF tem de ter 9 dígitos.');
-  if (body.aceita_termos !== true) throw new Error('Tem de aceitar os Termos e Condições e a Política de Privacidade.');
+  if (body.aceita_termos !== true) throw new Error('Tem de aceitar os Termos e Condições.');
   if (delivery === 'ctt') {
     c.morada = cleanText(body.morada, 200);
     c.cp = cleanText(body.cp, 12);

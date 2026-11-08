@@ -242,7 +242,7 @@
       if (!/^[1-8]/.test(cp)) return invalid(f.cp, 'Só entregamos em Portugal continental. Para a Madeira ou os Açores, ligue-nos: ' + TELEFONE + '.');
       if ((f.localidade.value || '').trim().length < 2) return invalid(f.localidade, 'Indique a localidade.');
     }
-    if (!f.termos.checked) return invalid(f.termos, 'Tem de aceitar os Termos e Condições e a Política de Privacidade.');
+    if (!f.termos.checked) return invalid(f.termos, 'Tem de aceitar os Termos e Condições.');
     var cg = doc.getElementById('c-garantia');
     if (garantia && cg && !cg.checked) return invalid(cg, mensagemGarantiaPorMarcar());
     return true;
