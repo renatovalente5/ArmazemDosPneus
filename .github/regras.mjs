@@ -86,7 +86,7 @@ export const ICONES_SERVICOS = ['montagem', 'alinhamento', 'furos', 'travoes', '
 
 /* A ordem das chaves de um produto: a do ficheiro de hoje. Uma chave nova
    acrescenta-se por esta ordem; as que já lá estão ficam onde estão. */
-export const ORDEM_CHAVES_PRODUTO = ['name', 'category', 'brand', 'size', 'price_eur', 'stock', 'weight_kg', 'image', 'description', 'condition', 'season', 'available', 'featured', 'hidden', 'tyre_class', 'label_fuel', 'label_grip', 'label_noise_class', 'label_noise_db', 'snow_3pmsf', 'ice_grip', 'eprel_id', 'dot', 'tread_mm', 'warranty_months', 'manufacturer_name', 'manufacturer_address', 'manufacturer_email', 'eu_responsible', 'reference_code', 'safety_warnings', 'sku'];
+export const ORDEM_CHAVES_PRODUTO = ['name', 'category', 'brand', 'size', 'price_eur', 'stock', 'weight_kg', 'volume_l', 'image', 'description', 'condition', 'season', 'available', 'featured', 'hidden', 'tyre_class', 'label_fuel', 'label_grip', 'label_noise_class', 'label_noise_db', 'snow_3pmsf', 'ice_grip', 'eprel_id', 'dot', 'tread_mm', 'warranty_months', 'manufacturer_name', 'manufacturer_address', 'manufacturer_email', 'eu_responsible', 'reference_code', 'safety_warnings', 'sku'];
 /* Sempre escritos, com o valor explícito. Um produto novo nasce com todos a
    false — nunca à venda por acidente. */
 export const BOOLEANOS_PRODUTO = ['available', 'featured', 'hidden', 'snow_3pmsf', 'ice_grip'];
@@ -396,7 +396,7 @@ function lerFicheiro(qual, valor, lista, ecra) {
 }
 
 const NOMES_CAMPOS = {
-  name: 'nome', price_eur: 'preço', stock: 'unidades em stock', weight_kg: 'peso',
+  name: 'nome', price_eur: 'preço', stock: 'unidades em stock', weight_kg: 'peso', volume_l: 'volume (litros)',
   condition: 'estado (Novo ou Seminovo)', available: '«À venda online»', category: 'categoria',
   label_fuel: 'combustível (A a E)', label_grip: 'piso molhado (A a E)', label_noise_class: 'classe de ruído (A a C)',
   label_noise_db: 'ruído em dB (50 a 99)', eprel_id: 'n.º EPREL', dot: 'DOT (4 algarismos)',
@@ -476,6 +476,12 @@ export function problemasDoProduto(p, ctx = {}) {
   }
   if (!(typeof p.weight_kg === 'number' && p.weight_kg > 0 && p.weight_kg <= 999 && duasCasas(p.weight_kg))) {
     neutraliza('peso', 'weight_kg', 'fora_de_venda', 'O peso está em falta ou não é válido (mais de 0 e até 999 kg, no máximo 2 casas decimais): fica fora de venda, porque os portes saem do peso.');
+  }
+  /* O volume (litros) dos líquidos vendidos à embalagem, como os óleos: com
+     ele a loja mostra também o preço por litro, que o DL 138/90 pede a quem
+     vende ao volume (o Renato, 9 nov 2026). Opcional; mau, a loja não o usa. */
+  if (!ausente(p.volume_l) && p.volume_l !== '' && !(typeof p.volume_l === 'number' && p.volume_l > 0 && p.volume_l <= 1000 && duasCasas(p.volume_l))) {
+    avisa('volume', 'volume_l', 'O volume não é válido (mais de 0 e até 1000 litros, no máximo 2 casas decimais): a loja não mostra o preço por litro.');
   }
   const nomeOk = typeof p.name === 'string' && p.name.trim().length >= TAMANHOS.nomeMin && p.name.trim().length <= TAMANHOS.nome;
   if (!nomeOk) {

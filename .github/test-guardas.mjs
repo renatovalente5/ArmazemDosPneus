@@ -116,6 +116,7 @@ const JANTE = indicePorSku('jante-liga-leve-16-5x112-et45');   // à venda hoje
 const MICHELIN = indicePorSku('michelin-primacy-4');           // pneu novo, fora de venda
 const SEMINOVO = indicePorSku('pneu-seminovo-continental-205-55-r16');
 const TESTE = indicePorSku('teste-pagamento');
+const OLEO = indicePorSku('oleo-de-motor-5w-30-c3-5l');       // 5 L, com o volume
 
 /* Um repositório de ensaio mínimo: data/ e as fotografias (vazias: a guarda só
    quer saber se existem). Sem o worker/: a guarda não o lê. */
@@ -1103,6 +1104,21 @@ try {
     certo(!/pcard__title/.test(await cartoes([{ ...semi, price_eur: 0 }])), '   um artigo a 0 € (o antigo «Sob consulta») também não aparece');
     const lembrete = R.problemas(TEXTO).find((p) => p.chave === `produto:${m.sku}:a-espera`);
     certo(lembrete && /não aparece na loja/.test(lembrete.mensagem), '   e o lembrete do painel diz ao dono que o pneu não aparece na loja', lembrete && lembrete.mensagem);
+  }
+
+  {
+    /* O preço por litro (DL 138/90; o Renato, 9 nov 2026): um líquido vendido
+       à embalagem, com o volume no painel, mostra-o por baixo do preço. */
+    const oleo = clonar(HOJE.products.products[OLEO]);
+    certo(OLEO >= 0 && oleo.volume_l === 5, 'os dados de hoje: o óleo de 5 L tem «volume_l»: 5', oleo && oleo.volume_l);
+    const com = await cartoes([{ ...oleo, price_eur: 44.9, available: true, stock: 3 }]);
+    certo(/44,90 €/.test(com) && /pcard__unit">8,98 €\/L</.test(com), 'óleo de 5 L a 44,90 €: «8,98 €/L» por baixo do preço', com.slice(0, 400));
+    const { volume_l, ...semVolume } = oleo;
+    certo(!/pcard__unit/.test(await cartoes([{ ...semVolume, price_eur: 44.9 }])), '   sem o volume, não há preço por litro');
+    certo(!/pcard__unit/.test(await cartoes([{ ...oleo, price_eur: 44.9, volume_l: 'cinco' }])), '   com um volume que não é número, também não');
+    const mau = R.problemas({ ...TEXTO, products: { products: [{ ...oleo, volume_l: -1 }] } }, { imagemExiste: () => true });
+    certo(tem(mau, 'avisa', `produto:${oleo.sku}:volume`), '   e as regras avisam o dono de um volume mau (o painel mostra-o por baixo do campo)');
+    certo(!R.problemas(TEXTO, { imagemExiste: () => true }).some((x) => /:volume$/.test(x.chave)), '   os volumes de hoje passam');
   }
 
   /* ================================================================== */

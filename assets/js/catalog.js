@@ -19,6 +19,10 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function normImg(p) { if (!p) return ''; if (/^https?:\/\//.test(p)) return p; return p.replace(/^\/+/, ''); }
   function fmt(n) { return Number(n).toFixed(2).replace('.', ',') + ' €'; }
+  /* Os litros de um líquido vendido à embalagem (o campo «Volume» do painel):
+     com eles, o preço por litro vai por baixo do preço (DL 138/90). O mesmo
+     tecto do .github/regras.mjs; fora dele, nada. */
+  function litros(p) { var v = Number(p.volume_l); return v > 0 && v <= 1000 ? v : 0; }
 
   var all = [], activeCat = 'Todos', term = '';
   var limit = parseInt(grid.getAttribute('data-limit'), 10) || 0;
@@ -145,7 +149,10 @@
           labelHtml(p) +
           fichaHtml(p) +
           '<div class="pcard__foot">' +
-            '<span class="pcard__price">' + (hasPrice ? fmt(p.price_eur) : 'Sob consulta') + '</span>' +
+            '<span class="pcard__prices">' +
+              '<span class="pcard__price">' + (hasPrice ? fmt(p.price_eur) : 'Sob consulta') + '</span>' +
+              (hasPrice && litros(p) ? '<span class="pcard__unit">' + fmt(p.price_eur / litros(p)) + '/L</span>' : '') +
+            '</span>' +
             (ok
               ? '<button class="btn btn--primary btn--sm pcard__add" data-add data-sku="' + esc(p.sku) + '" data-name="' + esc(p.name) + '" data-price="' + esc(p.price_eur) + '" data-image="' + esc(normImg(p.image)) + '" data-weight="' + esc(p.weight_kg || 0) + '" data-stock="' + esc(p.stock) + '" type="button">Adicionar</button>'
               : '<span class="pcard__out">' + (hasPrice ? 'Esgotado' : 'Sob consulta') + '</span>') +
