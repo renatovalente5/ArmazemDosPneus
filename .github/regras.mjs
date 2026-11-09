@@ -469,7 +469,7 @@ export function problemasDoProduto(p, ctx = {}) {
     neutraliza('disponivel', 'available', 'fora_de_venda', '«À venda online» não está gravado (sim ou não): fica fora de venda até ser gravado.');
   }
   if (!(typeof p.price_eur === 'number' && Number.isFinite(p.price_eur) && p.price_eur >= 0 && duasCasas(p.price_eur))) {
-    neutraliza('preco', 'price_eur', 'fora_de_venda', 'O preço está em falta ou não é válido (use um valor como 89,90; a zero fica «Sob consulta»): fica fora de venda.');
+    neutraliza('preco', 'price_eur', 'fora_de_venda', 'O preço está em falta ou não é válido (use um valor como 89,90; a zero não aparece na loja): fica fora de venda.');
   }
   if (!inteiroEntre(p.stock, 0, 9999)) {
     neutraliza('stock', 'stock', 'fora_de_venda', 'As unidades em stock estão em falta ou não são um número inteiro de 0 a 9999: fica fora de venda.');
@@ -488,7 +488,7 @@ export function problemasDoProduto(p, ctx = {}) {
   if (pneu && p.condition === 'Novo' && vendavel(p)) {
     const f = faltasDaEtiqueta(p);
     if (f.length) {
-      neutraliza('etiqueta', f[0], 'fora_de_venda', `Pneu novo à venda sem a etiqueta UE completa (falta: ${listaDeCampos(f)}): fica fora de venda na loja até a etiqueta estar preenchida.`, { campos: f });
+      neutraliza('etiqueta', f[0], 'fora_de_venda', `Pneu novo à venda sem a etiqueta UE completa (falta: ${listaDeCampos(f)}): não aparece na loja até a etiqueta estar preenchida.`, { campos: f });
     }
   }
   if (pneu && p.condition === 'Seminovo' && vendavel(p)) {
@@ -537,11 +537,12 @@ export function problemasDoProduto(p, ctx = {}) {
   if (pneu && p.available === false && typeof p.price_eur === 'number' && p.price_eur > 0) {
     const f = p.condition === 'Seminovo' ? faltasDoSeminovo(p) : p.condition === 'Novo' ? faltasDaEtiqueta(p) : [];
     if (f.length) {
-      /* Um pneu novo sem a etiqueta UE completa aparece na loja SEM o preço
-         («Sob consulta»): o Reg. (UE) 2020/740 obriga a etiqueta junto de
-         qualquer preço anunciado (assets/js/catalog.js). */
+      /* Um pneu novo sem a etiqueta UE completa não aparece na loja (até 9
+         nov 2026 ficava «Sob consulta»): o Reg. (UE) 2020/740 obriga a
+         etiqueta junto de qualquer preço anunciado, e um artigo à venda não
+         pode estar sem preço (assets/js/catalog.js, semPrecoAVista). */
       const mensagem = p.condition === 'Novo'
-        ? `Pneu novo sem a etiqueta UE completa: na loja aparece sem preço («Sob consulta») e fora de venda. Para o pôr à venda falta ${listaDeCampos(f)}.`
+        ? `Pneu novo sem a etiqueta UE completa: não aparece na loja. Para o pôr à venda falta ${listaDeCampos(f)}.`
         : `Pneu com preço à vista mas fora de venda: para o pôr à venda falta ${listaDeCampos(f)}.`;
       avisa('a-espera', f[0], mensagem, { campos: f, lembrete: true });
     }

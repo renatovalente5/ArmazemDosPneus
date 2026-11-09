@@ -24,8 +24,8 @@
  *     emails dizem-no;
  *   · com meses diferentes, a garantia de cada artigo; e se o dono os mudar com
  *     a página aberta, o Worker recusa (400) e a página mostra os novos;
- *   · os pneus novos sem a etiqueta UE ficam «Sob consulta» (sem preço e sem
- *     «Adicionar») e o Worker recusa-os;
+ *   · os pneus novos sem a etiqueta UE não aparecem na loja (com ?teste=1
+ *     ficam «Sob consulta», sem preço e sem «Adicionar») e o Worker recusa-os;
  *   · os Termos publicados: o §6 novo (18 meses, por acordo; montagem por
  *     terceiros) e o §9 sem foro. */
 import { createRequire } from 'node:module';
@@ -334,18 +334,21 @@ try {
   }
 
   /* ============================================================ 5 */
-  secao('os pneus novos sem a etiqueta UE: «Sob consulta» (decisão de 1 out 2026 — já era assim)');
+  secao('os pneus novos sem a etiqueta UE: fora da loja (o Renato, 9 nov 2026; de 1 out a 9 nov ficavam «Sob consulta»)');
   {
     const w = novoWorker(BASE);
     const { ctx, page, fora } = await novaPagina(BASE, w);
     await page.goto(`${BASE}/loja.html`);
+    await page.locator('article.pcard').first().waitFor();
+    const novos = await page.$$eval('article.pcard', (as) => as.filter((a) => a.getAttribute('data-cat') === 'Pneus Novos').length);
+    const consulta = await page.$$eval('.pcard__price', (ps) => ps.filter((x) => x.textContent.trim() === 'Sob consulta').length);
+    certo(novos === 0 && consulta === 0, `nenhum pneu novo sem etiqueta na loja, e nenhum «Sob consulta» (${novos} / ${consulta})`, [novos, consulta]);
+    await page.goto(`${BASE}/loja.html?teste=1`);
     const cartao = page.locator('article.pcard', { hasText: pub(MICHELIN).name });
     await cartao.waitFor();
     const preco = (await cartao.locator('.pcard__price').textContent()).trim();
     certo(preco === 'Sob consulta' && await cartao.locator('[data-add]').count() === 0 && await cartao.locator('.pcard__label').count() === 0,
-      `${pub(MICHELIN).name}: «Sob consulta», sem preço, sem «Adicionar» e sem letras soltas da etiqueta`, preco);
-    const novos = await page.$$eval('article.pcard', (as) => as.filter((a) => a.getAttribute('data-cat') === 'Pneus Novos').map((a) => [a.querySelector('.pcard__price').textContent.trim(), !!a.querySelector('[data-add]')]));
-    certo(novos.length === 11 && novos.every(([p, add]) => p === 'Sob consulta' && !add), `   os ${novos.length} pneus novos da loja estão todos assim`, novos);
+      `   com ?teste=1, ${pub(MICHELIN).name} aparece sem preço, sem «Adicionar» e sem letras soltas da etiqueta`, preco);
     // Um carrinho forjado com o pneu: o Worker recusa-o (fora de venda na cópia publicada).
     await page.evaluate((c) => localStorage.setItem('ap-cart-v2', JSON.stringify(c)), noCarrinho(publicado, [MICHELIN, 1]));
     await page.goto(`${BASE}/checkout.html`);

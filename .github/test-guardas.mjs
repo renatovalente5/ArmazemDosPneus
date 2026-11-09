@@ -1060,12 +1060,12 @@ try {
   secao('o catálogo (assets/js/catalog.js): o que o cartão anuncia');
   /* O catalog.js verdadeiro, num vm, com um document e um fetch de
      faz-de-conta: devolve o HTML dos cartões. */
-  const cartoes = async (produtos) => {
+  const cartoes = async (produtos, { search = '' } = {}) => {
     const els = {};
     const el = (id) => (els[id] ||= { id, innerHTML: '', value: '', getAttribute: () => null, addEventListener() {}, querySelectorAll: () => [] });
     const ctx = {
       document: { getElementById: (id) => (['catalog-grid', 'catalog-filters', 'catalog-search'].includes(id) ? el(id) : null), querySelector: () => null },
-      window: { addEventListener() {} }, location: { search: '', hash: '' }, URLSearchParams,
+      window: { addEventListener() {} }, location: { search, hash: '' }, URLSearchParams,
       fetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve({ products: produtos }) }),
     };
     vm.runInNewContext(ler('assets/js/catalog.js'), ctx);
@@ -1086,17 +1086,23 @@ try {
        Reg. (UE) 2020/740 (art. 6.º n.ºs 2 e 7) obriga a etiqueta junto de
        qualquer preço anunciado de um tipo de pneu. */
     const m = clonar(HOJE.products.products[MICHELIN]);
-    const sem = await cartoes([m]);
+    /* Desde 9 nov 2026 (o Renato: «podes apagar os items Sob consulta») não
+       aparece de todo; com ?teste=1 aparece como antes, sem preço. */
+    const fora = await cartoes([m]);
+    certo(!/pcard__title/.test(fora) && !/155,00/.test(fora),
+      'pneu novo sem a etiqueta completa: não aparece na loja', fora.slice(0, 200));
+    const sem = await cartoes([m], { search: '?teste=1' });
     certo(/pcard__title/.test(sem) && !/155,00/.test(sem) && /Sob consulta/.test(sem) && !/pcard__label/.test(sem) && !/data-add/.test(sem),
-      'pneu novo sem a etiqueta completa: sem preço («Sob consulta»), sem letras soltas e sem «Adicionar»', sem.slice(0, 300));
+      '   com ?teste=1: sem preço («Sob consulta»), sem letras soltas e sem «Adicionar»', sem.slice(0, 300));
     const completa = { ...m, available: true, stock: 4, label_noise_class: 'B', eprel_id: '123456' };
     const com = await cartoes([completa]);
     certo(/155,00 €/.test(com) && /data-add/.test(com) && /href="https:\/\/eprel\.ec\.europa\.eu\/screen\/product\/tyres\/123456"/.test(com) && /Etiqueta e ficha de informação/.test(com),
       '   com a etiqueta completa: preço, «Adicionar» e a ligação para a etiqueta e a ficha no EPREL', com.slice(0, 300));
     const semi = clonar(HOJE.products.products[SEMINOVO]);
     certo(/32,90 €/.test(await cartoes([semi])), '   um seminovo (fora do regulamento) continua com o preço à vista');
+    certo(!/pcard__title/.test(await cartoes([{ ...semi, price_eur: 0 }])), '   um artigo a 0 € (o antigo «Sob consulta») também não aparece');
     const lembrete = R.problemas(TEXTO).find((p) => p.chave === `produto:${m.sku}:a-espera`);
-    certo(lembrete && /sem preço/.test(lembrete.mensagem), '   e o lembrete do painel diz ao dono que o pneu aparece sem preço', lembrete && lembrete.mensagem);
+    certo(lembrete && /não aparece na loja/.test(lembrete.mensagem), '   e o lembrete do painel diz ao dono que o pneu não aparece na loja', lembrete && lembrete.mensagem);
   }
 
   /* ================================================================== */

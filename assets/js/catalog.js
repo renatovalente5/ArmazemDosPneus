@@ -31,8 +31,9 @@
   /* A etiqueta UE completa (Reg. (UE) 2020/740) — a mesma regra do
      faltasDaEtiqueta do .github/regras.mjs. O art. 6.º (n.ºs 2 e 7) obriga a
      mostrar a etiqueta junto de QUALQUER preço anunciado de um tipo de pneu,
-     esteja ou não à venda: um pneu novo sem ela não mostra o preço («Sob
-     consulta»), nem letras soltas que parecem a etiqueta e não são. */
+     esteja ou não à venda: um pneu novo sem ela não aparece na loja
+     (semPrecoAVista), e com ?teste=1 aparece sem o preço («Sob consulta») e
+     sem letras soltas que parecem a etiqueta e não são. */
   var CLASSES = ['A', 'B', 'C', 'D', 'E'];
   function etiquetaCompleta(p) {
     return CLASSES.indexOf(p.label_fuel) >= 0 && CLASSES.indexOf(p.label_grip) >= 0 &&
@@ -42,6 +43,14 @@
   }
   // Os seminovos estão excluídos do regulamento (art. 2.º n.º 2 al. h)).
   function novoSemEtiqueta(p) { return isTyre(p) && p.condition !== 'Seminovo' && !etiquetaCompleta(p); }
+
+  /* SEM PREÇO À VISTA, FORA DA LOJA (o Renato, 9 nov 2026: «podes apagar os
+     items Sob consulta»). Um artigo à venda tem de mostrar o preço (DL 138/90,
+     art. 1.º), e um pneu novo só o pode mostrar com a etiqueta UE: os que
+     ficavam «Sob consulta» deixam de aparecer, na loja e nos destaques da
+     inicial, e voltam sozinhos quando o painel tiver o preço e a etiqueta.
+     Com ?teste=1 continuam à vista, como os escondidos. */
+  function semPrecoAVista(p) { return !(Number(p.price_eur) > 0) || novoSemEtiqueta(p); }
 
   /* Etiqueta UE (Reg. 2020/740): pneus NOVOS mostram as três classes, sendo a
      de ruído uma CLASSE A/B/C acompanhada dos dB, mais os pictogramas de neve
@@ -250,7 +259,7 @@
       try { verEscondidos = new URLSearchParams(location.search).has('teste'); } catch (e) {}
       all = ((data && data.products) || []).filter(function (p) {
         if (!p || !p.sku) return false;
-        return verEscondidos || !(p.hidden === true || p.sku.indexOf('zz-') === 0);
+        return verEscondidos || !(p.hidden === true || p.sku.indexOf('zz-') === 0 || semPrecoAVista(p));
       });
       window.__products = all;
       // Categoria vinda do teaser da homepage (?cat=...) — pré-seleciona o filtro.
