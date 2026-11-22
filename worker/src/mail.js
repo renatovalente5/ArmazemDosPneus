@@ -329,8 +329,8 @@ export async function confirmacaoCliente(env, order) {
     '',
     'DIREITO DE LIVRE RESOLUÇÃO',
     '  Tem 14 dias, a contar da data em que recebe os bens, para resolver este',
-    '  contrato sem indicar qualquer motivo. Para o exercer, basta comunicar-nos',
-    '  a sua decisão — por email, telefone, ou usando o formulário em:',
+    '  contrato. Para o exercer, comunique-nos a sua decisão — por email,',
+    '  telefone, ou usando o formulário em:',
     `  ${env.SITE_URL}/legal/livre-resolucao.html`,
     '  (o modelo do formulário vai também no fim deste email, no Anexo 1).',
     '  Reembolsamos em 14 dias, pelo mesmo meio de pagamento, incluindo os',
@@ -409,7 +409,7 @@ export async function confirmacaoCliente(env, order) {
       separador(),
       bloco([
         h2('Direito de livre resolução'),
-        p(`Tem <strong>14 dias</strong>, a contar da data em que recebe os bens, para resolver este contrato sem indicar qualquer motivo. Para o exercer, basta comunicar-nos a sua decisão — por email, telefone, ou usando o formulário em ${link(site + '/legal/livre-resolucao.html', 'armazemdospneus.pt/legal/livre-resolucao.html')} (o modelo vai também no fim deste email, no Anexo 1). Reembolsamos em 14 dias, pelo mesmo meio de pagamento, incluindo os portes de entrega standard${devolucao
+        p(`Tem <strong>14 dias</strong>, a contar da data em que recebe os bens, para resolver este contrato. Para o exercer, comunique-nos a sua decisão — por email, telefone, ou usando o formulário em ${link(site + '/legal/livre-resolucao.html', 'armazemdospneus.pt/legal/livre-resolucao.html')} (o modelo vai também no fim deste email, no Anexo 1). Reembolsamos em 14 dias, pelo mesmo meio de pagamento, incluindo os portes de entrega standard${devolucao
           ? `. Em caso de devolução, <strong>os custos de envio de retorno são suportados por si, no valor de ${esc(eur(devolucao))}</strong>.`
           : ', e <strong>os custos de devolução dos bens são suportados pela loja</strong>.'}`),
         c.montagem_imediata

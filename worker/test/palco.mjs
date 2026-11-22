@@ -228,8 +228,18 @@ export async function workerDeAntes(ref, pastaRepo) {
 const FRASE_QUE_SAIU = 'Ao concluir o pagamento celebra um contrato de compra e venda com obrigação de pagar. ';
 const semAFraseQueSaiu = (s) => [FRASE_QUE_SAIU, new URLSearchParams({ x: FRASE_QUE_SAIU }).toString().slice(2), encodeURIComponent(FRASE_QUE_SAIU)]
   .reduce((t, f) => t.split(f).join(''), s);
+/* A livre resolução nos emails deixou de dizer «sem indicar qualquer motivo» e «basta comunicar-nos» a 22 nov 2026
+   (o Renato: nada que empurre o cliente a desistir). Os Workers de antes ainda o dizem: troca-se aqui pela frase
+   nova, no texto e no html (já dentro do JSON, por isso com o \n escapado), e o resto continua a ser comparado. */
+const DESISTENCIA_QUE_MUDOU = [
+  ['contrato sem indicar qualquer motivo. Para o exercer, basta comunicar-nos\n  a sua decisão — por email, telefone, ou usando o formulário em:',
+    'contrato. Para o exercer, comunique-nos a sua decisão — por email,\n  telefone, ou usando o formulário em:'],
+  ['contrato sem indicar qualquer motivo. Para o exercer, basta comunicar-nos a sua decisão — por email, telefone, ou usando o formulário em',
+    'contrato. Para o exercer, comunique-nos a sua decisão — por email, telefone, ou usando o formulário em'],
+].map((par) => par.map((t) => JSON.stringify(t).slice(1, -1)));
+const comADesistenciaNova = (s) => DESISTENCIA_QUE_MUDOU.reduce((t, [antes, agora]) => t.split(antes).join(agora), s);
 export function semAcaso(x) {
-  return JSON.parse(semAFraseQueSaiu(JSON.stringify(x))
+  return JSON.parse(comADesistenciaNova(semAFraseQueSaiu(JSON.stringify(x)))
     .replace(/AP-\d{8}-[0-9a-f]{8}/g, 'AP-AAAAMMDD-xxxxxxxx')
     .replace(/expires_at=\d+/g, 'expires_at=N')
     .replace(/cs_test_ensaio\d+/g, 'cs_test_ensaioN')

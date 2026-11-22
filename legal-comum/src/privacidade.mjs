@@ -277,7 +277,7 @@ export function destinatariosHtml(config = {}, { formato = 'tabela', classe = 'd
   ].join('\n');
 }
 
-/** Para pôr junto de cada formulário (RGPD, art. 13.º). */
+/** Frase opcional para junto de um formulário (boa prática; a ligação à política no rodapé da página já cumpre o RGPD, arts. 12.º e 13.º). */
 export const FRASE_FORMULARIO =
   'Os dados que enviar servem só para responder ao seu pedido e ficam guardados até 12 meses. Saiba mais na política de privacidade.';
 

@@ -60,7 +60,7 @@
       s.push('Contactamos para combinar o <strong>levantamento e a montagem</strong>.');
       s.push('Leve o número da encomenda quando vier à loja.');
     }
-    s.push('Tem <strong>14 dias</strong> para mudar de ideias — <a href="legal/livre-resolucao.html">formulário de livre resolução</a>.');
+    s.push('O prazo para desistir da compra é de <strong>14 dias</strong> depois de receber a encomenda — <a href="legal/livre-resolucao.html">as condições</a>.');
     return s.map(function (x) { return '<li>' + x + '</li>'; }).join('');
   }
 

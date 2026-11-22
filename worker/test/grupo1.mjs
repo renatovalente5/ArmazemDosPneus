@@ -127,6 +127,9 @@ export async function correr({ ok }) {
   ok('texto: os 10 centros de competência genérica', ral && SIGLAS.every((s) => ral.some((l) => l.includes(`- ${s} — `))), ral);
   ok('html: os 10 centros, cada um com a ligação', SIGLAS.every((s) => html.includes(`<li style="margin:0 0 4px 0;">${s} — `)) && (html.match(/<li style="margin:0 0 4px 0;">/g) || []).length === 10);
   ok('nem «aderimos» nem a plataforma ODR', !/aderimos|ec\.europa\.eu\/consumers\/odr/i.test(text + html));
+  // A livre resolução diz o prazo e como se exerce, sem empurrar o cliente para desistir (22 nov 2026, o Renato).
+  ok('livre resolução: nem «sem indicar qualquer motivo», nem «basta comunicar-nos», nem «mudar de ideias»',
+    /Direito de livre resolução/i.test(text) && !/indicar qualquer motivo|basta comunicar|sem dar justifica|mudar de ideias/i.test(text + html));
 
   // Formulário de livre resolução (DL 24/2014, Anexo, Parte B), com o vendedor.
   const para = '— Para Motivar & Lucrar, Unipessoal, Lda. («Armazém dos Pneus»), Travessa do Navega, 436 F, 3885-183 Arada, Ovar, loja@exemplo.pt:';
