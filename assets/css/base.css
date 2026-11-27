@@ -73,6 +73,9 @@
 [hidden]{display:none!important}
 html{-webkit-text-size-adjust:100%;scroll-behavior:smooth;scroll-padding-top:78px}
 body{font-family:var(--font-body);font-size:var(--fs-body);line-height:1.65;color:var(--body);background:var(--bg);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;overflow-x:hidden}
+/* A página acaba na última linha do rodapé: nada de faixa nem espaço vazio por baixo dele. Nas páginas curtas o rodapé fica no fundo do ecrã e o espaço que sobra fica dentro da página. */
+body{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
+body>main{flex:1 0 auto}
 img,picture,svg,video{display:block;max-width:100%;height:auto}
 input,button,textarea,select{font:inherit;color:inherit}
 button{cursor:pointer;background:none;border:none}
